@@ -3,7 +3,7 @@ import { monthKey } from '../lib/date'
 
 // Обёртка над файловым API Electron. В обычном браузере (vite без Electron)
 // подменяется на localStorage, чтобы интерфейс можно было открыть и без сборки.
-interface Bridge {
+export interface Bridge {
   vaultPath(): Promise<string>
   chooseVault(): Promise<string | null>
   revealVault(): Promise<unknown>
@@ -134,10 +134,29 @@ const browserBridge: Bridge = {
   openSound: async () => null,
 }
 
-export const bridge: Bridge =
+/*
+ * Через что программа говорит с хранилищем.
+ *
+ * Не const, а let, и это нарочно: войдя в облако, мост подменяется на
+ * облачный. Живые связи модулей делают подмену видимой всем, кто уже
+ * импортировал bridge, — иначе половина программы продолжала бы писать в
+ * localStorage, а другая в сеть, и данные разъехались бы молча.
+ *
+ * Меняется он ровно один раз и до того, как хранилище начнёт грузиться, —
+ * см. компонент входа.
+ */
+export let bridge: Bridge =
   (typeof window !== 'undefined' && (window as unknown as { kashel?: Bridge }).kashel) || browserBridge
 
 export const isDesktop = typeof window !== 'undefined' && !!(window as unknown as { kashel?: Bridge }).kashel
+
+/** Браузерный мост — облачному он нужен для того, что сетью не делается. */
+export { browserBridge }
+
+/** Подменить мост. Возврата нет: выход из облака перезагружает окно. */
+export function поставитьМостъ(новый: Bridge): void {
+  bridge = новый
+}
 
 const DATA_FILE = 'data.json'
 const txFile = (mk: string) => `transactions/${mk}.json`

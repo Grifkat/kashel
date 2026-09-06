@@ -1405,6 +1405,79 @@ kbd {
   background: linear-gradient(90deg, color-mix(in srgb, var(--alert) 55%, transparent), var(--alert));
 }
 
+/* ------------------------------------------------------ ворота входа */
+/* Цвета и скругления берутся из темы, своих тут нет ни одного: ворота
+   встречают человѣка раньше, чем он выберет оформление, и обязаны выглядеть
+   продолжением программы, а не отдельной страницей. */
+.vorota {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--bg);
+  overflow-y: auto;
+}
+.vorota-karta {
+  width: 100%;
+  max-width: 420px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 30px 28px 26px;
+  box-shadow: var(--shadow);
+}
+.vorota-glava { margin-bottom: 22px; }
+.vorota-glava h1 {
+  margin: 0 0 4px;
+  font-size: 30px;
+  font-weight: 700;
+  color: var(--text-strong);
+  font-family: var(--font-display);
+  letter-spacing: var(--title-spacing);
+}
+.vorota-glava p { margin: 0; font-size: 13.5px; }
+
+.vorota-рѣчь { margin: 0 0 18px; font-size: 14px; line-height: 1.6; color: var(--muted); }
+
+.vorota-поле { display: block; margin-bottom: 14px; }
+.vorota-поле > span {
+  display: block;
+  margin-bottom: 5px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+.vorota-поле > input { width: 100%; }
+
+.vorota-кнопки { display: flex; gap: 8px; margin-top: 18px; }
+.vorota-кнопки .btn { flex: 1; }
+.vorota-мимо { width: 100%; margin-top: 12px; }
+
+/* Предупреждение о невосстановимом пароле — не украшение, а единственное
+   место, где человѣку об этом говорят до того, как станет поздно. */
+.vorota-остереженіе {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-left: 3px solid var(--warn);
+  background: var(--panel-2);
+  border-radius: var(--radius);
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.vorota-остереженіе b { color: var(--text-strong); }
+
+.vorota-бѣда {
+  margin-top: 14px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--alert) 14%, transparent);
+  color: var(--alert);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 /* ------------------------------------------------------ пометка обновленія */
 /* Точка, а не число: сообщать надо о самом факте, а считать тут нечего.
    Цвет берётся из темы — она одинаково видна во всех семи оформлениях. */
