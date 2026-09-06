@@ -8,6 +8,6 @@
 const ОТКРЫТЫЙ_КЛЮЧЪ = "MCowBQYDK2VwAyEAzwN2XLdbTxx2pwIvrwfTgxzx9bkbBnWu5gYjtrZejlo="
 
 /** Каталог на вашем хостинге, где лежат update.json и установщики. */
-const АДРЕСЪ_ПО_УМОЛЧАНІЮ = "https://example.invalid/kashel"
+const АДРЕСЪ_ПО_УМОЛЧАНІЮ = "https://github.com/Grifkat/kashel/releases/latest/download"
 
 module.exports = { ОТКРЫТЫЙ_КЛЮЧЪ, АДРЕСЪ_ПО_УМОЛЧАНІЮ }
