@@ -16,10 +16,19 @@ const path = require('node:path')
  * слэшами. Хранилище, записанное как «C:/Users/имя/Кошель», переставало
  * читаться и писаться целиком.
  */
-function insideVault(root, rel) {
+/*
+ * Третій доводъ — разновидность путей. По умолчанію та, подъ которой идётъ
+ * программа; въ самопроверкѣ подставляются обѣ, path.win32 и path.posix.
+ *
+ * Безъ него половина правила никогда не провѣрялась бы: на Windows не видно,
+ * что дѣлается съ «/etc/passwd», на Linux — что съ «\\srv\share». А правило
+ * это стережётъ запись въ файлы, и держаться оно обязано на обѣихъ системахъ,
+ * а не на той, гдѣ случилось запустить проверки.
+ */
+function insideVault(root, rel, p = path) {
   if (typeof rel !== 'string' || !rel) return false
-  const r = path.relative(root, path.resolve(root, rel))
-  return !(r !== '' && (path.isAbsolute(r) || r === '..' || r.startsWith('..' + path.sep)))
+  const r = p.relative(root, p.resolve(root, rel))
+  return !(r !== '' && (p.isAbsolute(r) || r === '..' || r.startsWith('..' + p.sep)))
 }
 
 module.exports = { insideVault }

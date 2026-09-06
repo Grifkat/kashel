@@ -31,6 +31,7 @@ import { insideVault } from '../electron/vaultpath.js'
 import { новѣе, подписьВѣрна, разобрать, родъ } from '../electron/update.js'
 import * as крипто from 'node:crypto'
 import { readFileSync } from 'node:fs'
+import * as path from 'node:path'
 
 const fail: string[] = []
 const check = (name: string, cond: boolean, extra = '') => {
@@ -429,18 +430,47 @@ check('демо-данные перешли на каталог',
 // Прежняя проверка сравнивала строки и ложно блокировала работу, когда путь
 // в config.json записан с прямыми слэшами или завершающим разделителем.
 // На глаз разницу между startsWith и relative не видно — отсюда тест.
+/*
+ * Обѣ разновидности путей проверяются всегда, а не та, на которой запущено.
+ *
+ * Раньше здѣсь стояли одни windows-пути, и на Ubuntu три проверки падали:
+ * «..\evil.json» тамъ не подъёмъ наверхъ, а законное имя файла съ обратной
+ * косой внутри. Само правило было исправно — врали проверки. Но выводъ изъ
+ * этого не «починить подъ Linux»: программа идётъ на обѣихъ системахъ, и
+ * стеречь запись въ файлы обязана на обѣихъ. Поэтому ниже два набора, и оба
+ * идутъ вездѣ.
+ */
 console.log('\n— границы хранилища —')
+const вин = (root: string, rel: string) => insideVault(root, rel, path.win32)
+const никс = (root: string, rel: string) => insideVault(root, rel, path.posix)
+
+// --- Windows
 const ROOT = 'C:\\Users\\я\\Кошель'
-check('обычный относительный путь пропускается', insideVault(ROOT, 'data.json'))
-check('вложенная папка пропускается', insideVault(ROOT, 'notes/Заметка.md'))
-check('прямые слэши в корне не мешают', insideVault('C:/Users/я/Кошель', 'data.json'))
-check('завершающий разделитель не мешает', insideVault('C:\\Users\\я\\Кошель\\', 'data.json'))
-check('другой регистр не мешает', insideVault('c:\\vault', 'C:\\Vault\\data.json'))
-check('подъём наверх блокируется', !insideVault(ROOT, '..\\evil.json'))
-check('подъём внутри пути блокируется', !insideVault(ROOT, 'notes/../../evil.md'))
-check('ловушка соседней папки блокируется', !insideVault('C:\\Vault', 'C:\\Vault2\\x.json'))
-check('сетевой путь блокируется', !insideVault('C:\\Vault', '\\\\srv\\share\\x.json'))
-check('пустой путь блокируется', !insideVault(ROOT, ''))
+check('обычный относительный путь пропускается', вин(ROOT, 'data.json'))
+check('вложенная папка пропускается', вин(ROOT, 'notes/Заметка.md'))
+check('прямые слэши в корне не мешают', вин('C:/Users/я/Кошель', 'data.json'))
+check('завершающий разделитель не мешает', вин('C:\\Users\\я\\Кошель\\', 'data.json'))
+check('другой регистр не мешает', вин('c:\\vault', 'C:\\Vault\\data.json'))
+check('подъём наверх блокируется', !вин(ROOT, '..\\evil.json'))
+check('подъём внутри пути блокируется', !вин(ROOT, 'notes/../../evil.md'))
+check('ловушка соседней папки блокируется', !вин('C:\\Vault', 'C:\\Vault2\\x.json'))
+check('сетевой путь блокируется', !вин('C:\\Vault', '\\\\srv\\share\\x.json'))
+check('другой диск блокируется', !вин('C:\\Vault', 'D:\\evil.json'))
+check('пустой путь блокируется', !вин(ROOT, ''))
+
+// --- Linux и всё прочее
+const КОРЕНЬ = '/home/я/Кошель'
+check('linux: обычный путь пропускается', никс(КОРЕНЬ, 'data.json'))
+check('linux: вложенная папка пропускается', никс(КОРЕНЬ, 'notes/Заметка.md'))
+check('linux: завершающий разделитель не мешает', никс('/home/я/Кошель/', 'data.json'))
+check('linux: подъём наверх блокируется', !никс(КОРЕНЬ, '../evil.json'))
+check('linux: подъём внутри пути блокируется', !никс(КОРЕНЬ, 'notes/../../evil.md'))
+check('linux: абсолютный путь наружу блокируется', !никс(КОРЕНЬ, '/etc/passwd'))
+check('linux: ловушка соседней папки блокируется', !никс('/vault', '/vault2/x.json'))
+check('linux: пустой путь блокируется', !никс(КОРЕНЬ, ''))
+// Регистр на Linux значим: «/Vault» и «/vault» — разные папки, и путь из
+// одной в другую наружу, а не внутрь.
+check('linux: регистр значим', !никс('/vault', '/Vault/data.json'))
 
 // ------------------------------------------- дата новой записи
 // Дата берётся из открытого периода, а не из системных часов. Правило одно
