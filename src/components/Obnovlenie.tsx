@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { Icon } from '../lib/icons'
 import { bridge, type Находка } from '../state/vault'
 import { useToast } from './ui'
@@ -26,6 +26,23 @@ type Состояніе =
 
 const мегабайты = (b: number) => (b / 1024 / 1024).toFixed(1) + ' МБ'
 
+/*
+ * Просьба из меню «Вид»: проверить обновление.
+ *
+ * Живёт вне React, потому что приходит из главного процесса в тот миг, когда
+ * раздела «Настройки» на экране может ещё не быть. Открытый раздел отзовётся
+ * слушателем сразу; закрытый — по флажку, как только откроется. Иначе нажатие
+ * в меню пропадало бы впустую ровно в том случае, ради которого пункт и
+ * добавлен: когда человѣкъ в настройки ещё не заходил.
+ */
+let ждётПроверки = false
+const слушатели = new Set<() => void>()
+
+export function попроситьПроверку() {
+  if (слушатели.size) for (const ф of слушатели) ф()
+  else ждётПроверки = true
+}
+
 export function Obnovlenie() {
   const toast = useToast()
   const [версія, setВерсія] = useState('')
@@ -40,31 +57,44 @@ export function Obnovlenie() {
     })
   }, [])
 
-  // Ход скачивания и находки приходят из главного процесса.
-  useEffect(() => {
-    if (!bridge.onUpdate) return
-    return bridge.onUpdate((e) => {
-      if (e.kind === 'progress') {
-        setС((п) => (п.вид === 'качаю' ? { ...п, было: e.было, всего: e.всего } : п))
-      } else {
-        setС((п) => (п.вид === 'качаю' ? п : { вид: 'есть', н: e.находка }))
-      }
-    })
-  }, [])
-
-  // На вебе обновлять нечего: программа и так открыта в браузере.
-  if (!bridge.updateCheck) return null
-
-  const проверить = async () => {
+  const проверить = useCallback(async () => {
+    if (!bridge.updateCheck) return
     setС({ вид: 'смотрю' })
     try {
-      const н = await bridge.updateCheck!()
+      const н = await bridge.updateCheck()
       setВерсія(н.текущая)
       setС(н.есть ? { вид: 'есть', н } : { вид: 'свѣжая' })
     } catch (e) {
       setС({ вид: 'бѣда', текстъ: (e as Error).message })
     }
-  }
+  }, [])
+
+  // Ход скачивания, находки тихой проверки и просьба из меню.
+  useEffect(() => {
+    if (!bridge.onUpdate) return
+    return bridge.onUpdate((e) => {
+      if (e.kind === 'progress') {
+        setС((п) => (п.вид === 'качаю' ? { ...п, было: e.было, всего: e.всего } : п))
+      } else if (e.kind === 'menu') {
+        void проверить()
+      } else {
+        setС((п) => (п.вид === 'качаю' ? п : { вид: 'есть', н: e.находка }))
+      }
+    })
+  }, [проверить])
+
+  // Нажатие в меню, случившееся до того, как раздел открыли.
+  useEffect(() => {
+    слушатели.add(проверить)
+    if (ждётПроверки) {
+      ждётПроверки = false
+      void проверить()
+    }
+    return () => { слушатели.delete(проверить) }
+  }, [проверить])
+
+  // На вебе обновлять нечего: программа и так открыта в браузере.
+  if (!bridge.updateCheck) return null
 
   const поставить = async (н: Находка) => {
     setС({ вид: 'качаю', н, было: 0, всего: н.size })

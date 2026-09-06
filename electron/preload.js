@@ -71,11 +71,15 @@ contextBridge.exposeInMainWorld('kashel', {
   onUpdate: (cb) => {
     const наХодъ = (_e, p) => cb({ kind: 'progress', ...p })
     const наНаходку = (_e, н) => cb({ kind: 'found', находка: н })
+    // Просьба из меню «Вид» — «проверить сейчас».
+    const изъМеню = () => cb({ kind: 'menu' })
     ipcRenderer.on('update:progress', наХодъ)
     ipcRenderer.on('update:found', наНаходку)
+    ipcRenderer.on('menu:update', изъМеню)
     return () => {
       ipcRenderer.off('update:progress', наХодъ)
       ipcRenderer.off('update:found', наНаходку)
+      ipcRenderer.off('menu:update', изъМеню)
     }
   },
 

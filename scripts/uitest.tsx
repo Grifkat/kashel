@@ -12,7 +12,7 @@ import { THEMES } from '../src/lib/themes'
 import { Boundary } from '../src/components/Boundary'
 import { applyArchive, archiveText, buildArchive, parseArchive } from '../src/engine/archive'
 import { bridge, listCanvases, listNotes, loadVault, readCanvas, saveCore, saveTransactions, writeCanvas } from '../src/state/vault'
-import { Obnovlenie } from '../src/components/Obnovlenie'
+import { Obnovlenie, попроситьПроверку } from '../src/components/Obnovlenie'
 import { addMonths, endOfMonth, humanDate, MONTHS_SHORT, parseISO, relDate, today } from '../src/lib/date'
 import type { VaultData } from '../src/lib/types'
 
@@ -1173,11 +1173,21 @@ async function vaultFailure(root: Root): Promise<Root> {
  */
 async function updates() {
   console.log('\n— обновление —')
+  /*
+   * Уводим приложение с «Настроек».
+   *
+   * Просьба из меню — общая на всю программу, и раздел настроек, открытый в
+   * самом приложении, держит на неё своего слушателя. Пока он жив, просьба
+   * достаётся ему, а не блоку, который проверяется здѣсь: проверка мерила бы
+   * чужой экземпляр и молча зеленела.
+   */
+  await open('Дашборд')
   const holder = document.createElement('div')
   document.body.appendChild(holder)
   const б = bridge as any
   const было = { ...б }
   let ставили = 0
+  let проверокъ = 0
 
   // Перерисовкой тут не обойтись: опрос моста живёт в эффекте с пустыми
   // зависимостями и на живом компоненте второй раз не пойдёт. В программе
@@ -1217,7 +1227,14 @@ async function updates() {
     есть: true, текущая: '1.0.0',
   }
   б.updatePending = async () => ({ версія: '1.0.0', находка: null })
-  б.onUpdate = () => () => {}
+  // Мост отдаёт события по-настоящему: пункт меню проверяется тем же путём,
+  // каким событие приходит из главного процесса.
+  const подписчики = new Set<(e: any) => void>()
+  const послать = (e: any) => { for (const ф of подписчики) ф(e) }
+  б.onUpdate = (cb: (e: any) => void) => {
+    подписчики.add(cb)
+    return () => подписчики.delete(cb)
+  }
   б.updateCheck = async () => ({ ...находка, есть: false })
   б.updateInstall = async () => { ставили++; return { путь: 'C:/tmp/a.exe', действіе: 'установщик запущен' } }
   await заново()
@@ -1243,7 +1260,35 @@ async function updates() {
   check('установка пошла по нажатию', ставили === 1)
   check('итог показан человѣку', въБлокѣ().includes('установщик запущен'), въБлокѣ().slice(0, 200))
 
-  // 5. Отказ обязан быть виден, а не проглочен.
+  // 5. Пункт меню «Вид» при открытом разделе: проверка идёт без нажатия кнопки.
+  б.updateCheck = async () => { проверокъ++; return находка }
+  послать({ kind: 'menu' })
+  await wait(200)
+  check('пункт меню запускает проверку при открытом разделе', проверокъ === 1, `проверок: ${проверокъ}`)
+  check('и находка показана', въБлокѣ().includes('Есть версия 1.1.0'))
+
+  /*
+   * 6. Пункт меню, нажатый до того, как раздел открыли.
+   *
+   * Ровно тот случай, ради которого пункт и добавлен: человѣкъ в настройки
+   * ещё не заходил. Просьба обязана дождаться раздела, а не пропасть.
+   */
+  r.unmount()
+  // Даём размонтированию доснять слушателя: пока он жив, просьба ушла бы в
+  // уже мёртвый компонент, и проверка мерила бы не то.
+  await wait(60)
+  проверокъ = 0
+  попроситьПроверку()
+  // Раздел закрыт — проверке начаться не с чего: просьба обязана ждать.
+  check('в закрытом разделе просьба не выполняется сразу', проверокъ === 0, `проверок: ${проверокъ}`)
+  await заново()
+  // Проверка начинается уже после отрисовки, из эффекта: её ответу нужен
+  // ещё один оборот, иначе меряли бы состояние до него.
+  await wait(200)
+  check('просьба из меню дожидается открытия раздела', проверокъ === 1, `проверок: ${проверокъ}`)
+  check('и версия показана', въБлокѣ().includes('Есть версия 1.1.0'), въБлокѣ().slice(0, 60))
+
+  // 7. Отказ обязан быть виден, а не проглочен.
   б.updateCheck = async () => { throw new Error('подпись обновления не сошлась') }
   click(кнопка('Проверить обновление'))
   await wait(180)

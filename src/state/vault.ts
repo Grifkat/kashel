@@ -56,6 +56,8 @@ export interface Находка {
 export type СобытіеОбновленія =
   | { kind: 'progress'; было: number; всего: number }
   | { kind: 'found'; находка: Находка }
+  /** Пункт «Проверить обновление» в меню «Вид». */
+  | { kind: 'menu' }
 
 /** Файл за пределами хранилища: архив, с которым программу запустили. */
 export interface ExternalFile {

@@ -30,6 +30,7 @@ import { monthQuests, questsDone } from '../src/engine/honors'
 import { insideVault } from '../electron/vaultpath.js'
 import { новѣе, подписьВѣрна, разобрать, родъ } from '../electron/update.js'
 import * as крипто from 'node:crypto'
+import { readFileSync } from 'node:fs'
 
 const fail: string[] = []
 const check = (name: string, cond: boolean, extra = '') => {
@@ -1505,6 +1506,47 @@ const какъТекстъ = (м: unknown) => JSON.stringify(м)
   какъТекстъ({ ...годное, files: { win: { ...годное.files.win, size: 0 } } }))
 падаетъ('неправдоподобный размѣръ — отказъ',
   какъТекстъ({ ...годное, files: { win: { ...годное.files.win, size: 9_000_000_000 } } }))
+
+/*
+ * Каналы между оболочкой и окном.
+ *
+ * Главный процесс шлёт сообщения по именам-строкам, мост на эти же имена
+ * подписывается. Совпадение имён не проверяет ни одна из сторон: разъедутся —
+ * и пункт меню просто перестанет работать, молча, без единой ошибки. Поймать
+ * это в jsdom нельзя, мост там подменён заглушкой; значит остаётся сверить
+ * сами файлы.
+ */
+const вынутьИмена = (текстъ: string, послѣ: string): string[] => {
+  const итогъ: string[] = []
+  let i = 0
+  for (;;) {
+    const j = текстъ.indexOf(послѣ, i)
+    if (j < 0) break
+    const начало = j + послѣ.length
+    const конецъ = текстъ.indexOf("'", начало)
+    if (конецъ <= начало) break
+    итогъ.push(текстъ.slice(начало, конецъ))
+    i = конецъ + 1
+  }
+  return итогъ
+}
+
+const главный = readFileSync('electron/main.js', 'utf8')
+const мостъ = readFileSync('electron/preload.js', 'utf8')
+// Часть сообщений уходит не напрямую, а через toWindow — её тоже надо видеть,
+// иначе проверка молчала бы ровно про пункты меню, которые ею и проверяются.
+const посылаемые = [...new Set([
+  ...вынутьИмена(главный, "webContents.send('"),
+  ...вынутьИмена(главный, "toWindow('"),
+])]
+const слушаемые = new Set(вынутьИмена(мостъ, "ipcRenderer.on('"))
+const потерянные = посылаемые.filter((имя) => !слушаемые.has(имя))
+
+check('всё, что шлёт оболочка, окно слушает',
+  посылаемые.length > 0 && потерянные.length === 0,
+  потерянные.length ? 'некому слушать: ' + потерянные.join(', ') : посылаемые.join(', '))
+check('пунктъ меню «Проверить обновление» доходитъ до окна',
+  посылаемые.includes('menu:update') && слушаемые.has('menu:update'))
 
 console.log(`\nПровалено проверок: ${fail.length}`)
 for (const f of fail) console.log('  ✗ ' + f)

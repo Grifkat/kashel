@@ -43,7 +43,7 @@ import SettingsView from './views/Settings'
 import { relDate, setDateFormat, today } from './lib/date'
 import { bridge } from './state/vault'
 import type { Transaction, TxKind } from './lib/types'
-import { useЕстьОбновленіе } from './components/Obnovlenie'
+import { попроситьПроверку, useЕстьОбновленіе } from './components/Obnovlenie'
 
 export type ViewId =
   | 'dashboard' | 'transactions' | 'categories' | 'accounts' | 'budget' | 'goals'
@@ -226,6 +226,22 @@ export default function App() {
       return next
     })
   }, [])
+
+  /*
+   * Пункт «Проверить обновление» в меню «Вид».
+   *
+   * Меню только просит; всё остальное делает раздел «Настройки» — тот же, что
+   * и при нажатии кнопки там. Открываем его и передаём просьбу дальше: если
+   * раздел уже был открыт, он отзовётся сразу, если нет — как только встанет.
+   */
+  useEffect(() => {
+    if (!bridge.onUpdate) return
+    return bridge.onUpdate((e) => {
+      if (e.kind !== 'menu') return
+      openTab('settings')
+      попроситьПроверку()
+    })
+  }, [openTab])
 
   const splitPane = useCallback(() => {
     setPanes((ps) => {
