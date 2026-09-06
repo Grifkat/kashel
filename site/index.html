@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Кошель — учёт денег на своём диске</title>
+<meta name="description" content="Настольная программа для учёта личных денег: счета, категории, бюджет, прогноз, задачи и заметки. Все данные лежат в вашей папке.">
+<!--
+  Страница скачивания.
+
+  Палитра и шрифт взяты из «Имперской» темы самой программы, буква в букву:
+  человѣкъ, пришедший сюда по ссылке, должен увидеть то же, что увидит после
+  установки. Второй набор цветов заводить было бы неряшливо — они разошлись бы
+  при первой же правке темы.
+
+  Версия и ссылки не вписаны руками: страница спрашивает их у GitHub. Если
+  ответа нет, остаётся обычная ссылка на список выпусков — страница полезна и
+  без скрипта. Подробности и причина, по которой берётся именно API, — в
+  примечании к скрипту внизу.
+-->
+<style>
+  :root {
+    --bg: #12100c;
+    --panel: #1c1913;
+    --panel-2: #241f17;
+    --border: #3a3122;
+    --border-soft: #2a2419;
+    --text: #e8e0cf;
+    --text-strong: #fbf6e9;
+    --muted: #a2957a;
+    --faint: #766c58;
+    --gold: #c9a227;
+    --good: #7fa650;
+    --font: 'Cambria', 'Georgia', 'Times New Roman', serif;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; padding: 56px 22px 72px; }
+
+  header { border-bottom: 1px solid var(--border); padding-bottom: 26px; margin-bottom: 34px; }
+  h1 {
+    font-size: 46px;
+    line-height: 1.1;
+    margin: 0 0 10px;
+    color: var(--text-strong);
+    letter-spacing: 0.01em;
+    font-weight: 700;
+    text-wrap: balance;
+  }
+  .tagline { color: var(--muted); font-size: 19px; margin: 0; text-wrap: balance; }
+
+  h2 {
+    font-size: 15px;
+    text-transform: uppercase;
+    letter-spacing: 0.09em;
+    color: var(--gold);
+    font-weight: 600;
+    margin: 40px 0 14px;
+  }
+
+  .knopki { display: flex; flex-wrap: wrap; gap: 12px; margin: 26px 0 10px; }
+  a.btn {
+    display: inline-flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 13px 22px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    background: var(--panel);
+    color: var(--text-strong);
+    text-decoration: none;
+    transition: border-color .15s, background .15s;
+  }
+  a.btn:hover, a.btn:focus-visible { border-color: var(--gold); background: var(--panel-2); }
+  a.btn:focus-visible { outline: 2px solid var(--gold); outline-offset: 2px; }
+  a.btn.glavnaya { border-color: var(--gold); }
+  a.btn b { font-size: 17px; font-weight: 700; }
+  a.btn span { font-size: 13px; color: var(--faint); }
+
+  p { margin: 0 0 14px; }
+  .faint { color: var(--faint); font-size: 14.5px; }
+  .muted { color: var(--muted); }
+  a { color: var(--gold); }
+
+  ul { padding-left: 20px; margin: 0 0 16px; }
+  li { margin-bottom: 7px; }
+  li b { color: var(--text-strong); font-weight: 600; }
+
+  .karta {
+    border: 1px solid var(--border-soft);
+    border-radius: 4px;
+    background: var(--panel);
+    padding: 18px 20px;
+    margin: 18px 0;
+  }
+  .karta.vazhnoe { border-left: 3px solid var(--gold); }
+
+  footer {
+    margin-top: 48px;
+    padding-top: 22px;
+    border-top: 1px solid var(--border);
+    color: var(--faint);
+    font-size: 14px;
+  }
+  code {
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: 13.5px;
+    background: var(--panel-2);
+    padding: 1px 5px;
+    border-radius: 3px;
+    color: var(--muted);
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Кошель</h1>
+    <p class="tagline">Учёт личных денег, который никуда о вас не сообщает.</p>
+  </header>
+
+  <div class="knopki" id="knopki">
+    <a class="btn glavnaya" id="win" href="https://github.com/__REPO__/releases/latest">
+      <b>Скачать для Windows</b>
+      <span id="win-sub">последний выпуск</span>
+    </a>
+    <a class="btn" id="linux" href="https://github.com/__REPO__/releases/latest">
+      <b>Скачать для Linux</b>
+      <span id="linux-sub">AppImage, одним файлом</span>
+    </a>
+    <a class="btn" href="app/">
+      <b>Открыть в браузере</b>
+      <span>без установки, для пробы</span>
+    </a>
+  </div>
+  <p class="faint" id="versiya">Версия уточняется…</p>
+
+  <div class="karta vazhnoe">
+    <p style="margin:0">
+      <b>Данные остаются у вас.</b> Программа хранит всё в обычной папке на вашем диске:
+      счета и настройки — в <code>data.json</code>, операции — по месяцам, заметки — в
+      markdown. Ни учётных записей, ни сервера, ни отправки на сторону. Папку можно
+      унести на флешке, положить в git или синхронизировать любым облаком — на ваше усмотрение.
+    </p>
+  </div>
+
+  <h2>Что внутри</h2>
+  <ul>
+    <li><b>Счета и операции</b> — наличные, карты, копилки, кредиты и долги.</li>
+    <li><b>Бюджет</b> по категориям с правилом 50/30/20.</li>
+    <li><b>Прогноз</b> на год вперёд, с разбросом по методу Монте-Карло.</li>
+    <li><b>Проектные счета</b> — чужие деньги на вашем счету не считаются вашим доходом.</li>
+    <li><b>Задачи</b> с важностью, сроками и помидорами; задача с суммой попадает в прогноз.</li>
+    <li><b>Канвас и заметки</b> — доска со связями и markdown рядом с цифрами.</li>
+    <li><b>Грамота</b> — чины, ордена и знаки за порядок в деньгах.</li>
+  </ul>
+
+  <h2>Обновления</h2>
+  <p class="muted">
+    Установщик берётся один раз. Дальше в «Настройках» есть кнопка «Проверить
+    обновление», и раз в сутки программа смотрит сама — молча, ничего не скачивая
+    без вашего согласия.
+  </p>
+  <p class="faint">
+    Объявление об обновлении подписано ключом автора. Подменённый файл не установится,
+    даже если взломают этот сайт: скачанное сверяется по подписи, размеру и контрольной сумме.
+  </p>
+
+  <h2>Браузерная проба</h2>
+  <p class="muted">
+    Ссылка «Открыть в браузере» показывает ту же программу без установки. Данные в ней
+    лежат внутри браузера: между устройствами не ходят, а очистка истории сайта их
+    стирает. Для настоящего учёта ставьте программу.
+  </p>
+
+  <footer>
+    Исходный код и выпуски — <a href="https://github.com/__REPO__">на GitHub</a>.
+  </footer>
+
+</div>
+
+<script>
+/*
+ * Версия и прямые ссылки берутся у GitHub через его API.
+ *
+ * Напрашивалось брать их из update.json — того самого объявления, по которому
+ * обновляется установленная программа. Но так нельзя: вложения выпусков
+ * отдаются браузеру без заголовка Access-Control-Allow-Origin, и запрос
+ * блокируется. Проверено вживую: fetch к releases/latest/download падает с
+ * CORS, а к api.github.com проходит. У API есть предел в шестьдесят запросов
+ * в час на адрес — для страницы скачивания с запасом.
+ *
+ * Не достался ответ — на кнопках остаётся ссылка на список выпусков,
+ * написанная прямо в разметке: страница обязана работать и без скрипта.
+ */
+(async () => {
+  const repo = '__REPO__'
+  const мб = (b) => (b / 1024 / 1024).toFixed(0) + ' МБ'
+  const сказать = (текстъ) => { document.getElementById('versiya').textContent = текстъ }
+
+  try {
+    const r = await fetch(`https://api.github.com/repos/${repo}/releases/latest`)
+    if (!r.ok) throw new Error(String(r.status))
+    const в = await r.json()
+    const файлы = в.assets || []
+    // По окончанию имени, а не по полному совпадению: номер версии в имени
+    // меняется каждый выпуск, и точное имя пришлось бы править здѣсь же.
+    const найти = (окончаніе) => файлы.find((ф) => ф.name.toLowerCase().endsWith(окончаніе))
+
+    const поставить = (id, ф, подпись) => {
+      if (!ф) return
+      const кн = document.getElementById(id)
+      кн.href = ф.browser_download_url
+      document.getElementById(id + '-sub').textContent = `${подпись} · ${мб(ф.size)}`
+    }
+    поставить('win', найти('.exe'), 'установщик')
+    поставить('linux', найти('.appimage'), 'AppImage')
+
+    const версія = String(в.tag_name || '').replace(/^v/, '')
+    const дата = в.published_at ? new Date(в.published_at).toLocaleDateString('ru-RU') : ''
+    const строка = String(в.body || '').split('\n').find((s) => s.trim())
+    сказать(
+      `Версия ${версія}${дата ? ' от ' + дата : ''}` +
+      (строка ? ' — ' + строка.trim().replace(/^#+\s*/, '') : ''),
+    )
+  } catch {
+    сказать('Список выпусков открывается по кнопкам выше.')
+  }
+})()
+</script>
+</body>
+</html>

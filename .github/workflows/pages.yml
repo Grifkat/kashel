@@ -1,0 +1,87 @@
+# Публикация сайта: страница скачивания и браузерная версия Кошеля.
+#
+# Что получается по адресу вида https://ИМЯ.github.io/РЕПОЗИТОРІЙ/
+#   /       — страница скачивания из site/index.html
+#   /app/   — сама программа, собранная для браузера
+#
+# Установщиков здесь нет и быть не может: у GitHub Pages потолок 25 МБ на файл,
+# а они весят 82 и 110 МБ. Двоичные файлы живут в Releases, где предел 2 ГБ и
+# трафик не считают, а страница берёт оттуда ссылки.
+#
+# Закрытого ключа подписи в этом рабочем процессе нет намеренно. Выпуск
+# подписывается на машине автора (npm run release) и выкладывается в Releases
+# руками. Положить ключ в секреты GitHub значило бы отдать возможность
+# подписывать обновления тому, кто получит доступ к учётной записи, — а вся
+# затея с подписью держится ровно на том, что ключ есть только у автора.
+#
+# Запуск: при каждой отправке в master и кнопкой Run workflow.
+
+name: Сайт
+
+on:
+  push:
+    branches: [master, main]
+  workflow_dispatch:
+
+# Право писать в Pages нужно самой публикации; content: read — на выемку кода.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Две публикации разом подрались бы за один адрес: свежая ждёт, старая доходит.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Сборка
+    runs-on: ubuntu-latest
+    steps:
+      - name: Забрать исходники
+        uses: actions/checkout@v4
+
+      - name: Поставить Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Зависимости
+        run: npm ci
+
+      # Выкладывать неисправное людям хуже, чем не выложить вовсе.
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Самопроверка
+        run: npm run selftest
+
+      - name: Проверка интерфейса
+        run: npm run uitest
+
+      # Тот же скрипт, которым сайт собирается на своей машине: повтори эту
+      # сборку здесь построчно, и две копии разошлись бы при первой правке.
+      # Он же сам себя и проверяет — незаменённое имя репозитория валит сборку.
+      - name: Собрать браузерную версию и сложить сайт
+        run: npm run site
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+
+      - name: Отдать на публикацию
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    name: Публикация
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - name: Опубликовать
+        id: pages
+        uses: actions/deploy-pages@v4

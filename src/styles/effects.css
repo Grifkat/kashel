@@ -1,0 +1,90 @@
+/* ============================================================================
+   Декоративные эффекты по мотивам React Bits. Цвета взяты из переменных темы,
+   поэтому они одинаково уместны и в «Неоне», и в «Тёплой бумаге».
+   Включаются только на уровне анимаций «полные» — см. components/effects.tsx.
+   ========================================================================== */
+
+/* -------------------------------------------------------- блик по надписи */
+.fx-shiny {
+  display: inline-block;
+  background: linear-gradient(
+    120deg,
+    currentColor 40%,
+    color-mix(in srgb, var(--text-strong) 92%, transparent) 50%,
+    currentColor 60%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fx-shine var(--fx-shine-speed, 5s) linear infinite;
+}
+
+@keyframes fx-shine {
+  0% { background-position: 130%; }
+  100% { background-position: -30%; }
+}
+
+/* ------------------------------------------------------- градиентный текст */
+.fx-gradient {
+  display: inline-block;
+  background: linear-gradient(
+    90deg,
+    var(--text-strong),
+    var(--accent),
+    color-mix(in srgb, var(--info) 80%, var(--accent)),
+    var(--text-strong)
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: fx-gradient var(--fx-gradient-speed, 8s) linear infinite;
+}
+
+@keyframes fx-gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* --------------------------------------------------- блик при наведении */
+/* Вешается только на карточки без всплывающих меню: нужен overflow: hidden,
+   а он обрезал бы выпадающие списки. */
+.fx-glare {
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+
+.fx-glare::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  bottom: -60%;
+  left: -30%;
+  width: 60%;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    color-mix(in srgb, var(--text-strong) 12%, transparent) 50%,
+    transparent 65%
+  );
+  transform: translateX(-220%) rotate(12deg);
+  transition: transform 750ms cubic-bezier(0.2, 0.7, 0.2, 1);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.fx-glare:hover::after {
+  transform: translateX(420%) rotate(12deg);
+}
+
+/* Ни блика, ни переливов, если движение выключено. */
+[data-anim='off'] .fx-shiny,
+[data-anim='off'] .fx-gradient {
+  animation: none;
+  -webkit-text-fill-color: currentColor;
+  background: none;
+}
+[data-anim='off'] .fx-glare::after { display: none; }

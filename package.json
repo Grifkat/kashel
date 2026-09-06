@@ -1,0 +1,93 @@
+{
+  "name": "kashel",
+  "version": "1.0.0",
+  "description": "Кошель — интерактивный учёт финансов с канвасом, заметками и прогнозом",
+  "main": "electron/main.js",
+  "private": true,
+  "author": "Кошель",
+  "scripts": {
+    "icon": "esbuild scripts/icon.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/icon.cjs --log-level=warning && node node_modules/.cache/icon.cjs",
+    "dist": "npm run build && electron-builder --win",
+    "keygen": "node scripts/keygen.js",
+    "release": "node scripts/release.js",
+    "site": "npm run build && node scripts/site.js",
+    "dist:linux": "npm run build && electron-builder --linux tar.gz -c.electronDist=node_modules/.cache/electron-linux/dist",
+    "dist:appimage": "npm run dist:linux && node scripts/appimage.js",
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env KASHEL_DEV=1 electron .\"",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "preview": "vite preview",
+    "dev:web": "vite",
+    "selftest": "esbuild scripts/selftest.ts --bundle --platform=node --format=cjs --loader:.png=dataurl --loader:.jpg=dataurl --outfile=node_modules/.cache/selftest.cjs --log-level=warning && node node_modules/.cache/selftest.cjs",
+    "typecheck": "tsc --noEmit",
+    "uitest": "esbuild scripts/uitest.tsx --bundle --platform=node --format=cjs --external:jsdom --loader:.tsx=tsx --loader:.png=dataurl --loader:.jpg=dataurl --outfile=node_modules/.cache/uitest.cjs --log-level=warning && node node_modules/.cache/uitest.cjs"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.0",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.0",
+    "electron-builder": "^26.15.3",
+    "jsdom": "^30.0.1",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.3",
+    "wait-on": "^8.0.1"
+  },
+  "dependencies": {
+    "@formkit/auto-animate": "^0.10.0",
+    "@number-flow/react": "^0.6.2",
+    "motion": "^13.1.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "sonner": "^2.0.8"
+  },
+  "build": {
+    "appId": "ru.kashel.app",
+    "productName": "Кошель",
+    "copyright": "Кошель",
+    "electronDist": "node_modules/electron/dist",
+    "afterPack": "./scripts/afterPack.js",
+    "directories": { "output": "release", "buildResources": "build" },
+    "files": ["electron/**/*", "dist/**/*", "package.json"],
+    "win": {
+      "target": "nsis",
+      "icon": "build/icon.ico",
+      "artifactName": "Кошель ${version} установщик.${ext}"
+    },
+    "linux": {
+      "target": ["tar.gz"],
+      "icon": "build/icon.png",
+      "executableName": "koshel",
+      "category": "Office;Finance",
+      "synopsis": "Personal finance ledger with forecast, canvas and notes",
+      "description": "Koshel — personal finance ledger: accounts, categories, budget, forecast, tasks, canvas and notes. All data stays in one folder on your own disk.",
+      "artifactName": "Koshel-${version}-linux-x86_64-installer.${ext}",
+      "extraFiles": [
+        { "from": "build/linux/install.sh", "to": "install.sh" },
+        { "from": "build/linux/uninstall.sh", "to": "uninstall.sh" },
+        { "from": "build/icon.png", "to": "icon.png" }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Кошель",
+      "installerLanguages": ["ru_RU"],
+      "language": "1049"
+    },
+    "fileAssociations": [
+      {
+        "ext": "kashel",
+        "name": "Хранилище Кошеля",
+        "description": "Все данные Кошеля одним файлом",
+        "icon": "build/icon.ico",
+        "role": "Editor"
+      }
+    ]
+  }
+}

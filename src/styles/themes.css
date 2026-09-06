@@ -1,0 +1,306 @@
+/* ============================================================================
+   Шесть оформлений. Каждое задаёт не только цвета, но и характер: скругления,
+   плотность, толщину границ, тени и наличие размытия. Разметка не меняется —
+   классы .card / .btn / .chip читают эти переменные.
+   ========================================================================== */
+
+:root {
+  --radius: 8px;
+  --radius-lg: 14px;
+  /* Мелкий радиус выводим из основного, чтобы у каждой темы своя «мягкость»
+     держалась на всех уровнях: кнопки, бейджи, пункты меню. */
+  --radius-sm: calc(var(--radius) * 0.6);
+  --border-w: 1px;
+  --card-pad-y: 16px;
+  --card-pad-x: 18px;
+  --row-pad-y: 8px;
+  --view-pad-y: 22px;
+  --view-pad-x: 26px;
+  --view-pad-b: 60px;
+  /* Множитель плотности: все отступы интерфейса проходят через него.
+     Размеры шрифта он намеренно не трогает — читаемость от плотности
+     зависеть не должна. */
+  --dens: 1;
+  --panel-blur: none;
+  --bg-image: none;
+  --glow: none;
+  --btn-weight: 500;
+  --title-spacing: -0.01em;
+  /* Деньги. Приход — цвет «хорошего», расход — приглушённый тревожный:
+     полноценный алый на каждой строке расхода превращает список трат в
+     сплошную аварию, а приглушённый всё равно читается как другой знак. */
+  --money-in: var(--good);
+  --money-out: color-mix(in srgb, var(--alert) 58%, var(--text));
+  --money-move: var(--muted);
+}
+
+/* ------------------------------------------------------------- Обсидиан */
+[data-theme='obsidian'] {
+  --bg: #1a1b1e;
+  --bg-alt: #202124;
+  --panel: #26272b;
+  --panel-2: #2d2e33;
+  --hover: #313239;
+  --border: #35363c;
+  --border-soft: #2c2d32;
+  --text: #dcdde1;
+  --text-strong: #f2f3f5;
+  --muted: #8b8d94;
+  --faint: #63656c;
+  --good: #4cc46a;
+  --warn: #e8b93a;
+  --alert: #e05252;
+  --info: #4aa3e8;
+  --shadow: 0 10px 34px rgba(0, 0, 0, 0.5);
+  color-scheme: dark;
+}
+
+/* --------------------------------------------------------------- Графит */
+[data-theme='graphite'] {
+  --bg: #0a0a0a;
+  --bg-alt: #0f0f0f;
+  --panel: #141414;
+  --panel-2: #1c1c1c;
+  --hover: #212121;
+  --border: #282828;
+  --border-soft: #1e1e1e;
+  --text: #d4d4d4;
+  --text-strong: #fafafa;
+  --muted: #a1a1a1;
+  --faint: #6e6e6e;
+  --good: #4ade80;
+  --warn: #facc15;
+  --alert: #f87171;
+  --info: #60a5fa;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  --radius: 6px;
+  --radius-lg: 9px;
+  --card-pad-y: 13px;
+  --card-pad-x: 15px;
+  --row-pad-y: 6px;
+  --view-pad-y: 20px;
+  --view-pad-x: 24px;
+  --view-pad-b: 56px;
+  --btn-weight: 450;
+  --title-spacing: -0.02em;
+  color-scheme: dark;
+}
+
+[data-theme='graphite'] .btn.primary { color: #0a0a0a; }
+[data-theme='graphite'] .hero { background: var(--panel); }
+
+/* --------------------------------------------------------------- Стекло */
+[data-theme='glass'] {
+  --bg: #101323;
+  --bg-alt: rgba(27, 32, 56, 0.55);
+  --panel: rgba(30, 36, 64, 0.55);
+  --panel-2: rgba(44, 52, 88, 0.5);
+  --hover: rgba(70, 82, 130, 0.38);
+  --border: rgba(140, 160, 220, 0.22);
+  --border-soft: rgba(140, 160, 220, 0.12);
+  --text: #dfe4f5;
+  --text-strong: #ffffff;
+  --muted: #99a3c4;
+  --faint: #6f7898;
+  --good: #56d6a0;
+  --warn: #f0c05a;
+  --alert: #ff6b7a;
+  --info: #7aa2ff;
+  --shadow: 0 14px 44px rgba(6, 9, 24, 0.6);
+  --radius: 12px;
+  --radius-lg: 20px;
+  --card-pad-y: 18px;
+  --card-pad-x: 20px;
+  --view-pad-y: 24px;
+  --view-pad-x: 28px;
+  --view-pad-b: 64px;
+  --panel-blur: blur(18px) saturate(1.25);
+  --bg-image:
+    radial-gradient(1000px 620px at 12% -8%, rgba(122, 162, 255, 0.22), transparent 60%),
+    radial-gradient(900px 560px at 88% 6%, rgba(190, 120, 255, 0.16), transparent 62%),
+    radial-gradient(760px 520px at 60% 100%, rgba(86, 214, 160, 0.12), transparent 60%);
+  color-scheme: dark;
+}
+
+[data-theme='glass'] .hero {
+  background: linear-gradient(135deg, rgba(122, 162, 255, 0.28), rgba(30, 36, 64, 0.5));
+}
+
+/* ---------------------------------------------------------------- Неон */
+[data-theme='neon'] {
+  --bg: #07080c;
+  --bg-alt: #0b0d13;
+  --panel: #0e1016;
+  --panel-2: #14171f;
+  --hover: #1b1f2a;
+  --border: #232836;
+  --border-soft: #171b24;
+  --text: #d6e2e0;
+  --text-strong: #ffffff;
+  --muted: #8592a0;
+  --faint: #5c6773;
+  --good: #00e5a0;
+  --warn: #ffd23f;
+  --alert: #ff3d6e;
+  --info: #3dd6ff;
+  --shadow: 0 0 0 1px rgba(0, 229, 160, 0.08), 0 10px 30px rgba(0, 0, 0, 0.75);
+  --radius: 3px;
+  --radius-lg: 5px;
+  --border-w: 1px;
+  --card-pad-y: 14px;
+  --card-pad-x: 16px;
+  --glow: 0 0 12px color-mix(in srgb, var(--accent) 55%, transparent);
+  --btn-weight: 600;
+  --title-spacing: 0.01em;
+  color-scheme: dark;
+}
+
+[data-theme='neon'] .btn.primary { box-shadow: var(--glow); color: #04120c; }
+[data-theme='neon'] .hero {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--panel)), var(--panel));
+  border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
+}
+[data-theme='neon'] .hero-total { text-shadow: var(--glow); }
+[data-theme='neon'] .ribbon-btn.active { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
+
+/* ---------------------------------------------------------------- Мята */
+[data-theme='mint'] {
+  --bg: #eef1ec;
+  --bg-alt: #f6f8f5;
+  --panel: #ffffff;
+  --panel-2: #f3f5f1;
+  --hover: #e8ece5;
+  --border: #d9ded6;
+  --border-soft: #e6eae2;
+  --text: #2c322e;
+  --text-strong: #171a18;
+  --muted: #6d7570;
+  --faint: #9aa39d;
+  --good: #3d9e5a;
+  --warn: #c9922a;
+  --alert: #cd4a4a;
+  --info: #3a86c8;
+  --shadow: 0 8px 26px rgba(60, 80, 65, 0.16);
+  color-scheme: light;
+}
+
+/* -------------------------------------------------------- Тёплая бумага */
+[data-theme='warm'] {
+  --bg: #f6f1e8;
+  --bg-alt: #fbf7f0;
+  --panel: #fffdf9;
+  --panel-2: #f4eee3;
+  --hover: #efe7d9;
+  --border: #e2d8c7;
+  --border-soft: #ece4d7;
+  --text: #40382e;
+  --text-strong: #241e17;
+  --muted: #7c7060;
+  --faint: #a89a86;
+  --good: #5c8f4e;
+  --warn: #c08a2e;
+  --alert: #c2553f;
+  --info: #4a7fa6;
+  --shadow: 0 10px 30px rgba(120, 96, 60, 0.14);
+  --radius: 12px;
+  --radius-lg: 18px;
+  --card-pad-y: 19px;
+  --card-pad-x: 22px;
+  --row-pad-y: 10px;
+  --view-pad-y: 26px;
+  --view-pad-x: 30px;
+  --view-pad-b: 66px;
+  color-scheme: light;
+}
+
+/* ============================================================ применение */
+body {
+  background-color: var(--bg);
+  background-image: var(--bg-image);
+  background-attachment: fixed;
+}
+
+.card,
+.modal,
+.node-toolbar,
+.color-pop,
+.canvas-hud,
+.canvas-tools,
+.graph-legend,
+.toast {
+  backdrop-filter: var(--panel-blur);
+}
+
+/* ------------------------------------------------------------- плотность */
+[data-density='compact'] { --dens: 0.78; }
+[data-density='roomy'] { --dens: 1.28; }
+
+.card { padding: calc(var(--card-pad-y) * var(--dens)) calc(var(--card-pad-x) * var(--dens)); }
+.card.tight { padding: calc(var(--card-pad-y) * 0.75 * var(--dens)) calc(var(--card-pad-x) * 0.78 * var(--dens)); }
+.view {
+  /* Боковые поля — доля панели, а не постоянная величина. Процент считается
+     от содержащего блока, то есть от самой панели, поэтому на узкой панели
+     поля ужимаются сами, без единого запроса ширины. На широком окне 3,4%
+     упираются в прежний потолок, и картинка не меняется. */
+  padding:
+    calc(var(--view-pad-y) * var(--dens))
+    clamp(calc(12px * var(--dens)), 3.4%, calc(var(--view-pad-x) * var(--dens)))
+    calc(var(--view-pad-b) * var(--dens));
+}
+.tx-row, .cat-row {
+  padding-top: calc(var(--row-pad-y) * var(--dens));
+  padding-bottom: calc(var(--row-pad-y) * var(--dens));
+}
+
+/* ---------------------------------------------------------- шрифт чтения */
+/* Длинный текст заметок можно читать шрифтом с засечками: у Cambria крупное
+   очко и спокойный ритм, на абзацах глазам заметно легче, чем гротеском. */
+[data-reading='serif'] .md,
+[data-reading='serif'] .note-editor { font-family: var(--font-serif); }
+[data-reading='serif'] .md code,
+[data-reading='serif'] .md pre { font-family: var(--mono); }
+.btn { font-weight: var(--btn-weight); }
+.view-title, .hero-total { letter-spacing: var(--title-spacing); }
+
+/* Системная просьба «уменьшить движение» учитывается в React (см. anim.tsx):
+   она задаёт значение по умолчанию, но не перебивает явно выбранный уровень.
+   Ниже — единственное место, где движение выключается по-настоящему. */
+[data-anim='off'] *,
+[data-anim='off'] *::before,
+[data-anim='off'] *::after {
+  transition-duration: 0.001ms !important;
+  animation-duration: 0.001ms !important;
+}
+
+/* ------------------------------------------------------------ Имперская */
+/* Чёрное, золото и бѣлое; шрифтъ съ засѣчками. Задумана подъ чины, ордена
+   и грамоту профиля, но остальные разделы въ ней не ломаются: разметка
+   читаетъ тѣ же переменныя, что и прочія шесть темъ. */
+[data-theme='imperial'] {
+  --bg: #12100c;
+  --bg-alt: #171410;
+  --panel: #1c1913;
+  --panel-2: #241f17;
+  --hover: #2c2519;
+  --border: #3a3122;
+  --border-soft: #2a2419;
+  --text: #e8e0cf;
+  --text-strong: #fbf6e9;
+  --muted: #a2957a;
+  --faint: #766c58;
+  --good: #7fa650;
+  --warn: #c9a227;
+  --alert: #a63d33;
+  --info: #6f8fae;
+  --shadow: 0 12px 40px rgba(0, 0, 0, 0.62);
+  --radius: 4px;
+  --radius-lg: 6px;
+  --border-w: 1px;
+  --btn-weight: 600;
+  --title-spacing: 0.01em;
+  /* Засѣчки на весь интерфейсъ: имперская бумага набиралась именно так.
+     Моноширинный оставляемъ прежнимъ — цифры въ столбцахъ важнѣе духа. */
+  --font: 'Cambria', 'Georgia', 'Times New Roman', serif;
+  --font-display: 'Cambria', 'Georgia', 'Times New Roman', serif;
+  color-scheme: dark;
+}

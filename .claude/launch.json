@@ -1,0 +1,38 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "kashel-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev:web"
+      ],
+      "port": 5173
+    },
+    {
+      "name": "kashel-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "preview"
+      ],
+      "port": 4173
+    },
+    {
+      "name": "kashel-site",
+      "runtimeExecutable": "npx",
+      "runtimeArgs": [
+        "--yes",
+        "vite",
+        "preview",
+        "--outDir",
+        "_site",
+        "--port",
+        "4180",
+        "--strictPort"
+      ],
+      "port": 4180
+    }
+  ]
+}

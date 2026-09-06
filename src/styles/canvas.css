@@ -1,0 +1,532 @@
+/* ============================================================================
+   Канвас: полотно, карточки в трёх оформлениях, связи, меню.
+   Цвет узла приходит переменной --cnode-color, поэтому все три стиля
+   одинаково работают в любой теме.
+   ========================================================================== */
+
+.canvas-wrap {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: var(--bg);
+  user-select: none;
+}
+
+.canvas-dots {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--border) 1px, transparent 1px);
+  pointer-events: none;
+}
+
+.canvas-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  /* Слой растянут на всё полотно: без этого он перехватывал бы клики по фону,
+     и не работали бы ни снятие выделения, ни рамка, ни двойной клик. */
+  pointer-events: none;
+}
+
+.canvas-layer {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform-origin: 0 0;
+}
+
+/* ------------------------------------------------------------------ связи */
+.cv-hit {
+  stroke: transparent;
+  stroke-width: 16;
+  fill: none;
+  cursor: pointer;
+  pointer-events: stroke;
+}
+
+.cv-edge-label {
+  font-size: 12px;
+  fill: var(--muted);
+  paint-order: stroke;
+  stroke: var(--bg);
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.cv-ghost {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  pointer-events: none;
+}
+
+.cv-end {
+  fill: var(--panel);
+  stroke: var(--accent);
+  stroke-width: 2;
+  cursor: grab;
+  pointer-events: all;
+}
+
+.cv-guide {
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.75;
+  pointer-events: none;
+}
+
+.cv-marquee {
+  fill: color-mix(in srgb, var(--accent) 12%, transparent);
+  stroke: var(--accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------- карточки */
+.cnode {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  cursor: default;
+  transition: box-shadow var(--tr), border-color var(--tr), transform var(--tr), background var(--tr);
+  background: color-mix(in srgb, var(--cnode-color) 14%, var(--panel));
+}
+
+/* Рамка всегда в цвете карточки — как в Obsidian, и фон подкрашен тем же
+   цветом. Выделение делает рамку заметно ярче, а заливку чуть плотнее,
+   а не подменяет другим цветом: так видно и цвет, и то, что карточка выбрана. */
+.cnode {
+  border: 2px solid color-mix(in srgb, var(--cnode-color) 62%, transparent);
+}
+
+.cnode.sel {
+  border-color: var(--cnode-color);
+  background: color-mix(in srgb, var(--cnode-color) 20%, var(--panel));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--cnode-color) 30%, transparent),
+    var(--shadow);
+  z-index: 2;
+}
+
+.cnode-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-strong);
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 12px 14px 0;
+}
+
+.cnode-value {
+  font-family: var(--font-display);
+  font-size: 23px;
+  font-weight: 650;
+  color: var(--text-strong);
+  letter-spacing: -0.015em;
+  padding: 0 14px;
+  margin-top: 4px;
+}
+.cnode-value.big { font-size: 27px; }
+.cnode-value.neg { color: var(--alert); }
+
+.cnode-sub {
+  font-size: 12px;
+  color: var(--faint);
+  padding: 8px 14px 11px;
+  margin-top: auto;
+}
+
+.cnode-scroll {
+  flex: 1;
+  overflow: auto;
+  padding: 12px 14px;
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.cnode-md .md { font-size: 14px; line-height: 1.55; }
+.cnode-md .md h1 { font-size: 18px; margin: 0 0 6px; }
+.cnode-md .md h2 { font-size: 15.5px; margin: 10px 0 4px; }
+.cnode-md .md h3 { font-size: 14px; margin: 8px 0 4px; }
+.cnode-md .md p { margin: 5px 0; }
+.cnode-md .query-block { margin: 8px 0; padding: 8px 10px; }
+
+.cnode-edit {
+  flex: 1;
+  border: none;
+  background: transparent;
+  resize: none;
+  width: 100%;
+  padding: 12px 14px;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.6;
+  outline: none;
+}
+
+/* --- оформление «полные»: цветная шапка, крупная сумма */
+.cnode-rich {
+  border-radius: var(--radius-lg);
+}
+.cnode-rich .cnode-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.cnode-rich .cnode-avatar {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 14px;
+  flex: none;
+}
+.cnode-rich .cnode-name {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cnode-rich .cnode-main { padding: 12px 14px 0; flex: 1; }
+.cnode-rich .cnode-value { padding: 0; margin: 0; }
+.cnode-rich .cnode-title { padding: 12px 14px 0; }
+
+/* --- оформление «как в Obsidian»: тонкая цветная рамка */
+.cnode-minimal {
+  border-radius: var(--radius-lg);
+}
+
+/* --- оформление «плашки»: заливка цветом, крупный текст */
+.cnode-flat {
+  border-radius: var(--radius-lg);
+  background: color-mix(in srgb, var(--cnode-color) 24%, var(--panel));
+  color: var(--text-strong);
+}
+.cnode-flat.sel { background: color-mix(in srgb, var(--cnode-color) 32%, var(--panel)); }
+.cnode-flat .cnode-flat-title {
+  font-size: 15px;
+  font-weight: 650;
+  padding: 14px 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.cnode-flat .cnode-value { padding: 0 16px; }
+.cnode-flat .cnode-sub { padding: 10px 16px 14px; color: color-mix(in srgb, var(--text) 70%, transparent); }
+.cnode-flat .cnode-scroll { padding: 14px 16px; }
+
+/* --- текстовые карточки одинаковы во всех стилях, только фон разный */
+.cnode-t-text.cnode-rich, .cnode-t-query.cnode-rich { border-left: 3px solid var(--cnode-color); }
+
+/* ------------------------------------------------------------- манипуляторы */
+.cnode-handle {
+  position: absolute;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  opacity: 0;
+  transition: opacity var(--tr), transform var(--tr);
+  cursor: crosshair;
+  z-index: 3;
+}
+.cnode:hover .cnode-handle,
+.cnode.sel .cnode-handle { opacity: 1; }
+.cnode-handle:hover { transform: scale(1.35); }
+.h-top { left: 50%; top: -7px; margin-left: -6.5px; }
+.h-bottom { left: 50%; bottom: -7px; margin-left: -6.5px; }
+.h-left { left: -7px; top: 50%; margin-top: -6.5px; }
+.h-right { right: -7px; top: 50%; margin-top: -6.5px; }
+
+.cnode-resize {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  opacity: 0;
+  transition: opacity var(--tr);
+  z-index: 4;
+}
+.cnode:hover .cnode-resize,
+.cnode.sel .cnode-resize { opacity: 1; }
+
+.cnode-resize::after {
+  content: '';
+  position: absolute;
+  width: 9px;
+  height: 9px;
+  border: 2px solid var(--cnode-color);
+  border-radius: 2px;
+  background: var(--panel);
+}
+
+.r-nw { left: -8px; top: -8px; cursor: nwse-resize; }
+.r-ne { right: -8px; top: -8px; cursor: nesw-resize; }
+.r-sw { left: -8px; bottom: -8px; cursor: nesw-resize; }
+.r-se { right: -8px; bottom: -8px; cursor: nwse-resize; }
+.r-nw::after { left: 3px; top: 3px; }
+.r-ne::after { right: 3px; top: 3px; }
+.r-sw::after { left: 3px; bottom: 3px; }
+.r-se::after { right: 3px; bottom: 3px; }
+
+.cnode-note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+.cnode-note-head .cnode-name { font-weight: 600; color: var(--text-strong); }
+
+.canvas-empty {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  pointer-events: none;
+  color: var(--text);
+}
+
+/* --------------------------------------------------------- панель у связи */
+.edge-bar {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 7px;
+  box-shadow: var(--shadow);
+  z-index: 30;
+  backdrop-filter: var(--panel-blur);
+}
+.edge-bar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; }
+
+/* --------------------------------------------------------- контекстное меню */
+.ctx-menu {
+  position: fixed;
+  min-width: 216px;
+  max-width: 300px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 5px;
+  z-index: 500;
+  backdrop-filter: var(--panel-blur);
+}
+
+.ctx-title {
+  padding: 6px 10px 7px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--faint);
+  border-bottom: 1px solid var(--border-soft);
+  margin-bottom: 4px;
+}
+
+.ctx-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 10px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13.5px;
+  text-align: left;
+  transition: var(--tr);
+}
+.ctx-item:hover:not(:disabled), .ctx-item.open { background: var(--hover); }
+.ctx-item:disabled { opacity: 0.4; cursor: default; }
+.ctx-item.danger { color: var(--alert); }
+.ctx-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ctx-hint { margin-left: auto; }
+
+.ctx-sub {
+  max-height: 260px;
+  overflow-y: auto;
+  margin: 2px 0 4px 10px;
+  padding-left: 8px;
+  border-left: 1px solid var(--border-soft);
+}
+
+.ctx-swatches { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; }
+.ctx-swatch {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.ctx-swatch:hover { border-color: var(--text); }
+.ctx-swatch.sm { width: 16px; height: 16px; }
+
+/* ------------------------------------------------------------- панели */
+.canvas-tools,
+.canvas-hud {
+  position: absolute;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 8px;
+  box-shadow: var(--shadow);
+  z-index: 10;
+  backdrop-filter: var(--panel-blur);
+}
+.canvas-tools { left: 14px; top: 14px; flex-wrap: wrap; max-width: calc(100% - 28px); }
+.canvas-hud { left: 14px; bottom: 14px; }
+.tool-sep { width: 1px; height: 20px; background: var(--border); }
+
+/* Проценты в нижней панели — кнопка возврата к 100 %, а не просто подпись. */
+.hud-zoom {
+  min-width: 46px;
+  padding: 3px 4px;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12.5px;
+  transition: var(--tr);
+}
+.hud-zoom:hover { background: var(--hover); color: var(--text-strong); }
+
+/* --------------------------------------------------- подгонка текста */
+/* Режимы «тянуть», «вписывать» и «растить» меряют содержимое, поэтому
+   прокрутка в них только помешала бы. */
+.cnode-scroll.no-scroll { overflow: hidden; }
+
+/* ------------------------------------------------- панель форматирования */
+.text-toolbar-holder {
+  position: absolute;
+  z-index: 40;
+}
+
+.text-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 4px 6px;
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--panel-blur);
+  flex-wrap: wrap;
+  max-width: 560px;
+}
+
+.tt-btn {
+  min-width: 26px;
+  height: 25px;
+  padding: 0 5px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: transparent;
+  color: var(--muted);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 13.5px;
+  transition: var(--tr);
+}
+.tt-btn:hover { background: var(--hover); color: var(--text-strong); }
+.tt-b { font-weight: 800; }
+.tt-i { font-style: italic; }
+.tt-u { text-decoration: underline; }
+.tt-s { text-decoration: line-through; }
+.tt-mark { background: color-mix(in srgb, var(--warn) 40%, transparent); border-radius: 3px; padding: 0 3px; }
+.tt-h1, .tt-h2, .tt-h3 { font-weight: 700; font-size: 12px; }
+.tt-code { font-family: var(--mono); font-size: 12px; }
+.tt-size { width: 24px; text-align: center; font-size: 12px; color: var(--faint); }
+
+/* ------------------------------------------------------------ палитра */
+.pal-quick {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  cursor: pointer;
+  padding: 0;
+  transition: var(--tr);
+}
+.pal-quick:hover { transform: scale(1.1); border-color: var(--text); }
+
+.pal-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(84px, 1fr));
+  gap: 10px;
+}
+
+.pal-cell {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 4px;
+  border-radius: var(--radius);
+  border: 2px solid transparent;
+}
+.pal-cell:hover { background: var(--hover); }
+.pal-cell.on { border-color: var(--accent); }
+
+.pal-swatch {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.pal-pin {
+  position: absolute;
+  right: 8px;
+  top: 6px;
+  width: 18px;
+  height: 18px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  color: var(--faint);
+  cursor: pointer;
+  opacity: 0;
+  transition: var(--tr);
+}
+.pal-cell:hover .pal-pin { opacity: 1; }
+.pal-pin.on {
+  opacity: 1;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0d1f14;
+}
+
+.pal-name { font-size: 12px; color: var(--muted); }

@@ -1,0 +1,68 @@
+# Сборка установщиков под Linux.
+#
+# Зачем она вообще: AppImage невозможно собрать на Windows — упаковщику нужен
+# mksquashfs, которого electron-builder под Windows не поставляет. Здесь сборка
+# идёт на настоящей Ubuntu, поэтому получаются и AppImage «одним файлом», и
+# пакет .deb, и переносимый архив.
+#
+# Заодно прогоняются все проверки проекта. Собирать неисправное и раздавать
+# людям — хуже, чем не собрать вовсе.
+#
+# Запуск: вручную (кнопка Run workflow) или сам при метке версии вида v1.0.0.
+
+name: Linux
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: Ubuntu
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Забрать исходники
+        uses: actions/checkout@v4
+
+      - name: Поставить Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Зависимости
+        run: npm ci
+
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Самопроверка
+        run: npm run selftest
+
+      - name: Проверка интерфейса
+        run: npm run uitest
+
+      - name: Собрать фронтенд
+        run: npm run build
+
+      # Цели перечислены явно: в package.json оставлен только tar.gz — это
+      # единственное, что собирается ещё и на Windows. --publish never, чтобы
+      # сборка не пыталась ничего никуда выкладывать.
+      - name: Упаковать
+        run: npx electron-builder --linux AppImage deb tar.gz --publish never
+
+      - name: Что получилось
+        run: ls -la release/
+
+      - name: Выложить как артефакты
+        uses: actions/upload-artifact@v4
+        with:
+          name: koshel-linux
+          if-no-files-found: error
+          path: |
+            release/*.AppImage
+            release/*.deb
+            release/*.tar.gz
