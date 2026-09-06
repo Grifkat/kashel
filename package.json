@@ -11,6 +11,7 @@
     "keygen": "node scripts/keygen.js",
     "release": "node scripts/release.js",
     "site": "npm run build && node scripts/site.js",
+    "cloudtest": "esbuild scripts/e2e-cloud.ts --bundle --platform=node --format=cjs --loader:.json=json --outfile=node_modules/.cache/e2e-cloud.cjs --log-level=warning && node node_modules/.cache/e2e-cloud.cjs",
     "dist:linux": "npm run build && electron-builder --linux tar.gz -c.electronDist=node_modules/.cache/electron-linux/dist",
     "dist:appimage": "npm run dist:linux && node scripts/appimage.js",
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && cross-env KASHEL_DEV=1 electron .\"",
