@@ -69,6 +69,22 @@ export const THEMES: ThemeInfo[] = [
     accent: '#c2703f',
     swatch: ['#f6f1e8', '#fffdf9', '#c2703f'],
   },
+  {
+    id: 'pickme',
+    name: 'Пикми',
+    mode: 'light',
+    about: 'Молочно-розовое с лиловым, круглые углы и бант в шапке. Пастель взята из выверенных палитр, а не подобрана на глаз: розовый текст на белом легко превратить в кашу.',
+    accent: '#dd4f96',
+    swatch: ['#fdf4f8', '#ffffff', '#dd4f96'],
+  },
+  {
+    id: 'pickmenoch',
+    name: 'Пикми ночная',
+    mode: 'dark',
+    about: 'Та же розовая с лиловым, но по сливовой темноте. Вечером глазам легче, и розовый на тёмном звучит резче.',
+    accent: '#f18cc4',
+    swatch: ['#191320', '#241b2e', '#f18cc4'],
+  },
 ]
 
 export const themeById = (id: ThemeId): ThemeInfo => THEMES.find((t) => t.id === id) ?? THEMES[0]
@@ -85,6 +101,8 @@ export function counterpart(id: ThemeId): ThemeId {
     imperial: 'warm',
     glass: 'mint',
     neon: 'warm',
+    pickme: 'pickmenoch',
+    pickmenoch: 'pickme',
   }
   return pairs[cur.id]
 }

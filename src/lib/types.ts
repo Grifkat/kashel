@@ -286,7 +286,9 @@ export interface Profile {
 }
 
 /** Оформления различаются не только цветом: скруглениями, плотностью, тенями. */
-export type ThemeId = 'obsidian' | 'mint' | 'graphite' | 'glass' | 'neon' | 'warm' | 'imperial'
+export type ThemeId =
+  | 'obsidian' | 'mint' | 'graphite' | 'glass' | 'neon' | 'warm' | 'imperial'
+  | 'pickme' | 'pickmenoch'
 
 /**
  * Насколько живо ведёт себя интерфейс.

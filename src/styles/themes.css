@@ -213,6 +213,152 @@
   color-scheme: light;
 }
 
+/* -------------------------------------------------------------- Пикми */
+/*
+ * Розовое с лиловым по молоку.
+ *
+ * Палитра не подобрана на глаз: пастель тем и коварна, что розовые буквы на
+ * белом легко превращаются в кашу. Основа взята из двух наборов, где эта
+ * задача уже решена и проверена — Rosé Pine Dawn и Catppuccin Latte. Текст
+ * здѣсь не розовый, а густо-сливовый: цвет держат панели, обводки и акцент,
+ * а читаемость держит текст.
+ *
+ * Шрифт остаётся системным. Круглое начертание пришлось бы тянуть из сети,
+ * а программа обязана открываться без неё; мягкость набирается скруглениями,
+ * которых тут больше, чем у любой другой темы.
+ */
+[data-theme='pickme'] {
+  --bg: #fdf4f8;
+  --bg-alt: #fffafc;
+  --panel: #ffffff;
+  --panel-2: #fbecf3;
+  --hover: #f7e0ec;
+  --border: #f0d3e2;
+  --border-soft: #f8e8f0;
+  --text: #4f3d55;
+  --text-strong: #2e1f36;
+  --muted: #85708f;
+  --faint: #b3a0bd;
+  --good: #3f9b74;
+  --warn: #c68a2c;
+  --alert: #d0426a;
+  --info: #7a68d4;
+  --shadow: 0 10px 30px rgba(186, 118, 165, 0.16);
+  --radius: 14px;
+  --radius-lg: 22px;
+  --card-pad-y: 18px;
+  --card-pad-x: 21px;
+  --view-pad-y: 25px;
+  --view-pad-x: 29px;
+  --view-pad-b: 64px;
+  --btn-weight: 600;
+  --title-spacing: 0;
+  --bg-image:
+    radial-gradient(900px 560px at 8% -10%, rgba(232, 140, 190, 0.16), transparent 62%),
+    radial-gradient(820px 520px at 92% 4%, rgba(160, 130, 235, 0.13), transparent 64%);
+  --bant: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2046%27%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23000%27%20stroke-width%3D%272.6%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M32%2021C23%208%207%209%208%2019c1%2010%2015%209%2024%202z%27%2F%3E%3Cpath%20d%3D%27M32%2021c9-13%2025-12%2024-2-1%2010-15%209-24%202z%27%2F%3E%3Cpath%20d%3D%27M31%2024c-2%206-4%2011-7%2016%27%2F%3E%3Cpath%20d%3D%27M33%2024c2%206%204%2011%207%2016%27%2F%3E%3Ccircle%20cx%3D%2732%27%20cy%3D%2722%27%20r%3D%273.6%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  --serdechki: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27140%27%20height%3D%27140%27%20viewBox%3D%270%200%20140%20140%27%3E%3Cg%20fill%3D%27%23d2559a%27%20fill-opacity%3D%270.10%27%3E%3Cpath%20d%3D%27M26%2036C14%2027%2010%2022%2010%2017.5A7.5%207.5%200%200%201%2026%2013%207.5%207.5%200%200%201%2042%2017.5C42%2022%2038%2027%2026%2036z%27%2F%3E%3Cpath%20d%3D%27M100%20112C88%20103%2084%2098%2084%2093.5A7.5%207.5%200%200%201%20100%2089%207.5%207.5%200%200%201%20116%2093.5C116%2098%20112%20103%20100%20112z%27%2F%3E%3Cpath%20d%3D%27M112%2030C104%2024%20101%2020%20101%2017a5%205%200%200%201%2011-3%205%205%200%200%201%2011%203c0%203-3%207-11%2013z%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  color-scheme: light;
+}
+
+/* --------------------------------------------------------- Пикми ночная */
+/*
+ * Та же тема по сливовой темноте. Фон не чёрный, а с лиловым подмесом:
+ * розовый на чистом чёрном отдаёт неоном, а тут нужна мягкость.
+ */
+[data-theme='pickmenoch'] {
+  --bg: #191320;
+  --bg-alt: #1f1728;
+  --panel: #241b2e;
+  --panel-2: #2c2138;
+  --hover: #362a44;
+  --border: #3d3049;
+  --border-soft: #2e2439;
+  --text: #e7ddef;
+  --text-strong: #fdf6ff;
+  --muted: #a493b3;
+  --faint: #7a6b88;
+  --good: #6ecf9c;
+  --warn: #efc76a;
+  --alert: #f0729a;
+  --info: #a99bf5;
+  --shadow: 0 12px 40px rgba(10, 4, 18, 0.6);
+  --radius: 14px;
+  --radius-lg: 22px;
+  --card-pad-y: 18px;
+  --card-pad-x: 21px;
+  --view-pad-y: 25px;
+  --view-pad-x: 29px;
+  --view-pad-b: 64px;
+  --btn-weight: 600;
+  --title-spacing: 0;
+  --bg-image:
+    radial-gradient(900px 560px at 8% -10%, rgba(232, 140, 190, 0.13), transparent 62%),
+    radial-gradient(820px 520px at 92% 4%, rgba(150, 120, 235, 0.12), transparent 64%);
+  --bant: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20viewBox%3D%270%200%2064%2046%27%3E%3Cg%20fill%3D%27none%27%20stroke%3D%27%23000%27%20stroke-width%3D%272.6%27%20stroke-linecap%3D%27round%27%20stroke-linejoin%3D%27round%27%3E%3Cpath%20d%3D%27M32%2021C23%208%207%209%208%2019c1%2010%2015%209%2024%202z%27%2F%3E%3Cpath%20d%3D%27M32%2021c9-13%2025-12%2024-2-1%2010-15%209-24%202z%27%2F%3E%3Cpath%20d%3D%27M31%2024c-2%206-4%2011-7%2016%27%2F%3E%3Cpath%20d%3D%27M33%2024c2%206%204%2011%207%2016%27%2F%3E%3Ccircle%20cx%3D%2732%27%20cy%3D%2722%27%20r%3D%273.6%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  --serdechki: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27140%27%20height%3D%27140%27%20viewBox%3D%270%200%20140%20140%27%3E%3Cg%20fill%3D%27%23f5a8d0%27%20fill-opacity%3D%270.07%27%3E%3Cpath%20d%3D%27M26%2036C14%2027%2010%2022%2010%2017.5A7.5%207.5%200%200%201%2026%2013%207.5%207.5%200%200%201%2042%2017.5C42%2022%2038%2027%2026%2036z%27%2F%3E%3Cpath%20d%3D%27M100%20112C88%20103%2084%2098%2084%2093.5A7.5%207.5%200%200%201%20100%2089%207.5%207.5%200%200%201%20116%2093.5C116%2098%20112%20103%20100%20112z%27%2F%3E%3Cpath%20d%3D%27M112%2030C104%2024%20101%2020%20101%2017a5%205%200%200%201%2011-3%205%205%200%200%201%2011%203c0%203-3%207-11%2013z%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+  color-scheme: dark;
+}
+
+/*
+ * Общее для обеих.
+ *
+ * Белый на розовой кнопке, а не тёмный по умолчанию: тот задуман под зелёный
+ * акцент и на розовом читается грязно.
+ */
+[data-theme='pickme'] .btn.primary,
+[data-theme='pickmenoch'] .btn.primary { color: #fff; }
+
+[data-theme='pickme'] .hero,
+[data-theme='pickmenoch'] .hero {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent) 16%, var(--panel)),
+    color-mix(in srgb, var(--info) 10%, var(--panel))
+  );
+  border-color: color-mix(in srgb, var(--accent) 28%, var(--border));
+}
+
+/*
+ * Бант в углу шапки.
+ *
+ * Одна вещь и в одном месте. Разложи такие по каждой карточке — и через день
+ * работы они начнут раздражать, а список трат должен читаться, а не умилять.
+ * Нарисован обводкой в цвете акцента и приглушён: украшение, которое спорит с
+ * цифрами, украшением быть перестаёт.
+ *
+ * Внизу справа, а не вверху: сверху стоят кнопки прихода и расхода, и бант
+ * ложился прямо на них. Проверено вживую — он закрывал «Доход».
+ */
+[data-theme='pickme'] .hero,
+[data-theme='pickmenoch'] .hero { position: relative; overflow: hidden; }
+
+[data-theme='pickme'] .hero::after,
+[data-theme='pickmenoch'] .hero::after {
+  content: '';
+  position: absolute;
+  bottom: 10px;
+  right: 16px;
+  width: 58px;
+  height: 41px;
+  opacity: 0.45;
+  pointer-events: none;
+  background: var(--accent);
+  -webkit-mask: var(--bant) center / contain no-repeat;
+  mask: var(--bant) center / contain no-repeat;
+}
+
+/*
+ * Сердечки по фону — россыпью и почти невидимо.
+ *
+ * Рисунок кладётся под градиенты и держится на трёх процентах прозрачности:
+ * замечаешь, если приглядеться, и не замечаешь, когда считаешь деньги.
+ */
+[data-theme='pickme'] body,
+[data-theme='pickmenoch'] body {
+  background-image: var(--serdechki), var(--bg-image);
+}
+
 /* ============================================================ применение */
 body {
   background-color: var(--bg);
