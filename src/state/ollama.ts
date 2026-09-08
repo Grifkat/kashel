@@ -25,6 +25,22 @@ export interface Реплика {
   content: string
 }
 
+/*
+ * Сколько окна просить подъ этотъ разговоръ.
+ *
+ * Ollama по умолчанию беретъ малое окно и молча обрѣзаетъ всё, что не влезло.
+ * Съ полной выгрузкой это означало бы, что модель видитъ хвостъ операцій и
+ * отвѣчаетъ по нему — увѣренно и мимо. Поэтому окно считается по длинѣ
+ * запроса: примѣрно знакъ на треть токена для русскаго текста, плюс запасъ
+ * подъ отвѣтъ, съ потолкомъ — иначе на слабой видеокартѣ модель просто не
+ * загрузится.
+ */
+function окноПодъ(реплики: Реплика[]): number {
+  const знаковъ = реплики.reduce((с, р) => с + р.content.length, 0)
+  const надо = Math.ceil(знаковъ / 3) + 2000
+  return Math.min(65536, Math.max(8192, Math.ceil(надо / 1024) * 1024))
+}
+
 /** Ollama запущена и отвечает. */
 export async function ollamaЖива(): Promise<boolean> {
   try {
@@ -62,7 +78,26 @@ export async function спросить(
   const r = await fetch(`${АДРЕСЪ}/api/chat`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ model: модель, messages: реплики, stream: true }),
+    body: JSON.stringify({
+      model: модель,
+      messages: реплики,
+      stream: true,
+      /*
+       * Размышление выключено.
+       *
+       * Qwen 3.5 по умолчанию сперва рассуждает вслух, и рассуждение идёт
+       * отдельным полем, а не в ответе. Проверено вживую: на вопрос «скажи
+       * одно слово» она истратила четыре тысячи знаков на размышление,
+       * упёрлась в предел и не написала ни буквы ответа. Человѣку нужен
+       * совѣтъ, а не ходъ мыслей.
+       */
+      think: false,
+      options: {
+        num_ctx: окноПодъ(реплики),
+        // Чтобы разговорившаяся модель не молотила бесконечно.
+        num_predict: 1500,
+      },
+    }),
     signal,
   })
   if (!r.ok || !r.body) {
@@ -72,6 +107,8 @@ export async function спросить(
   const чтецъ = r.body.getReader()
   const буквы = new TextDecoder()
   let хвостъ = ''
+  let пришло = 0
+  let причина = ''
 
   for (;;) {
     const { done, value } = await чтецъ.read()
@@ -88,13 +125,35 @@ export async function спросить(
     for (const с of строки) {
       if (!с.trim()) continue
       try {
-        const д = JSON.parse(с) as { message?: { content?: string }; error?: string }
+        const д = JSON.parse(с) as {
+          message?: { content?: string }
+          error?: string
+          done?: boolean
+          done_reason?: string
+        }
         if (д.error) throw new Error(д.error)
-        if (д.message?.content) наКусокъ(д.message.content)
+        if (д.message?.content) {
+          пришло += д.message.content.length
+          наКусокъ(д.message.content)
+        }
+        if (д.done) причина = д.done_reason ?? ''
       } catch (e) {
         if (e instanceof SyntaxError) continue
         throw e
       }
     }
+  }
+
+  /*
+   * Пустой отвѣтъ — не пустяк, а поломка, и молчать о ней нельзя: человѣкъ
+   * увидитъ пустой пузырь и рѣшитъ, что программа сломалась. Чаще всего
+   * причина одна — модель упёрлась въ предѣлъ, не начавъ отвѣчать.
+   */
+  if (пришло === 0) {
+    throw new Error(
+      причина === 'length'
+        ? 'Модель упёрлась в предел, не начав отвечать. Возьмите модель поменьше или задайте вопрос короче.'
+        : 'Модель вернула пустой ответ.',
+    )
   }
 }

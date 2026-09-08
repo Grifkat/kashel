@@ -40,6 +40,8 @@ class ResizeObserverStub {
   disconnect() {}
 }
 g.ResizeObserver = ResizeObserverStub
+// jsdom ничего не прокручиваетъ; безъ заглушки лента бесѣды роняетъ отрисовку.
+dom.window.Element.prototype.scrollIntoView = function () {}
 ;(dom.window as any).ResizeObserver = ResizeObserverStub
 
 // Управляемая заглушка matchMedia: нужна, чтобы проверить поведение при
@@ -1300,6 +1302,115 @@ async function updates() {
   Object.assign(б, было)
 }
 
+
+/*
+ * Разборъ нейросетью: что именно уходитъ къ модели.
+ *
+ * Провѣряется не отвѣтъ модели — она поддѣльная, — а ровно то, изъ-за чего
+ * весь этотъ переключатель и появился: къ модели уходитъ то, что выбрано, и
+ * ничего сверхъ того. Безъ галочки — одинъ вопросъ; съ галочкой по умолчанію
+ * — итоги; и только по отдѣльному нажатію — вся тысяча операцій.
+ *
+ * Ollama здѣсь подмѣнена: настоящая на машинѣ проверяющаго можетъ быть не
+ * запущена, а проверка обязана мѣрить программу, а не чужой демонъ.
+ */
+async function besjeda() {
+  console.log('\n— разборъ нейросетью —')
+  const тѣла: string[] = []
+  const былъ = g.fetch
+  g.fetch = async (адресъ: any, како: any) => {
+    const у = String(адресъ)
+    if (у.endsWith('/api/tags')) {
+      return { ok: true, json: async () => ({ models: [{ name: 'проба:9b', size: 6_000_000_000 }] }) } as any
+    }
+    тѣла.push(String(како?.body ?? ''))
+    const ndjson =
+      JSON.stringify({ message: { content: 'Отвѣтъ.' } }) + '\n' +
+      JSON.stringify({ done: true, done_reason: 'stop' }) + '\n'
+    const байты = new TextEncoder().encode(ndjson)
+    let отдали = false
+    return {
+      ok: true,
+      body: {
+        getReader: () => ({
+          read: async () => (отдали ? { done: true, value: undefined } : ((отдали = true), { done: false, value: байты })),
+        }),
+      },
+    } as any
+  }
+
+  // Заходъ заново: при первомъ обходѣ разделовъ Ollama ещё не была подменена.
+  await open('Дашборд')
+  await open('Советы')
+  await wait(400)
+
+  check('модель нашлась', text().includes('Приложить мои данные'))
+
+  const поле = document.querySelector('.besjeda-вводъ textarea') as any
+  /*
+   * Набрать текстъ въ полѣ оказалось не такъ просто, какъ нажать кнопку.
+   *
+   * react-dom рѣшаетъ разъ и навсегда при своей загрузкѣ, поддерживаетъ ли
+   * браузеръ событіе input; здѣсь онъ грузится раньше, чѣмъ поднятъ jsdom, и
+   * рѣшаетъ, что не поддерживаетъ. Дальше онъ живётъ по запасному пути,
+   * писанному подъ старый Internet Explorer: слѣдитъ за полемъ, пока оно въ
+   * фокусѣ, и сличаетъ значеніе по нажатіямъ клавишъ. Потому здѣсь фокусъ,
+   * сбросъ слѣда и keyup — иначе набранное въ состояніе не попадаетъ и
+   * кнопка «Спросить» остаётся серой.
+   */
+  const вписать = (что: string) => {
+    поле.focus()
+    поле.dispatchEvent(new dom.window.Event('focusin', { bubbles: true }))
+    поле.value = что
+    ;(поле as any)._valueTracker?.setValue('')
+    поле.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+    поле.dispatchEvent(new dom.window.KeyboardEvent('keyup', { key: 'а', bubbles: true }))
+  }
+  const спросить = async (что: string) => {
+    вписать(что)
+    await wait(60)
+    const кн = byText('.besjeda-вводъ button', 'Спросить')
+
+    check('кнопка «Спросить» доступна', !!кн && !кн.disabled)
+    click(кн)
+    await wait(250)
+  }
+  const чипъ = (подпись: string) =>
+    all('.besjeda-вводъ .chip').find((c) => (c.textContent || '').trim() === подпись) as any
+
+  // --- безъ галочки не уходитъ ничего, кромѣ вопроса
+  await спросить('Сколько я трачу?')
+  check('спросили безъ данныхъ', тѣла.length === 1)
+  check('и данныя не приложились', !тѣла[0].includes('Данные пользователя'))
+  check('но вопросъ дошёлъ', тѣла[0].includes('Сколько я трачу?'))
+
+  // --- галочка: по умолчанію итоги
+  click(document.querySelector('.besjeda-галка input'))
+  await wait(200)
+  check('по умолчанію выбраны итоги', чипъ('итоги')?.className.includes('on') === true)
+  check('и остереженія про «всё» нѣтъ', !document.querySelector('.besjeda-остереженіе'))
+  await спросить('А по статьямъ?')
+  check('приложились итоги', тѣла[1].includes('Данные пользователя') && тѣла[1].includes('Чистый капитал'))
+  check('и перечня операцій въ нихъ нѣтъ', !тѣла[1].includes('ЧАСТЬ 2. Перечень операций'))
+
+  // --- «всё целикомъ»
+  click(чипъ('всё целиком'))
+  await wait(600)
+  check('остереженіе показано сразу', !!document.querySelector('.besjeda-остереженіе'))
+  await спросить('А что за покупка была?')
+  check('приложилось всё', тѣла[2].includes('ЧАСТЬ 2. Перечень операций'))
+  check('и это заведомо больше итоговъ',
+    тѣла[2].length > тѣла[1].length * 5, `${тѣла[2].length} противъ ${тѣла[1].length}`)
+
+  // --- въ лентѣ видно, что къ какому вопросу приложили
+  const помѣты = all('.besjeda-помѣта').map((п) => (п.textContent || '').trim())
+  check('помѣтъ ровно двѣ', помѣты.length === 2, помѣты.join(' / '))
+  check('и онѣ разныя',
+    помѣты[0].includes('итогами') && помѣты[1].includes('записями'), помѣты.join(' / '))
+
+  g.fetch = былъ
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -1307,6 +1418,7 @@ async function main() {
 
   await sections()
   await updates()
+  await besjeda()
   await rightPanel()
   await themes()
   await cardGlare()
