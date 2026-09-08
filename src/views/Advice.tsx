@@ -10,6 +10,7 @@ import { historyKeys } from '../engine/forecast'
 import { adviceKindTitle, type Advice, type AdviceKind, type Severity } from '../engine/advice'
 import { useToast } from '../components/ui'
 import { личное } from '../engine/project'
+import { Besjeda } from '../components/Besjeda'
 
 const SEV_ICON: Record<Severity, string> = { alert: 'warn', warn: 'warn', info: 'bulb', good: 'check' }
 const KIND_ICON: Record<AdviceKind, string> = {
@@ -106,7 +107,11 @@ export default function AdviceView() {
         </div>
       </div>
 
-      <div className="row wrap" style={{ gap: 7, marginBottom: 16 }}>
+      {/* Разбор нейросетью — до списка советов: он про то же, но словами.
+          Ниже идут советы, посчитанные самой программой, без всякой модели. */}
+      <Besjeda />
+
+      <div className="row wrap" style={{ gap: 7, marginBottom: 16, marginTop: 16 }}>
         <span className={'chip' + (kind === 'all' ? ' on' : '')} onClick={() => setKind('all')}>
           Все ({advice.length})
         </span>

@@ -1405,6 +1405,75 @@ kbd {
   background: linear-gradient(90deg, color-mix(in srgb, var(--alert) 55%, transparent), var(--alert));
 }
 
+/* ------------------------------------------------------ бесѣда съ моделью */
+/* Лента разговора держится невысокой нарочно: страница советов — не чат, и
+   расползаться на весь экран ему незачем. Длинный ответ прокручивается внутри. */
+.besjeda-лента {
+  max-height: 340px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px;
+  margin-bottom: 12px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+}
+.besjeda-строка { max-width: 88%; }
+.besjeda-строка.свой { align-self: flex-end; }
+.besjeda-текстъ {
+  padding: 9px 13px;
+  border-radius: var(--radius);
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.besjeda-строка.свой .besjeda-текстъ {
+  background: color-mix(in srgb, var(--accent) 16%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border-soft));
+}
+.besjeda-строка.чужой .besjeda-текстъ {
+  background: var(--panel-2);
+  border: 1px solid var(--border-soft);
+}
+/* Пометка о том, что к этому вопросу приложили данные. Держится у самого
+   сообщения, а не в общем углу: через десять реплик иначе не вспомнить, к
+   какому именно вопросу цифры уходили. */
+.besjeda-помѣта {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  justify-content: flex-end;
+  margin-bottom: 3px;
+  font-size: 11px;
+  color: var(--good);
+}
+.besjeda-вводъ textarea { width: 100%; resize: vertical; min-height: 52px; }
+.besjeda-галка { display: flex; align-items: center; gap: 6px; font-size: 13px; cursor: pointer; }
+.besjeda-сводка {
+  max-height: 260px;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 12px;
+  background: var(--bg-alt);
+  border: 1px solid var(--border-soft);
+  border-radius: var(--radius);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  color: var(--muted);
+}
+.besjeda-бѣда {
+  margin-bottom: 10px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--alert) 14%, transparent);
+  color: var(--alert);
+  font-size: 13px;
+}
+
 /* ------------------------------------------------------ ворота входа */
 /* Цвета и скругления берутся из темы, своих тут нет ни одного: ворота
    встречают человѣка раньше, чем он выберет оформление, и обязаны выглядеть
