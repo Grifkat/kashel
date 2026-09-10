@@ -190,6 +190,63 @@ const ico = buildIco(SIZES)
 writeFileSync(out, ico)
 console.log(`${out} — ${SIZES.join(', ')} px, ${(ico.length / 1024).toFixed(0)} КБ`)
 
+/*
+ * ICNS для macOS.
+ *
+ * Внутри — те же PNG, что и для Linux, только сложенные в оболочку Apple:
+ * подпись «icns», общая длина, а дальше куски, у каждого четырёхбуквенный
+ * тип, длина вместе с заголовком и сами данные. Современная macOS читает
+ * PNG-куски напрямую, поэтому ни iconutil, ни сторонних библиотек не нужно —
+ * а значит, иконку можно собрать и на Windows, где мака под рукой нет.
+ *
+ * Размеры перечислены парами: обычный и удвоенный для экранов Retina. Без
+ * удвоенных macOS растянет мелкий рисунок, и кольцо поплывёт.
+ */
+const ICNS: [string, number][] = [
+  ['icp4', 16],
+  ['icp5', 32],
+  ['ic11', 32],
+  ['ic12', 64],
+  ['ic07', 128],
+  ['ic13', 256],
+  ['ic08', 256],
+  ['ic14', 512],
+  ['ic09', 512],
+  ['ic10', 1024],
+]
+
+function buildIcns(): Buffer {
+  // Рисунок одного размера считается один раз: 1024 px с четырёхкратным
+  // сглаживанием — это шестнадцать миллионов проб, повторять их незачѣмъ.
+  const кэшъ = new Map<number, Buffer>()
+  const png = (n: number): Buffer => {
+    const было = кэшъ.get(n)
+    if (было) return было
+    const б = buildPng(n)
+    кэшъ.set(n, б)
+    return б
+  }
+
+  const куски = ICNS.map(([тип, размѣръ]) => {
+    const тѣло = png(размѣръ)
+    const глава = Buffer.alloc(8)
+    глава.write(тип, 0, 'ascii')
+    глава.writeUInt32BE(8 + тѣло.length, 4)
+    return Buffer.concat([глава, тѣло])
+  })
+
+  const всего = 8 + куски.reduce((с, к) => с + к.length, 0)
+  const глава = Buffer.alloc(8)
+  глава.write('icns', 0, 'ascii')
+  глава.writeUInt32BE(всего, 4)
+  return Buffer.concat([глава, ...куски])
+}
+
+const icns = buildIcns()
+const icnsOut = join(process.cwd(), 'build', 'icon.icns')
+writeFileSync(icnsOut, icns)
+console.log(`${icnsOut} — ${[...new Set(ICNS.map(([, n]) => n))].join(', ')} px, ${(icns.length / 1024).toFixed(0)} КБ`)
+
 // electron-builder требует для Linux не меньше 512 px.
 const png = buildPng(512)
 const pngOut = join(process.cwd(), 'build', 'icon.png')

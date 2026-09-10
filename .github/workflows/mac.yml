@@ -1,0 +1,113 @@
+# Сборка установщиков под macOS.
+#
+# Зачем она: мака у автора нет, а GitHub даёт настоящую машину с macOS даром
+# для открытых хранилищ. Собирается два образа .dmg — под Apple Silicon и под
+# старые машины с Intel. Раздельно, а не одним «универсальным» файлом: тот
+# вдвое толще, а качает человек всё равно один.
+#
+# Подписи Apple нет. Она стоит 99 долларов в год, и учётная запись заводится
+# только живым человеком. Поэтому в afterPack ставится подпись «на живую
+# нитку»: она не удостоверяет никого, но без неё Apple Silicon отказывается
+# запускать программу вовсе. Гейткипер на скачанное всё равно поворчит — это
+# лечится только настоящей подписью, и здесь мы этого не скрываем: шаг
+# «Что вышло» печатает вердикт spctl как есть.
+#
+# Заодно прогоняются все проверки проекта. Собирать неисправное и раздавать
+# людям — хуже, чем не собрать вовсе.
+#
+# Запуск: вручную (кнопка Run workflow) или сам при метке версии вида v1.0.0.
+
+name: macOS
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    name: macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Забрать исходники
+        uses: actions/checkout@v4
+
+      - name: Поставить Node
+        uses: actions/setup-node@v4
+        with:
+          # Та же версия, что в линуксовой сборке и у автора: расходиться
+          # средам, где одно и то же обязано сходиться, незачѣмъ.
+          node-version: 24
+          cache: npm
+
+      - name: Зависимости
+        run: npm ci
+
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Самопроверка
+        run: npm run selftest
+
+      - name: Проверка интерфейса
+        run: npm run uitest
+
+      - name: Собрать фронтенд
+        run: npm run build
+
+      # --publish never, чтобы сборка не пыталась ничего никуда выкладывать.
+      # CSC_IDENTITY_AUTO_DISCOVERY=false — чтобы electron-builder не искал
+      # сертификат в связке ключей машины: его там нет, а поиск заканчивается
+      # предупреждением, которое легко принять за поломку.
+      - name: Упаковать
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: npx electron-builder --mac dmg --arm64 --x64 --publish never
+
+      # Проверяем не «файл появился», а что внутри он тот, за кого себя
+      # выдаёт: под какой процессор собран, стоит ли подпись, и что скажет
+      # привратник. Запустить программу здесь нельзя — на сборочной машине
+      # нет ни экрана, ни человека, — но всё остальное проверить можно.
+      # Имена переменных латиницей не от нелюбви к русскому: оболочка чужие
+      # буквы в именах не принимает вовсе и падает на первом же присваивании.
+      - name: Что вышло
+        run: |
+          set -eux
+          ls -la release/
+          for img in release/*.dmg; do
+            mnt="$(mktemp -d)"
+            hdiutil attach "$img" -nobrowse -quiet -mountpoint "$mnt"
+            app="$(find "$mnt" -maxdepth 1 -name '*.app' -print -quit)"
+            test -n "$app"
+            bin="$(find "$app/Contents/MacOS" -type f -perm +111 -print -quit)"
+
+            # Не печатаем архитектуру, а сверяем с обещанной в имени образа.
+            # Здесь легко наступить на грабли: electronDist в настройках
+            # указывал на Electron, лежащий рядом, — а он на сборочной машине
+            # только под Apple Silicon. Собери с ним «под Intel» — и получишь
+            # образ с чужими двоичными файлами, который молча не запустится.
+            case "$img" in
+              *arm64*) want=arm64 ;;
+              *x64*)   want=x86_64 ;;
+              *)       want='' ;;
+            esac
+            got="$(lipo -archs "$bin")"
+            echo "$img: обещано $want, внутри $got"
+            test -z "$want" || [ "$got" = "$want" ]
+
+            codesign -dv --verbose=2 "$app" 2>&1 | head -20
+            codesign --verify --deep --strict "$app" && echo "подпись цела"
+            spctl -a -vv "$app" 2>&1 || echo "привратник ругается — так и задумано, подписи Apple нет"
+            /usr/libexec/PlistBuddy -c 'Print CFBundleIdentifier' "$app/Contents/Info.plist"
+            ls "$app/Contents/Resources/"*.icns || echo "иконки не видно"
+            hdiutil detach "$mnt" -quiet
+          done
+
+      - name: Выложить как артефакты
+        uses: actions/upload-artifact@v4
+        with:
+          name: koshel-mac
+          if-no-files-found: error
+          path: release/*.dmg

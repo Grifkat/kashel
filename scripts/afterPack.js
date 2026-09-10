@@ -6,12 +6,43 @@
 // Побочный эффект ветки: два файла исходного дистрибутива остаются на месте и
 // уезжают в установщик лишним весом. Убираем их руками.
 const { rm } = require('node:fs/promises')
+const { execFileSync } = require('node:child_process')
 const path = require('node:path')
 
-exports.default = async ({ appOutDir }) => {
+exports.default = async ({ appOutDir, electronPlatformName, packager }) => {
   const мусор = [
     path.join(appOutDir, 'resources', 'default_app.asar'),
     path.join(appOutDir, 'version'),
   ]
   for (const f of мусор) await rm(f, { force: true })
+
+  if (electronPlatformName === 'darwin') подписатьНаЖивуюНитку(appOutDir, packager)
+}
+
+/*
+ * Подпись «на живую нитку» (ad-hoc) для macOS.
+ *
+ * Настоящей подписи Apple у нас нет — она стоит 99 долларов в год и требует
+ * учётной записи разработчика. Но совсем без подписи обойтись нельзя: на
+ * машинах с Apple Silicon система отказывается запускать неподписанный
+ * двоичный файл вообще, и человек увидит не предупреждение, а мгновенную
+ * смерть окна. Подпись пустым удостоверением («-») это лечит: она ничего не
+ * удостоверяет и никому не говорит, кто автор, но делает файл запускаемым.
+ *
+ * Гейткипер всё равно будет ворчать на скачанное из сети — это лечится только
+ * настоящей подписью с заверением у Apple. Здесь мы лишь убираем ту беду, что
+ * не лечится ничем на стороне человека.
+ *
+ * --deep признан Apple устаревшим, но для пустого удостоверения он остаётся
+ * единственным способом обойти все вложенные каркасы и помощников разом: их
+ * внутри Electron полтора десятка, и подписывать по одному — плодить список,
+ * который разъедется с первой же сменой версии.
+ */
+function подписатьНаЖивуюНитку(appOutDir, packager) {
+  const имя = packager.appInfo.productFilename + '.app'
+  const программа = path.join(appOutDir, имя)
+  execFileSync('codesign', ['--force', '--deep', '--sign', '-', программа], { stdio: 'inherit' })
+  // Проверяем тут же: молча не подписавшаяся сборка хуже несобравшейся.
+  execFileSync('codesign', ['--verify', '--verbose=2', программа], { stdio: 'inherit' })
+  console.log('  • подписано на живую нитку  ' + имя)
 }

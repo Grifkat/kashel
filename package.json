@@ -7,7 +7,7 @@
   "author": "Кошель",
   "scripts": {
     "icon": "esbuild scripts/icon.ts --bundle --platform=node --format=cjs --outfile=node_modules/.cache/icon.cjs --log-level=warning && node node_modules/.cache/icon.cjs",
-    "dist": "npm run build && electron-builder --win",
+    "dist": "npm run build && electron-builder --win -c.electronDist=node_modules/electron/dist",
     "keygen": "node scripts/keygen.js",
     "release": "node scripts/release.js",
     "site": "npm run build && node scripts/site.js",
@@ -48,7 +48,6 @@
     "appId": "ru.kashel.app",
     "productName": "Кошель",
     "copyright": "Кошель",
-    "electronDist": "node_modules/electron/dist",
     "afterPack": "./scripts/afterPack.js",
     "directories": { "output": "release", "buildResources": "build" },
     "files": ["electron/**/*", "dist/**/*", "package.json"],
@@ -71,6 +70,15 @@
         { "from": "build/icon.png", "to": "icon.png" }
       ]
     },
+    "mac": {
+      "target": [{ "target": "dmg", "arch": ["arm64", "x64"] }],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.finance",
+      "artifactName": "Koshel-${version}-mac-${arch}.${ext}",
+      "identity": null,
+      "darkModeSupport": true
+    },
+    "dmg": { "artifactName": "Koshel-${version}-mac-${arch}.${ext}" },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -86,7 +94,7 @@
         "ext": "kashel",
         "name": "Хранилище Кошеля",
         "description": "Все данные Кошеля одним файлом",
-        "icon": "build/icon.ico",
+        "icon": "icon",
         "role": "Editor"
       }
     ]
