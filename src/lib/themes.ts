@@ -70,6 +70,22 @@ export const THEMES: ThemeInfo[] = [
     swatch: ['#f6f1e8', '#fffdf9', '#c2703f'],
   },
   {
+    id: 'razmetka',
+    name: 'Разметка',
+    mode: 'dark',
+    about: 'Чёрное с сигнальным жёлтым: плоские плоскости, почти прямые углы, крупные цифры. Язык вывесок и дорожной разметки, а не музейной витрины. Зелёного нет вовсе — приход помечен жёлтым.',
+    accent: '#ffd100',
+    swatch: ['#0b0b0c', '#141416', '#ffd100'],
+  },
+  {
+    id: 'trikolor',
+    name: 'Триколор',
+    mode: 'light',
+    about: 'Белое поле, синий акцент, красный на расходах — флаг складывается сам, без нарисованного флага. Дневная родня «Разметки»: те же углы и та же плотность.',
+    accent: '#1747c9',
+    swatch: ['#f2f4f8', '#ffffff', '#1747c9'],
+  },
+  {
     id: 'pickme',
     name: 'Пикми',
     mode: 'light',
@@ -103,6 +119,10 @@ export function counterpart(id: ThemeId): ThemeId {
     neon: 'warm',
     pickme: 'pickmenoch',
     pickmenoch: 'pickme',
+    // «Разметка» и «Триколор» задуманы парой: одни углы, один вес букв,
+    // разница только в свете. Потому переключатель светлоты водит между ними.
+    razmetka: 'trikolor',
+    trikolor: 'razmetka',
   }
   return pairs[cur.id]
 }

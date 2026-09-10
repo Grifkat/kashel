@@ -1,6 +1,7 @@
 // Самопроверка расчётных движков: демо-данные, прогноз, советы, запросы,
 // быстрый ввод и импорт CSV. Запуск: npm run selftest
 import { buildSeed } from './fixture'
+import { THEMES } from '../src/lib/themes'
 import { forecast, historyKeys, computeBases, monthShare, withCurrentMonth, scopeToAccount, ALL_ACCOUNTS, TRANSFER_IN, TRANSFER_OUT } from '../src/engine/forecast'
 import { buildAdvice } from '../src/engine/advice'
 import { runQuery } from '../src/engine/query'
@@ -1908,6 +1909,55 @@ function оформленіе() {
   }
   check('правила шапки найдены', правилъ > 0, `${правилъ} шт.`)
   check('шапку никто не обрѣзаетъ', виновники.length === 0, виновники.join(' | '))
+
+
+  /*
+   * Контрастъ во всѣхъ темахъ.
+   *
+   * Красивая палитра, въ которой не видно буквъ, — не красивая палитра.
+   * Считается по формулѣ WCAG: отношеніе яркостей, гдѣ 4.5 — порогъ для
+   * обычнаго текста, 3 — для крупнаго и значковъ.
+   *
+   * Пороги поставлены по нынѣшнему худшему, а не по идеалу, и это нарочно:
+   * задача провѣрки — не переписать старыя темы, а не дать новымъ сползти
+   * ниже уже достигнутаго. Полъ сейчасъ держитъ «Имперская»: тревожный
+   * красный на её фонѣ даётъ 2.8, то есть на грани видимости. Если её
+   * поправятъ или уберутъ — порогъ надо поднять.
+   */
+  const яркость = (ц: string) => {
+    const к = (n: number) => { const c = n / 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4) }
+    return 0.2126 * к(parseInt(ц.slice(1, 3), 16)) + 0.7152 * к(parseInt(ц.slice(3, 5), 16)) + 0.0722 * к(parseInt(ц.slice(5, 7), 16))
+  }
+  const отношеніе = (a: string, б: string) => {
+    const x = яркость(a), y = яркость(б)
+    return (Math.max(x, y) + 0.05) / (Math.min(x, y) + 0.05)
+  }
+
+  const темыCss = fs.readFileSync(path.join(дир, 'themes.css'), 'utf8')
+  const РОЛИ = { text: 7, 'text-strong': 10, muted: 4.4, accent: 3.3, alert: 2.7 }
+
+  const тускло: string[] = []
+  let промѣрено = 0
+  for (const тема of THEMES) {
+    const метка = "[data-theme='" + тема.id + "'] {"
+    const отъ = темыCss.indexOf(метка)
+    if (отъ < 0) { тускло.push(`${тема.id}: нѣтъ блока`); continue }
+    const тѣло = темыCss.slice(отъ + метка.length, темыCss.indexOf('}', отъ))
+    const т: Record<string, string> = { accent: тема.accent }
+    for (const м of тѣло.matchAll(/--([a-z0-9-]+): *(#[0-9a-fA-F]{6})/g)) т[м[1]] = м[2]
+    // Тема на полупрозрачныхъ панеляхъ («Стекло») цвѣтомъ не мѣряется:
+    // подъ ней просвѣчиваетъ фонъ, и честное число тутъ даётъ только глазъ.
+    if (!т.panel) continue
+    промѣрено++
+    for (const [роль, надо] of Object.entries(РОЛИ)) {
+      const ц = т[роль]
+      if (!ц) { тускло.push(`${тема.id}: нѣтъ --${роль}`); continue }
+      const k = отношеніе(ц, т.panel)
+      if (k < надо) тускло.push(`${тема.id}: ${роль} ${k.toFixed(2)} < ${надо}`)
+    }
+  }
+  check('темы промѣрены', промѣрено >= THEMES.length - 1, `${промѣрено} изъ ${THEMES.length}`)
+  check('буквы вездѣ читаются', тускло.length === 0, тускло.join(' | '))
 
   /*
    * Иконка для macOS.
