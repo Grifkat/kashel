@@ -288,7 +288,8 @@ export interface Profile {
 /** Оформления различаются не только цветом: скруглениями, плотностью, тенями. */
 export type ThemeId =
   | 'obsidian' | 'mint' | 'graphite' | 'glass' | 'neon' | 'warm' | 'imperial'
-  | 'pickme' | 'pickmenoch' | 'razmetka' | 'trikolor'
+  | 'pickme' | 'pickmenoch'
+  | 'znamya' | 'znamyaden' | 'trikolor' | 'trikolornoch'
 
 /**
  * Насколько живо ведёт себя интерфейс.

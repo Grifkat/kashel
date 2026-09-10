@@ -1,6 +1,10 @@
 /* ============================================================ переменные */
 :root {
   --accent: #4cc46a;
+  /* Цвет акцентных БУКВ. Обычно тот же акцент, но не всегда: жёлтым по белому
+     писать нельзя — контраст выходит 1.4 при норме 4.5, и буквы пропадают.
+     Тема, у которой акцент работает заливкой, задаёт себе чернила отдельно. */
+  --accent-ink: var(--accent);
   /* Шрифты только системные: Segoe UI Variable Windows рисует резче любой
      подгружаемой веб-версии, а Cascadia приходит вместе с Windows Terminal.
      Display-начертание — для крупных заголовков, Text — для всего осталь-
@@ -83,7 +87,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   transition: var(--tr);
 }
 .ribbon-btn:hover { background: var(--hover); color: var(--text); }
-.ribbon-btn.active { color: var(--accent); background: var(--hover); }
+.ribbon-btn.active { color: var(--accent-ink); background: var(--hover); }
 .ribbon-btn.active::before {
   content: '';
   position: absolute;
@@ -390,7 +394,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   transition: var(--tr);
 }
 .icon-btn:hover { background: var(--hover); color: var(--text); }
-.icon-btn.active { color: var(--accent); }
+.icon-btn.active { color: var(--accent-ink); }
 
 input[type='text'], input[type='number'], input[type='date'], input[type='search'], select, textarea {
   background: var(--bg);
@@ -853,7 +857,7 @@ kbd {
   color: var(--muted);
 }
 .md hr { border: none; border-top: 1px solid var(--border); margin: 18px 0; }
-.wikilink { color: var(--accent); cursor: pointer; text-decoration: none; border-bottom: 1px solid transparent; }
+.wikilink { color: var(--accent-ink); cursor: pointer; text-decoration: none; border-bottom: 1px solid transparent; }
 .wikilink:hover { border-bottom-color: var(--accent); }
 .wikilink.missing { color: var(--warn); }
 .tagref { color: var(--info); cursor: pointer; }
