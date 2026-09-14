@@ -16,7 +16,6 @@ interface NoteHit {
 }
 
 /** Ctrl+Shift+F — сквозной поиск по операциям, заметкам и справочникам. */
-/** Ctrl+Shift+F — сквозной поиск по операциям, заметкам и справочникам. */
 export function GlobalSearch({ initial, onClose }: { initial: string; onClose: () => void }) {
   const app = useApp()
   const { data } = useStore()

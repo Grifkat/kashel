@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
-import { НАСТАВЛЕНІЕ, полнаяВыгрузка, сводкаДляМодели, type Сводка } from '../engine/svodka'
+import { НАСТАВЛЕНІЕ, наказЯзыка, полнаяВыгрузка, сводкаДляМодели, type Сводка } from '../engine/svodka'
 import { listNotes, readNote } from '../state/vault'
 import { модели, ollamaЖива, спросить, type Модель, type Реплика } from '../state/ollama'
 import { т, тр } from '../i18n'
@@ -50,7 +50,7 @@ import { т, тр } from '../i18n'
  */
 const ПОРОГЪ = 20_000
 
-const ГДѢ_МОДЕЛЬ = т('kashel:нейросеть:модель')
+const ГДѢ_МОДЕЛЬ = 'kashel:нейросеть:модель'
 
 type Состоянье =
   | { в: 'ищемъ' }
@@ -61,7 +61,6 @@ type Состоянье =
 interface Строка {
   кто: 'человѣкъ' | 'машина'
   текстъ: string
-  /** К этому вопросу прикладывались данные. */
   /** К этому вопросу прикладывались данные. */
   сданныя?: 'итоги' | 'всё'
 }
@@ -164,6 +163,7 @@ export function Besjeda() {
     for (const с of строки) {
       исторія.push({ role: с.кто === 'человѣкъ' ? 'user' : 'assistant', content: с.текстъ })
     }
+    исторія.push({ role: 'system', content: наказЯзыка(текстъ) })
     исторія.push({ role: 'user', content: текстъ })
 
     setСтроки((с) => [...с, { кто: 'человѣкъ', текстъ, сданныя: приложили }, { кто: 'машина', текстъ: '' }])

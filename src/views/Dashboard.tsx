@@ -6,7 +6,7 @@ import { useApp, useTabId } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, moneyShort, pct, plural } from '../lib/format'
-import { addMonths, humanDate, monthKey, MONTHS_SHORT, monthTitle, parseISO, today } from '../lib/date'
+import { addMonths, humanDate, monthKey, MONTHS_SHORT, monthTitle, parseISO, today, вСтрочную } from '../lib/date'
 import {
   balances, balanceTimeline, categoryTotals, comparablePrev, entryDate, inPeriod, isAsset, makePeriod,
   monthlySeries, shiftPeriod, type Period, type PeriodKind,
@@ -68,7 +68,7 @@ export default function Dashboard() {
   // месяц трата потом ищется в сегодняшнем дне и не находится.
   const entryDay = parseISO(entry)
   const entryMark = entry === today() ? '' : ` · ${entryDay.getDate()} ${MONTHS_SHORT[entryDay.getMonth()]}`
-  const entryHint = (what: string) => (entryMark ? `${what} за ${humanDate(entry)}` : what)
+  const entryHint = (what: string) => (entryMark ? т('{0} за {1}', what, humanDate(entry)) : what)
 
   const bal = balances(data.accounts, data.transactions)
   const hidden = data.settings.hideBalance
@@ -112,8 +112,8 @@ export default function Dashboard() {
     return m
   }, [prevRange, side])
   const prevNote = prev.partial
-    ? т('{0}, за те же {1} {2}', prev.label.toLowerCase(), prev.days, plural(prev.days, 'день', 'дня', 'дней'))
-    : prev.label.toLowerCase()
+    ? т('{0}, за те же {1} {2}', вСтрочную(prev.label), prev.days, plural(prev.days, 'день', 'дня', 'дней'))
+    : вСтрочную(prev.label)
 
   const headline =
     accountId === '__all__'
@@ -329,7 +329,7 @@ export default function Dashboard() {
                       {hidden ? '••••' : <Money value={centerCat ? totals.find((t) => t.categoryId === centerCat)?.amount ?? 0 : sumSide} />}
                     </div>
                     <div className="faint small">
-                      {centerCat ? catById.get(centerCat)?.name : side === 'expense' ? 'расходы' : 'доходы'}
+                      {centerCat ? catById.get(centerCat)?.name : side === 'expense' ? т('расходы') : т('доходы')}
                     </div>
                   </>
                 )}
@@ -408,7 +408,7 @@ export default function Dashboard() {
           <div className="faint small" style={{ marginTop: 10, lineHeight: 1.5 }}>
             {тр('{0}{1}Нижняя кнопка не смотрит на период: она очищает хранилище целиком.', wipeExpense.length || wipeIncome.length ? (
               <>
-                {тр('Действует на {0}{1}: расходы {2}, пополнения {3}. Кнопки независимы, переводы между счетами не трогаются.', period.label.toLowerCase(), accountId !== '__all__' ? т(' и счёт «{0}»', headlineName) : '', money(expense), money(income))}</>
+                {тр('Действует на {0}{1}: расходы {2}, пополнения {3}. Кнопки независимы, переводы между счетами не трогаются.', вСтрочную(period.label), accountId !== '__all__' ? т(' и счёт «{0}»', headlineName) : '', money(expense), money(income))}</>
             ) : (
               <>{т('За выбранный период удалять нечего.')}</>
             ), ' ')}</div>
@@ -545,13 +545,13 @@ export default function Dashboard() {
         <Confirm
           title={
             confirmWipe === 'income'
-              ? т('Удалить весь заработок за {0}?', period.label.toLowerCase())
-              : т('Удалить все расходы за {0}?', period.label.toLowerCase())
+              ? т('Удалить весь заработок за {0}?', вСтрочную(period.label))
+              : т('Удалить все расходы за {0}?', вСтрочную(period.label))
           }
           confirmLabel={т('Удалить {0}', wipeTargets.length)}
           text={
             т('Будет удалено {0} {1} ', wipeTargets.length, plural(wipeTargets.length, 'операция', 'операции', 'операций')) +
-            `на ${money(wipeSum)}` +
+            т('на {0}', money(wipeSum)) +
             (accountId !== '__all__' ? т(' по счёту «{0}»', headlineName) : '') +
             `. ` +
             (confirmWipe === 'income'

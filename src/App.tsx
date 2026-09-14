@@ -45,7 +45,7 @@ import { relDate, setDateFormat, today } from './lib/date'
 import { bridge } from './state/vault'
 import type { Transaction, TxKind } from './lib/types'
 import { попроситьПроверку, useЕстьОбновленіе } from './components/Obnovlenie'
-import { т, тр } from './i18n'
+import { т, тр, текущійЯзык, запомнитьЯзык } from './i18n'
 
 export type ViewId =
   | 'dashboard' | 'transactions' | 'categories' | 'accounts' | 'budget' | 'goals'
@@ -99,16 +99,10 @@ interface AppApi {
   setFocusPane(i: number): void
   splitPane(): void
   /** Схлопывает всё до одной вкладки дашборда — после полной смены хранилища. */
-  /** Схлопывает всё до одной вкладки дашборда — после полной смены хранилища. */
   resetWorkspace(): void
   editTransaction(t: Transaction | Partial<Transaction> | null): void
   openPalette(): void
   openQuickAdd(prefill?: string, kind?: TxKind): void
-  /**
-   * Дата, на которую уйдёт новая запись. Её публикует активная вкладка:
-   * дашборд отдаёт дату открытого периода. null — значит сегодня, и тогда
-   * подставлять нечего.
-   */
   /**
    * Дата, на которую уйдёт новая запись. Её публикует активная вкладка:
    * дашборд отдаёт дату открытого периода. null — значит сегодня, и тогда
@@ -130,14 +124,6 @@ export const useApp = (): AppApi => {
   return v
 }
 
-/**
- * Ид вкладки, внутри которой нарисован раздел. Нужен, чтобы раздел мог
- * заявить о себе на весь App — например, отдать дату открытого периода — и
- * чтобы в разделённом окне два одинаковых раздела не затирали друг друга.
- *
- * Запасное значение — для раздела, отрисованного вне вкладок (в оснастке):
- * такой раздел просто делит общую ячейку, а не роняет окно.
- */
 /**
  * Ид вкладки, внутри которой нарисован раздел. Нужен, чтобы раздел мог
  * заявить о себе на весь App — например, отдать дату открытого периода — и
@@ -181,6 +167,28 @@ export default function App() {
   const animLevel = useAnimLevel()
   useПодсвѣткаЗаКурсоромъ()
 
+  /*
+   * Язык из настроек сверяется с тем, на котором окно уже загружено.
+   * Разошлись — запоминаем новый в зеркале и перезапускаем окно: константы
+   * модулей переводятся при загрузке, и живьём их не перевести. Сверка идёт
+   * только по готовому хранилищу, иначе умолчание до чтения данных
+   * перезапускало бы окно на каждом старте.
+   */
+  useEffect(() => {
+    if (!ready) return
+    const нужный = data.settings.language ?? 'ru'
+    if (нужный !== текущійЯзык()) {
+      // Сперва сохранить: запись в хранилище идёт с задержкой, и
+      // перезапуск без неё терял бы сам выбор — окно вернулось бы назад.
+      void store.saveNow().catch(() => {}).finally(() => {
+        запомнитьЯзык(нужный)
+        window.location.reload()
+      })
+    }
+    // store стабилен; зависим от готовности и самого языка.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, data.settings.language])
+
   useEffect(() => {
     const root = document.documentElement
     /*
@@ -209,6 +217,7 @@ export default function App() {
     void bridge.shellPrefs?.({
       tray: data.settings.tray ?? true,
       dateFormat: data.settings.dateFormat ?? 'ru',
+      language: data.settings.language ?? 'ru',
     })
     root.style.setProperty('--accent', своя ? своя.accent : data.settings.accent)
   }, [data.settings.theme, data.settings.customTheme, data.settings.customThemes, animLevel, data.settings.accent, data.settings.density, data.settings.readingFont])
@@ -280,11 +289,6 @@ export default function App() {
     })
   }, [])
 
-  /**
-   * После загрузки архива открытые вкладки показывают то, чего в хранилище
-   * больше нет: заметку прежнего владельца, удалённую доску. Заново открытый
-   * дашборд честнее, чем список призраков.
-   */
   /**
    * После загрузки архива открытые вкладки показывают то, чего в хранилище
    * больше нет: заметку прежнего владельца, удалённую доску. Заново открытый
@@ -490,7 +494,7 @@ export default function App() {
               ? т('сохраняю…')
               : lastSaved
                 ? т('сохранено в {0}', new Date(lastSaved).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }))
-                : 'сохранить'}
+                : т('сохранить')}
           </button>
           {saveError && (
             <span style={{ color: 'var(--money-out)' }} title={saveError}>
@@ -692,7 +696,7 @@ function Sidebar() {
  * Хранится в localStorage, а не в хранилище: это привычка окна, а не данные
  * о деньгах, и уезжать вместе с ними в облако на другой компьютер ей незачем.
  */
-const ГДѢ_СВЁРНУТЫ = т('kashel:свёрнутыеГруппы')
+const ГДѢ_СВЁРНУТЫ = 'kashel:свёрнутыеГруппы'
 
 function useСвёрнутыеГруппы(): [Set<string>, (н: Set<string>) => void] {
   const [свёрнуты, setСвёрнуты] = useState<Set<string>>(() => {
@@ -762,7 +766,6 @@ function renderView(tab: Tab) {
   }
 }
 
-/** Отсчёт помидора в строке состояния. Молчит, пока таймер не запущен. */
 /** Отсчёт помидора в строке состояния. Молчит, пока таймер не запущен. */
 function PomodoroBadge() {
   const app = useApp()

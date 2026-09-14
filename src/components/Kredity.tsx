@@ -79,7 +79,7 @@ function Одинъ({ k, доплата, setДоплата }: {
     <div className="kredit-row">
       <div className="row" style={{ alignItems: 'baseline' }}>
         <span className="strong">{k.acc.name}</span>
-        <span className="faint small">{тр('{0} · {1} годовых', карта ? 'карта' : 'заём', pct(k.ratePct, 0))}</span>
+        <span className="faint small">{тр('{0} · {1} годовых', карта ? т('карта') : т('заём'), pct(k.ratePct, 0))}</span>
         <span className="spacer" />
         <span className="num strong neg" style={{ fontSize: 17 }}>{money(k.debt)}</span>
       </div>

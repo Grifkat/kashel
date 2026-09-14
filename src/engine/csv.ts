@@ -1,6 +1,7 @@
 import type { ImportRule, Money, Transaction } from '../lib/types'
 import { iso, parseISO, today } from '../lib/date'
 import { toMinor, uid } from '../lib/format'
+import { т } from '../i18n'
 
 export interface CsvTable {
   header: string[]
@@ -58,9 +59,9 @@ export interface ColumnMap {
   category?: number
 }
 
-const DATE_HINTS = ['дата', 'date', 'operation', 'время']
-const AMOUNT_HINTS = ['сумма', 'amount', 'оборот', 'value', 'приход', 'расход', 'списание']
-const DESC_HINTS = ['описание', 'назначение', 'комментарий', 'description', 'категория', 'контрагент', 'место']
+const DATE_HINTS = ['дата', 'date', 'operation', 'время', 'time']
+const AMOUNT_HINTS = ['сумма', 'amount', 'оборот', 'value', 'приход', 'расход', 'списание', 'sum', 'debit', 'credit']
+const DESC_HINTS = ['описание', 'назначение', 'комментарий', 'description', 'категория', 'контрагент', 'место', 'comment', 'memo', 'details', 'payee', 'merchant', 'category']
 
 /** Догадка о раскладке колонок по заголовку — пользователь потом правит руками. */
 export function guessColumns(header: string[]): ColumnMap {
@@ -152,7 +153,7 @@ export function rowsToTransactions(rows: ImportPreviewRow[], accountId: string):
       amount: Math.abs(r.amount),
       accountId,
       categoryId: r.categoryId,
-      tags: ['импорт'],
+      tags: [т('импорт')],
       note: r.description || undefined,
       createdAt: new Date().toISOString(),
     }))

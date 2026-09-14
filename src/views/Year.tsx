@@ -18,11 +18,6 @@ const monthName = (key?: string) => (key ? MONTHS[Number(key.slice(5, 7)) - 1] :
  * кроме сравнения с прошлым годом. Прошлый год обрезается по тому же дню,
  * иначе в марте текущий год выглядел бы провалом на фоне полного прошлого.
  */
-/**
- * Итоги года — витрина поверх уже посчитанного: ничего нового не считается,
- * кроме сравнения с прошлым годом. Прошлый год обрезается по тому же дню,
- * иначе в марте текущий год выглядел бы провалом на фоне полного прошлого.
- */
 export default function YearView() {
   const app = useApp()
   const { data } = useStore()
@@ -69,7 +64,7 @@ export default function YearView() {
     return { id: t.categoryId, label: c?.name ?? т('Без категории'), value: t.amount, color: c?.color ?? '#7c8794' }
   })
 
-  const note = sum.through < `${year}-12-31` ? `${prevYear} по ${humanDate(addMonths(sum.through, -12), true)}` : prevYear
+  const note = sum.through < `${year}-12-31` ? т('{0} по {1}', prevYear, humanDate(addMonths(sum.through, -12), true)) : prevYear
   const empty = sum.count === 0
 
   return (

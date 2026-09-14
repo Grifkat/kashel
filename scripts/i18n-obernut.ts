@@ -44,20 +44,20 @@ export function похожеНаТекст(s: string): boolean {
   return /\s/.test(t) || /^[А-ЯЁѢІѴ]/.test(t) || /[.,:;!?…«»—–()]/.test(t)
 }
 
-const СЛУЖЕБНЫЕ_ВЫЗОВЫ = new Set([
+export const СЛУЖЕБНЫЕ_ВЫЗОВЫ = new Set([
   'includes', 'startsWith', 'endsWith', 'indexOf', 'lastIndexOf', 'test', 'match', 'matchAll',
   'replace', 'replaceAll', 'split', 'search', 'localeCompare', 'get', 'has', 'set', 'delete',
   'getItem', 'setItem', 'removeItem', 'querySelector', 'querySelectorAll', 'closest', 'matches',
   'RegExp', 'require', 'plural', 'т', 'тр', 'тк', 'uid', 'log', 'warn', 'error', 'info', 'debug',
   'getPropertyValue', 'setProperty', 'removeProperty', 'dispatchEvent', 'addEventListener',
 ])
-const СЛУЖЕБНЫЕ_АТРИБУТЫ = new Set(['value', 'key', 'className', 'id', 'name', 'type', 'accept', 'role', 'href', 'src', 'htmlFor', 'inputMode', 'autoComplete'])
+export const СЛУЖЕБНЫЕ_АТРИБУТЫ = new Set(['value', 'key', 'className', 'id', 'name', 'type', 'accept', 'role', 'href', 'src', 'htmlFor', 'inputMode', 'autoComplete'])
 
 const имяВызова = (e: ts.Expression): string =>
   ts.isIdentifier(e) ? e.text : ts.isPropertyAccessExpression(e) ? e.name.text : ''
 
 /** Строку в этом месте трогать нельзя — это не надпись, а часть логики. */
-function служебноеМѣсто(node: ts.Node): boolean {
+export function служебноеМѣсто(node: ts.Node): boolean {
   const p = node.parent
   if (!p) return true
   if (ts.isImportDeclaration(p) || ts.isExportDeclaration(p) || ts.isExternalModuleReference(p)) return true
@@ -158,6 +158,9 @@ export function переделать(текстъ: string, файлъ: string, �
     let итогъ = ''
     let позиція = node.getStart(sf)
     for (const д of дети) {
+      // JSDoc — тоже ребёнок узла, но лежит до его начала: без пропуска
+      // примечание над объявлением выходило дважды.
+      if (д.kind === ts.SyntaxKind.JSDoc) continue
       const начало = д.getStart(sf)
       итогъ += текстъ.slice(позиція, начало)
       итогъ += выход(д)

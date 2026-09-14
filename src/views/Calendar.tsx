@@ -14,11 +14,6 @@ import { т, тр } from '../i18n'
  * недели, когда деньги утекали каждый день. Средние по месяцам этого не
  * показывают, а календарь показывает без единой цифры.
  */
-/**
- * Год днями. Смысл экрана — увидеть ритм трат: выходные, дни зарплаты,
- * недели, когда деньги утекали каждый день. Средние по месяцам этого не
- * показывают, а календарь показывает без единой цифры.
- */
 export default function CalendarView() {
   const app = useApp()
   const { data } = useStore()
@@ -126,7 +121,7 @@ export default function CalendarView() {
         <div>
           <h1 className="view-title">{т('Календарь')}</h1>
           <div className="view-sub">
-            {тр('Каждая клетка — день года, насыщенность — сколько в этот день {0}', side === 'expense' ? 'потрачено' : 'получено')}</div>
+            {тр('Каждая клетка — день года, насыщенность — сколько в этот день {0}', side === 'expense' ? т('потрачено') : т('получено'))}</div>
         </div>
       </div>
 
@@ -184,7 +179,7 @@ export default function CalendarView() {
                     key={d}
                     className={'cal-cell' + (sel === d ? ' sel' : '')}
                     style={{ background: fill(level(v)) }}
-                    title={`${humanDate(d, true)} — ${v > 0 ? money(v) : 'ничего'}${point && point.count ? ` · ${point.count} ${plural(point.count, 'операция', 'операции', 'операций')}` : ''}`}
+                    title={`${humanDate(d, true)} — ${v > 0 ? money(v) : т('ничего')}${point && point.count ? ` · ${point.count} ${plural(point.count, 'операция', 'операции', 'операций')}` : ''}`}
                     onClick={() => setSel(sel === d ? null : d)}
                   />
                 )
@@ -220,7 +215,7 @@ export default function CalendarView() {
           </div>
         </div>
         <div className="card tight">
-          <div className="card-title">{тр('Самый {0} день', side === 'expense' ? 'дорогой' : 'щедрый')}</div>
+          <div className="card-title">{тр('Самый {0} день', side === 'expense' ? т('дорогой') : т('щедрый'))}</div>
           <div className="stat">
             <span className="v">{top ? (hidden ? '••••' : money(valueOf(top))) : '—'}</span>
             {top && (

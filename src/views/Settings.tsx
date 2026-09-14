@@ -27,7 +27,6 @@ export default function SettingsView() {
   const [wipeOpen, setWipeOpen] = useState(false)
   const [addAll, setAddAll] = useState(false)
   /** Связано ли расширение .kashel с программой. Спрашиваем систему при входе. */
-  /** Связано ли расширение .kashel с программой. Спрашиваем систему при входе. */
   const [assoc, setAssoc] = useState<AssocStatus | null>(null)
 
   const refreshAssoc = useCallback(async () => {
@@ -52,6 +51,19 @@ export default function SettingsView() {
           <h1 className="view-title">{т('Настройки')}</h1>
           <div className="view-sub">{т('Всё хранится в вашей папке — программа никуда ничего не отправляет')}</div>
         </div>
+        {/* Язык — в самой шапке и подписан на обоих языках: кто переключил
+            по ошибке, должен найти, как вернуть, не зная второго языка. */}
+        <label className="row" style={{ gap: 8, marginLeft: 'auto' }}>
+          <span className="faint small">Язык · Language</span>
+          <select
+            value={data.settings.language ?? 'ru'}
+            onChange={(e) => patchSettings({ language: e.target.value as 'ru' | 'en' })}
+            title={т('Окно перезапустится на выбранном языке')}
+          >
+            <option value="ru">Русский</option>
+            <option value="en">English</option>
+          </select>
+        </label>
       </div>
 
       <div className="grid c2">

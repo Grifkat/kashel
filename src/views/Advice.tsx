@@ -13,6 +13,7 @@ import { личное } from '../engine/project'
 import { Besjeda } from '../components/Besjeda'
 import { т, тр } from '../i18n'
 
+const УСИЛІЯ: Record<Advice['effort'], string> = { низкое: т('низкое'), среднее: т('среднее'), высокое: т('высокое') }
 const SEV_ICON: Record<Severity, string> = { alert: 'warn', warn: 'warn', info: 'bulb', good: 'check' }
 const KIND_ICON: Record<AdviceKind, string> = {
   cut: 'minus', income: 'arrowUp', budget: 'scale', risk: 'shield', debt: 'credit', goal: 'target',
@@ -145,7 +146,7 @@ export default function AdviceView() {
                   {a.impactMonthly > 0 && (
                     <span className="badge good">{тр('≈ {0}/мес', money(a.impactMonthly))}</span>
                   )}
-                  <span className="badge">{тр('усилия: {0}', a.effort)}</span>
+                  <span className="badge">{тр('усилия: {0}', УСИЛІЯ[a.effort])}</span>
                 </div>
                 <div className="advice-body" style={{ marginTop: 6 }}>{a.body}</div>
                 {a.evidence.length > 0 && (

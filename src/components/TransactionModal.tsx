@@ -42,20 +42,11 @@ export function TransactionModal({
   const [attachments, setAttachments] = useState<string[]>(draft.attachments ?? [])
   const [showAll, setShowAll] = useState(false)
   /** Название новой статьи. null — окошко закрыто. */
-  /** Название новой статьи. null — окошко закрыто. */
   const [новая, setНовая] = useState<string | null>(null)
   const [confirmDel, setConfirmDel] = useState(false)
   /** Какой чек сейчас смотрим. null — не смотрим. */
-  /** Какой чек сейчас смотрим. null — не смотрим. */
   const [shot, setShot] = useState<string | null>(null)
 
-  /**
-   * Заводит статью и сразу ставит её в эту запись.
-   *
-   * Цвет берётся из общей палитры по числу уже заведённых — так две подряд
-   * созданные статьи не окажутся одного цвета, а разбираться с выбором в
-   * момент ввода траты человеку незачем.
-   */
   /**
    * Заводит статью и сразу ставит её в эту запись.
    *
@@ -119,11 +110,6 @@ export function TransactionModal({
    * расходная категория не должна остаться висеть на доходной операции —
    * иначе доход утекает в расходную статистику.
    */
-  /**
-   * Категория живёт в своём направлении: при переключении вида выбранная
-   * расходная категория не должна остаться висеть на доходной операции —
-   * иначе доход утекает в расходную статистику.
-   */
   const switchKind = (next: TxKind) => {
     setKind(next)
     if (next === 'transfer') return
@@ -173,7 +159,7 @@ export function TransactionModal({
       toast(т('Операция обновлена'))
     } else {
       addTransaction({ ...payload } as Omit<Transaction, 'id' | 'createdAt'>)
-      toast(`${KIND_LABEL[kind]} ${money(amount)} записан`)
+      toast(т('{0} {1} записан', KIND_LABEL[kind], money(amount)))
     }
     onClose()
   }
@@ -329,9 +315,9 @@ export function TransactionModal({
         <div className="card-title">{т('Дата')}</div>
         <div className="row" style={{ gap: 8, marginBottom: 16 }}>
           {[
-            { d: today(), l: 'сегодня' },
-            { d: addDays(today(), -1), l: 'вчера' },
-            { d: lastDate, l: 'последняя' },
+            { d: today(), l: т('сегодня') },
+            { d: addDays(today(), -1), l: т('вчера') },
+            { d: lastDate, l: т('последняя') },
           ].map((x) => (
             <button key={x.l} className={'chip' + (date === x.d ? ' on' : '')} onClick={() => setDate(x.d)}>
               {humanDate(x.d, false)} · {x.l}
@@ -444,7 +430,7 @@ export function TransactionModal({
             />
           </Field>
           <div className="faint small">
-            {тр('Статья заводится {0} — по виду этой записи. Значок и цвет можно поменять потом в разделе «Категории».', kind === 'income' ? 'доходной' : 'расходной')}</div>
+            {тр('Статья заводится {0} — по виду этой записи. Значок и цвет можно поменять потом в разделе «Категории».', kind === 'income' ? т('доходной') : т('расходной'))}</div>
         </Modal>
       )}
 
@@ -464,13 +450,6 @@ export function TransactionModal({
   )
 }
 
-/**
- * Просмотр приложенного чека.
- *
- * Файл лежит в хранилище, а не в интернете, поэтому показать его можно
- * только прочитав в data-url. Тип угадываем по расширению: png и webp не
- * покажутся, если объявить их jpeg.
- */
 /**
  * Просмотр приложенного чека.
  *

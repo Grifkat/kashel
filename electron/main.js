@@ -5,6 +5,8 @@ const fsp = require('node:fs/promises')
 const { execFile } = require('node:child_process')
 const { insideVault } = require('./vaultpath')
 const обновленіе = require('./update')
+const языкъ = require('./yazyk')
+const { м } = языкъ
 
 const isDev = !!process.env.KASHEL_DEV
 
@@ -39,6 +41,9 @@ function writeConfig(cfg) {
   fs.mkdirSync(path.dirname(configFile()), { recursive: true })
   fs.writeFileSync(configFile(), JSON.stringify(cfg, null, 2), 'utf8')
 }
+
+// Язык меню и системных окон известен до окна: окно его только меняет.
+языкъ.поставить(readConfig().language)
 
 function defaultVaultPath() {
   if (isDev) return path.join(__dirname, '..', 'vault')
@@ -86,7 +91,7 @@ function vaultRoot() {
 function resolveInVault(rel) {
   const root = vaultRoot()
   if (!insideVault(root, rel)) {
-    throw new Error('Путь за пределами хранилища: ' + rel)
+    throw new Error(м('Путь за пределами хранилища: ') + rel)
   }
   return path.resolve(root, rel)
 }
@@ -108,13 +113,13 @@ async function atomicWrite(full, data) {
 /** Понятная причина вместо кода ошибки: это читает человек, а не разработчик. */
 function whyFailed(e) {
   switch (e && e.code) {
-    case 'ENOENT': return 'Папки хранилища нет на месте'
+    case 'ENOENT': return м('Папки хранилища нет на месте')
     case 'EACCES':
-    case 'EPERM': return 'Нет прав на запись в папку хранилища'
-    case 'EBUSY': return 'Файл занят другой программой'
-    case 'ENOSPC': return 'На диске кончилось место'
-    case 'EROFS': return 'Диск доступен только для чтения'
-    default: return e instanceof Error ? e.message : String(e)
+    case 'EPERM': return м('Нет прав на запись в папку хранилища')
+    case 'EBUSY': return м('Файл занят другой программой')
+    case 'ENOSPC': return м('На диске кончилось место')
+    case 'EROFS': return м('Диск доступен только для чтения')
+    default: return м(e instanceof Error ? e.message : String(e))
   }
 }
 
@@ -189,11 +194,11 @@ function makeTray() {
   const png = path.join(__dirname, '..', 'build', 'icon.png')
   const img = fs.existsSync(png) ? nativeImage.createFromPath(png).resize({ width: 16, height: 16 }) : undefined
   tray = new Tray(img || nativeImage.createEmpty())
-  tray.setToolTip('Кошель')
+  tray.setToolTip(м('Кошель'))
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Открыть Кошель', click: () => показать() },
+    { label: м('Открыть Кошель'), click: () => показать() },
     { type: 'separator' },
-    { label: 'Выйти', click: () => { выходим = true; app.quit() } },
+    { label: м('Выйти'), click: () => { выходим = true; app.quit() } },
   ]))
   tray.on('click', () => показать())
 }
@@ -213,7 +218,7 @@ function createWindow() {
     minHeight: 640,
     backgroundColor: '#1e1e1e',
     show: false,
-    title: 'Кошель',
+    title: м('Кошель'),
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -264,42 +269,42 @@ function buildMenu() {
   const toWindow = (channel) => () => win && win.webContents.send(channel)
   const template = [
     {
-      label: 'Файл',
+      label: м('Файл'),
       submenu: [
-        { label: 'Открыть…', accelerator: 'CmdOrCtrl+O', click: toWindow('menu:open') },
-        { label: 'Сохранить как…', accelerator: 'CmdOrCtrl+Shift+S', click: toWindow('menu:save-as') },
+        { label: м('Открыть…'), accelerator: 'CmdOrCtrl+O', click: toWindow('menu:open') },
+        { label: м('Сохранить как…'), accelerator: 'CmdOrCtrl+Shift+S', click: toWindow('menu:save-as') },
         { type: 'separator' },
         {
-          label: 'Открыть папку хранилища',
+          label: м('Открыть папку хранилища'),
           click: () => shell.openPath(ensureVault(vaultPath())),
         },
         { type: 'separator' },
-        { role: 'quit', label: 'Выход' },
+        { role: 'quit', label: м('Выход') },
       ],
     },
     {
-      label: 'Правка',
+      label: м('Правка'),
       submenu: [
-        { role: 'undo', label: 'Отменить' },
-        { role: 'redo', label: 'Повторить' },
+        { role: 'undo', label: м('Отменить') },
+        { role: 'redo', label: м('Повторить') },
         { type: 'separator' },
-        { role: 'cut', label: 'Вырезать' },
-        { role: 'copy', label: 'Копировать' },
-        { role: 'paste', label: 'Вставить' },
-        { role: 'selectAll', label: 'Выделить всё' },
+        { role: 'cut', label: м('Вырезать') },
+        { role: 'copy', label: м('Копировать') },
+        { role: 'paste', label: м('Вставить') },
+        { role: 'selectAll', label: м('Выделить всё') },
       ],
     },
     {
-      label: 'Вид',
+      label: м('Вид'),
       submenu: [
-        { role: 'reload', label: 'Перезагрузить' },
-        { role: 'toggleDevTools', label: 'Инструменты разработчика' },
+        { role: 'reload', label: м('Перезагрузить') },
+        { role: 'toggleDevTools', label: м('Инструменты разработчика') },
         { type: 'separator' },
-        { role: 'resetZoom', label: 'Сбросить масштаб' },
-        { role: 'zoomIn', label: 'Увеличить' },
-        { role: 'zoomOut', label: 'Уменьшить' },
+        { role: 'resetZoom', label: м('Сбросить масштаб') },
+        { role: 'zoomIn', label: м('Увеличить') },
+        { role: 'zoomOut', label: м('Уменьшить') },
         { type: 'separator' },
-        { role: 'togglefullscreen', label: 'Полный экран' },
+        { role: 'togglefullscreen', label: м('Полный экран') },
         { type: 'separator' },
         /*
          * Проверка обновления в меню, а не только в настройках.
@@ -309,7 +314,7 @@ function buildMenu() {
          * бы второй путь со своим показом хода и своими ошибками, и они
          * разошлись бы при первой же правке.
          */
-        { label: 'Проверить обновление', click: toWindow('menu:update') },
+        { label: м('Проверить обновление'), click: toWindow('menu:update') },
       ],
     },
   ]
@@ -396,12 +401,21 @@ async function тихаяПроверка() {
   }
 }
 
-ipcMain.handle('update:check', async () => {
+/** Отказы update.js — на языке оболочки: их читает человек в настройках. */
+const поЯзыку = async (дѣло) => {
+  try {
+    return await дѣло()
+  } catch (e) {
+    throw new Error(м(e instanceof Error ? e.message : String(e)))
+  }
+}
+
+ipcMain.handle('update:check', () => поЯзыку(async () => {
   const н = await обновленіе.проверить({ адресъ: адресъОбновленій(), версія: app.getVersion() })
   writeConfig({ ...readConfig(), lastUpdateCheck: Date.now() })
   находка = н.есть ? н : null
   return н
-})
+}))
 
 /*
  * Нынешняя версия и то, что нашла тихая проверка.
@@ -411,7 +425,7 @@ ipcMain.handle('update:check', async () => {
  */
 ipcMain.handle('update:pending', () => ({ версія: app.getVersion(), находка }))
 
-ipcMain.handle('update:install', async (_e, н) => {
+ipcMain.handle('update:install', (_e, н) => поЯзыку(async () => {
   if (!app.isPackaged) throw new Error('в режиме разработки установка обновления не делается')
   if (!н || !н.url) throw new Error('нечего ставить')
   const итогъ = await обновленіе.поставить({
@@ -425,8 +439,8 @@ ipcMain.handle('update:install', async (_e, н) => {
     выходим = true
     setTimeout(() => app.quit(), 500)
   }
-  return итогъ
-})
+  return { ...итогъ, действіе: м(итогъ.действіе) }
+}))
 
 // ---------------------------------------------------------------- IPC
 /*
@@ -445,6 +459,17 @@ ipcMain.handle('shell:prefs', (_e, prefs) => {
     const cfg = readConfig()
     if (cfg.dateFormat !== prefs.dateFormat) writeConfig({ ...cfg, dateFormat: prefs.dateFormat })
   }
+  // Меню и трей Electron перестраивает на лету — в отличие от языка Chromium.
+  if (prefs?.language === 'ru' || prefs?.language === 'en') {
+    const cfg = readConfig()
+    if (cfg.language !== prefs.language) writeConfig({ ...cfg, language: prefs.language })
+    if (языкъ.текущій() !== prefs.language) {
+      языкъ.поставить(prefs.language)
+      buildMenu()
+      if (win && !win.isDestroyed()) win.setTitle(м('Кошель'))
+      if (tray) { tray.destroy(); tray = null; makeTray() }
+    }
+  }
   return true
 })
 
@@ -452,7 +477,7 @@ ipcMain.handle('vault:path', () => vaultPath())
 
 ipcMain.handle('vault:choose', async () => {
   const res = await dialog.showOpenDialog(win, {
-    title: 'Выберите папку хранилища',
+    title: м('Выберите папку хранилища'),
     properties: ['openDirectory', 'createDirectory'],
     defaultPath: vaultPath(),
   })
@@ -549,7 +574,7 @@ ipcMain.handle('fs:readBinary', async (_e, rel) => {
 
 ipcMain.handle('dialog:openText', async (_e, filters) => {
   const res = await dialog.showOpenDialog(win, {
-    title: 'Выберите файл',
+    title: м('Выберите файл'),
     properties: ['openFile'],
     filters: filters || [{ name: 'CSV', extensions: ['csv', 'txt'] }],
   })
@@ -570,7 +595,7 @@ ipcMain.handle('dialog:openText', async (_e, filters) => {
  */
 ipcMain.handle('dialog:saveText', async (_e, defaultName, text, opts) => {
   const res = await dialog.showSaveDialog(win, {
-    title: 'Сохранить файл',
+    title: м('Сохранить файл'),
     defaultPath: defaultName,
     filters: (opts && opts.filters) || undefined,
   })
@@ -642,7 +667,7 @@ ipcMain.handle('assoc:set', async () => {
     : `"${path.join(__dirname, '..', 'build', 'icon.ico')}"`
   const steps = [
     ['add', `${HKCU}\\.kashel`, '/ve', '/d', PROG_ID, '/f'],
-    ['add', `${HKCU}\\${PROG_ID}`, '/ve', '/d', 'Хранилище Кошеля', '/f'],
+    ['add', `${HKCU}\\${PROG_ID}`, '/ve', '/d', м('Хранилище Кошеля'), '/f'],
     ['add', `${HKCU}\\${PROG_ID}\\DefaultIcon`, '/ve', '/d', icon, '/f'],
     ['add', `${HKCU}\\${PROG_ID}\\shell\\open\\command`, '/ve', '/d', openCommand(), '/f'],
   ]
@@ -659,9 +684,9 @@ ipcMain.handle('assoc:clear', async () => {
 
 ipcMain.handle('dialog:openImage', async () => {
   const res = await dialog.showOpenDialog(win, {
-    title: 'Фото чека',
+    title: м('Фото чека'),
     properties: ['openFile'],
-    filters: [{ name: 'Изображения', extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
+    filters: [{ name: м('Изображения'), extensions: ['png', 'jpg', 'jpeg', 'webp', 'gif'] }],
   })
   if (res.canceled || !res.filePaths[0]) return null
   const buf = await fsp.readFile(res.filePaths[0])
@@ -672,9 +697,9 @@ ipcMain.handle('dialog:openImage', async () => {
 // на другой компьютер и уедет вместе с архивом.
 ipcMain.handle('dialog:openSound', async () => {
   const res = await dialog.showOpenDialog(win, {
-    title: 'Звук напоминания',
+    title: м('Звук напоминания'),
     properties: ['openFile'],
-    filters: [{ name: 'Звук', extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac'] }],
+    filters: [{ name: м('Звук'), extensions: ['mp3', 'wav', 'ogg', 'm4a', 'flac'] }],
   })
   if (res.canceled || !res.filePaths[0]) return null
   const buf = await fsp.readFile(res.filePaths[0])

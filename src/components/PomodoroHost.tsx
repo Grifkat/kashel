@@ -22,13 +22,10 @@ export type PomodoroPhase = 'idle' | 'work' | 'rest'
 interface Pomodoro {
   phase: PomodoroPhase
   /** Сколько секунд осталось. Когда стоит на паузе — застывшее значение. */
-  /** Сколько секунд осталось. Когда стоит на паузе — застывшее значение. */
   left: number
   paused: boolean
   /** Над какой задачей идёт работа. Пусто — просто отсчёт. */
-  /** Над какой задачей идёт работа. Пусто — просто отсчёт. */
   taskId: string | null
-  /** Сколько рабочих отрезков закрыто за этот запуск программы. */
   /** Сколько рабочих отрезков закрыто за этот запуск программы. */
   doneToday: number
   start(taskId: string | null): void
@@ -97,7 +94,6 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   /** Завершает текущий отрезок: рабочий засчитывается задаче, отдых — нет. */
-  /** Завершает текущий отрезок: рабочий засчитывается задаче, отдых — нет. */
   const завершить = useCallback(() => {
     const { phase: p, taskId: id, minutes: m } = cur.current
     if (p === 'work') {
@@ -107,7 +103,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
         if (t) upsertTask({ ...t, pomodoros: (t.pomodoros ?? 0) + 1 })
       }
       playTone('bell')
-      toast(т('Отрезок закрыт — перерыв ') + Math.max(1, m.rest) + ' мин')
+      toast(т('Отрезок закрыт — перерыв {0} мин', Math.max(1, m.rest)))
       начать('rest', Math.max(1, m.rest) * 60)
     } else {
       playTone('soft')
@@ -135,7 +131,6 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 
-/** Минуты и секунды из остатка: 1500 → «25:00». */
 /** Минуты и секунды из остатка: 1500 → «25:00». */
 export const clock = (secs: number): string =>
   `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`

@@ -83,21 +83,4 @@ export function тр(ключъ: string, ...args: React.ReactNode[]): React.Reac
  */
 export const тк = (ключъ: string): string => ключъ
 
-/**
- * Множественное число. По-русски три формы, по-английски две; перевод
- * хранится под ключом «одна|две|пять» → «one|many».
- */
-export function мн(n: number, одна: string, двѣ: string, пять: string): string {
-  if (язык === 'en') {
-    const перевод = EN[`${одна}|${двѣ}|${пять}`]
-    if (перевод) {
-      const [one, many] = перевод.split('|')
-      return Math.abs(n) === 1 ? one : many
-    }
-  }
-  const n10 = Math.abs(n) % 10
-  const n100 = Math.abs(n) % 100
-  if (n10 === 1 && n100 !== 11) return одна
-  if (n10 >= 2 && n10 <= 4 && (n100 < 10 || n100 >= 20)) return двѣ
-  return пять
-}
+/* Множественное число переводится в plural() (lib/format): там оно и зовётся во всей программе. */

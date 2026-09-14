@@ -94,7 +94,7 @@ export default function ImportView() {
               <Icon name="note" size={16} />
               <span className="strong">{file}</span>
               <span className="faint small">
-                {тр('{0} строк · разделитель «{1}»', table.rows.length, table.delimiter === '\t' ? 'таб' : table.delimiter)}</span>
+                {тр('{0} строк · разделитель «{1}»', table.rows.length, table.delimiter === '\t' ? т('таб') : table.delimiter)}</span>
               <span className="spacer" />
               <button className="btn sm ghost" onClick={() => { setTable(null); setRows([]) }}>{т('Отменить')}</button>
             </div>
@@ -103,14 +103,14 @@ export default function ImportView() {
               <Field label={т('Колонка с датой')}>
                 <select value={map.date} onChange={(e) => remap({ ...map, date: Number(e.target.value) })}>
                   {table.header.map((h, i) => (
-                    <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
+                    <option key={i} value={i}>{h || т('колонка {0}', i + 1)}</option>
                   ))}
                 </select>
               </Field>
               <Field label={т('Колонка с суммой')}>
                 <select value={map.amount} onChange={(e) => remap({ ...map, amount: Number(e.target.value) })}>
                   {table.header.map((h, i) => (
-                    <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
+                    <option key={i} value={i}>{h || т('колонка {0}', i + 1)}</option>
                   ))}
                 </select>
               </Field>
@@ -121,14 +121,14 @@ export default function ImportView() {
                 >
                   <option value="">{т('нет')}</option>
                   {table.header.map((h, i) => (
-                    <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
+                    <option key={i} value={i}>{h || т('колонка {0}', i + 1)}</option>
                   ))}
                 </select>
               </Field>
               <Field label={т('Колонка с описанием')}>
                 <select value={map.description} onChange={(e) => remap({ ...map, description: Number(e.target.value) })}>
                   {table.header.map((h, i) => (
-                    <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
+                    <option key={i} value={i}>{h || т('колонка {0}', i + 1)}</option>
                   ))}
                 </select>
               </Field>

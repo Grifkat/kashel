@@ -15,7 +15,6 @@ import { личное } from '../engine/project'
 import { т, тр } from '../i18n'
 
 /** Правая панель: то, что стоит держать перед глазами, не открывая раздел. */
-/** Правая панель: то, что стоит держать перед глазами, не открывая раздел. */
 export function RightPanel({ open }: { open: boolean }) {
   const app = useApp()
   const { data } = useStore()

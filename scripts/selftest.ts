@@ -29,7 +29,7 @@ import {
 import { знакъЕсть, ключъЗнака } from '../src/lib/znaki'
 import { creditState, schedule, whatIf } from '../src/engine/credit'
 import { личное, projectState, projectsSummary, проектная } from '../src/engine/project'
-import { НАСТАВЛЕНІЕ, полнаяВыгрузка, сводкаДляМодели } from '../src/engine/svodka'
+import { НАСТАВЛЕНІЕ, наказЯзыка, полнаяВыгрузка, сводкаДляМодели } from '../src/engine/svodka'
 import { migrateCredits } from '../src/state/defaults'
 import { ОПИСАННЫЕ } from '../src/lib/znakiText'
 import { FREEZES_PER_MONTH, streak } from '../src/engine/streak'
@@ -41,6 +41,12 @@ import {
 import { адресОблака, облако, облакоЕсть } from '../src/state/cloudconfig'
 import { новѣе, подписьВѣрна, разобрать, родъ } from '../electron/update.js'
 import * as крипто from 'node:crypto'
+import { createRequire } from 'node:module'
+import { сторожъ } from './i18n-storozh'
+import { EN } from '../src/i18n/en'
+import { ICON_GROUPS } from '../src/lib/catalog'
+import { т, тр, поставитьЯзык } from '../src/i18n'
+import { plural } from '../src/lib/format'
 import { readFileSync } from 'node:fs'
 import * as path from 'node:path'
 
@@ -127,6 +133,13 @@ const d3 = parseQuick('такси 3к 12.08 @наличные', data.categories,
 check('сокращение «3к» = 3000', d3.amount === 300000, String(d3.amount))
 check('дата 12.08 разобрана', d3.date.endsWith('-08-12'), d3.date)
 check('счёт @наличные найден', d3.matchedAccount === 'Наличные', String(d3.matchedAccount))
+
+// Английские слова понимаются всегда — окно могут переключить, а привычка писать останется.
+const d4 = parseQuick('coffee 250 yesterday', data.categories, data.accounts, { accountId: 'acc_main' })
+check('англійское yesterday — вчера', d4.date < today() && d4.amount === 25000, `${d4.date} ${d4.amount}`)
+check('англійское earnings — доход', parseQuick('earnings 45000', data.categories, data.accounts, { accountId: 'acc_main' }).kind === 'income')
+check('англійское transfer — перевод', parseQuick('transfer 500', data.categories, data.accounts, { accountId: 'acc_main' }).kind === 'transfer')
+check('и русскія слова на мѣстѣ', parseQuick('перевод 500', data.categories, data.accounts, { accountId: 'acc_main' }).kind === 'transfer')
 
 // Направление операции: угадывание не должно перевешивать контекст и знаки
 const kindOf = (line: string, ctx?: 'income' | 'expense') =>
@@ -1759,7 +1772,10 @@ async function полнаяВыгрузкаПровѣрка() {
 }
 
 // Наставленіе модели.
-check('наставленіе требуетъ русскаго', НАСТАВЛЕНІЕ.includes('по-русски'))
+check('наставленіе велитъ отвѣчать на языкѣ вопроса', НАСТАВЛЕНІЕ.includes('на том языке, на котором написан вопрос'))
+check('русскій вопросъ — русскій отвѣтъ', наказЯзыка('сколько я потратил на Netflix?').includes('Отвечай по-русски'))
+check('англійскій вопросъ — отвѣтъ на языкѣ вопроса', наказЯзыка('How much did I spend on Продукты?').startsWith('Answer in the same language'))
+check('безъ буквъ — общее правило на обоихъ', /language of the question.*языке вопроса/.test(наказЯзыка('???')))
 check('и запрещаетъ выдумывать', /не додумывай|Не выдумывай/.test(НАСТАВЛЕНІЕ))
 
 // Проектныя деньги въ сводку личныхъ финансовъ не идутъ наравнѣ со всѣмъ прочимъ.
@@ -2307,6 +2323,69 @@ function оформленіе() {
   }
 }
 
+/*
+ * Перевод.
+ *
+ * Сторож проходит исходник компилятором: русская надпись мимо т(), ключ без
+ * английского, разошедшиеся места {0} — всё это тихие поломки, которые видны
+ * только в нужном углу английского окна. Отдельно — словарь оболочки: меню и
+ * системные окна рисует Electron, до словаря окна ему не дотянуться.
+ */
+function переводъ() {
+  console.log('\n— перевод —')
+  const названія = ICON_GROUPS.flatMap((g) => [g.title, ...g.items.map((i) => i.title)])
+  const и = сторожъ(path.join(process.cwd(), 'src'), EN, названія)
+  const списокъ = (a: (Находка | string)[]) =>
+    a.slice(0, 5).map((x) => (typeof x === 'string' ? x : `${x.файлъ}:${x.строка} ${x.текстъ}`)).join(' | ')
+  type Находка = { файлъ: string; строка: number; текстъ: string }
+  check('всѣ русскія надписи идутъ черезъ переводъ', и.непереведённыя.length === 0, списокъ(и.непереведённыя))
+  check('у каждаго ключа есть англійскій', и.ключи.size > 2000 && и.безПеревода.length === 0, `${и.ключи.size} ключей` + (и.безПеревода.length ? '; нѣтъ: ' + списокъ(и.безПеревода) : ''))
+  check('въ словарѣ нѣтъ ключей, которыхъ въ программѣ нѣтъ', и.лишнія.length === 0, списокъ(и.лишнія))
+  check('мѣста {0} въ переводѣ тѣ же', и.мѣстаНеСходятся.length === 0, списокъ(и.мѣстаНеСходятся))
+  check('ведущіе и хвостовые пробѣлы сохранены', и.пробѣлыНеСходятся.length === 0, списокъ(и.пробѣлыНеСходятся))
+  check('списокъ нарочно русскихъ строкъ не устарѣлъ', и.неиспользованныяНарочныя.length === 0, списокъ(и.неиспользованныяНарочныя))
+  const съКириллицей = Object.entries(EN).filter(([, v]) => /[а-яёѣі]/i.test(v))
+  check('въ англійскихъ значеніяхъ нѣтъ кириллицы', съКириллицей.length === 0, съКириллицей.slice(0, 3).join(' | '))
+
+  // Сама подстановка — на обоихъ языкахъ.
+  check('по-русски ключъ и есть строка', т('Удалить {0}', 3) === 'Удалить 3')
+  поставитьЯзык('en')
+  try {
+    check('по-англійски берётся переводъ', т('Удалить {0}', 3) === EN['Удалить {0}'].replace('{0}', '3'), т('Удалить {0}', 3))
+    check('незнакомый ключъ остаётся русскимъ, а не пустымъ', т('такого ключа нѣтъ') === 'такого ключа нѣтъ')
+    const формы = EN['операция|операции|операций'].split('|')
+    check('множественное по-англійски — двѣ формы',
+      plural(1, 'операция', 'операции', 'операций') === формы[0] && plural(5, 'операция', 'операции', 'операций') === формы[1] && plural(2, 'операция', 'операции', 'операций') === формы[1],
+      формы.join(' / '))
+    const фрагментъ = тр('{0} изъ {1}', 'a', 'b')
+    check('тр раскладываетъ мѣста по порядку', JSON.stringify(фрагментъ.props.children) === JSON.stringify(['a', ' изъ ', 'b']))
+  } finally {
+    поставитьЯзык('ru')
+  }
+
+  // Оболочка: всё, что зовётся черезъ м(), и всѣ отказы update.js есть въ словарѣ.
+  const языкОболочки = createRequire(path.join(process.cwd(), 'electron', 'main.js'))('./yazyk.js') as {
+    EN: Record<string, string>; EN_НАЧАЛА: [string, string][]; м: (s: string) => string; поставить: (я: string) => void
+  }
+  const главный = readFileSync('electron/main.js', 'utf8')
+  const обновленіе = readFileSync('electron/update.js', 'utf8')
+  const фразы = [
+    ...[...главный.matchAll(/м\('([^']+)'\)/g)].map((m) => m[1]),
+    ...[...главный.matchAll(/new Error\('([^']+)'\)/g)].map((m) => m[1]),
+    ...[...обновленіе.matchAll(/new Error\('([^']+)'\)/g)].map((m) => m[1]),
+    ...[...обновленіе.matchAll(/действіе: '([^']+)'/g)].map((m) => m[1]),
+  ]
+  const безъСловаря = [...new Set(фразы)].filter((ф) => !языкОболочки.EN[ф] && !языкОболочки.EN_НАЧАЛА.some(([ru]) => ru === ф))
+  check('словарь оболочки покрываетъ меню, окна и отказы', фразы.length > 40 && безъСловаря.length === 0, безъСловаря.join(' | ') || `${фразы.length} фразъ`)
+  const голыя = [...главный.matchAll(/(label|title|name): '([^']*[а-яё][^']*)'/gi)].map((m) => m[2])
+  check('въ меню и окнахъ оболочки нѣтъ русскихъ строкъ мимо м()', голыя.length === 0, голыя.join(' | '))
+  языкОболочки.поставить('en')
+  check('отказъ съ хвостомъ переводится по началу', языкОболочки.м('сервер ответил 404') === 'the server responded 404')
+  check('меню по-англійски', языкОболочки.м('Файл') === 'File')
+  языкОболочки.поставить('ru')
+  check('по-русски оболочка не трогаетъ фразы', языкОболочки.м('Файл') === 'Файл')
+}
+
 void завершить()
 
 async function завершить() {
@@ -2318,6 +2397,7 @@ async function завершить() {
   конструкторъТемъ()
   await полнаяВыгрузкаПровѣрка()
   await шифрованіе()
+  переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)
   process.exit(fail.length ? 1 : 0)

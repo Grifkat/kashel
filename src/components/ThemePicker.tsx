@@ -16,7 +16,6 @@ const ANIM: { id: AnimLevel; name: string; about: string }[] = [
 ]
 
 /** Миниатюра оформления: три цвета темы, разложенные как в самом окне. */
-/** Миниатюра оформления: три цвета темы, разложенные как в самом окне. */
 export function ThemeThumb({ theme, size = 1 }: { theme: ThemeInfo; size?: number }) {
   const [bg, panel, accent] = theme.swatch
   const r = theme.id === 'neon' ? 2 : theme.id === 'graphite' ? 4 : theme.id === 'warm' ? 9 : 6
@@ -87,7 +86,7 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
             <ThemeThumb theme={t} />
             <div className="row" style={{ gap: 7 }}>
               <span className="strong">{t.name}</span>
-              <span className="badge">{t.mode === 'dark' ? 'тёмная' : 'светлая'}</span>
+              <span className="badge">{t.mode === 'dark' ? т('тёмная') : т('светлая')}</span>
               {cur === t.id && <Icon name="check" size={15} style={{ color: 'var(--accent)', marginLeft: 'auto' }} />}
             </div>
             <div className="faint small" style={{ lineHeight: 1.45 }}>{t.about}</div>

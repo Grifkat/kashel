@@ -20,8 +20,7 @@ export interface Bridge {
   openImage(): Promise<{ name: string; base64: string } | null>
   openSound(): Promise<{ name: string; base64: string } | null>
   /** Настройки оболочки: трей и язык встроенного выбора даты. */
-  /** Настройки оболочки: трей и язык встроенного выбора даты. */
-  shellPrefs?(prefs: { tray?: boolean; dateFormat?: 'ru' | 'us' }): Promise<boolean>
+  shellPrefs?(prefs: { tray?: boolean; dateFormat?: 'ru' | 'us'; language?: 'ru' | 'en' }): Promise<boolean>
 
   // Ниже — только рабочий стол: меню «Файл», двойной клик по .kashel и связь
   // расширения с программой. В браузере всего этого нет, поэтому необязательны.
@@ -43,7 +42,6 @@ export interface Bridge {
 }
 
 /** Что известно о версии на хостинге. */
-/** Что известно о версии на хостинге. */
 export interface Находка {
   version: string
   date: string
@@ -51,7 +49,6 @@ export interface Находка {
   url: string
   sha256: string
   size: number
-  /** Версия действительно новее нынешней. */
   /** Версия действительно новее нынешней. */
   есть: boolean
   текущая: string
@@ -63,7 +60,6 @@ export type СобытіеОбновленія =
   /** Пункт «Проверить обновление» в меню «Вид». */
   | { kind: 'menu' }
 
-/** Файл за пределами хранилища: архив, с которым программу запустили. */
 /** Файл за пределами хранилища: архив, с которым программу запустили. */
 export interface ExternalFile {
   name: string
@@ -78,16 +74,13 @@ export type FileCommand =
 
 export interface AssocStatus {
   /** Связь расширений умеет только Windows. */
-  /** Связь расширений умеет только Windows. */
   supported: boolean
   linked: boolean
-  /** Связь ведёт на прежнее расположение программы — её надо переставить. */
   /** Связь ведёт на прежнее расположение программы — её надо переставить. */
   stale?: boolean
   command?: string | null
 }
 
-/** Метка порядка байтов нужна только выгрузке в CSV, архиву она ломает разбор. */
 /** Метка порядка байтов нужна только выгрузке в CSV, архиву она ломает разбор. */
 export interface SaveTextOpts {
   bom?: boolean
@@ -159,10 +152,8 @@ export let bridge: Bridge =
 export const isDesktop = typeof window !== 'undefined' && !!(window as unknown as { kashel?: Bridge }).kashel
 
 /** Браузерный мост — облачному он нужен для того, что сетью не делается. */
-/** Браузерный мост — облачному он нужен для того, что сетью не делается. */
 export { browserBridge }
 
-/** Подменить мост. Возврата нет: выход из облака перезагружает окно. */
 /** Подменить мост. Возврата нет: выход из облака перезагружает окно. */
 export function поставитьМостъ(новый: Bridge): void {
   bridge = новый
@@ -171,18 +162,6 @@ export function поставитьМостъ(новый: Bridge): void {
 const DATA_FILE = 'data.json'
 const txFile = (mk: string) => `transactions/${mk}.json`
 
-/**
- * Читает JSON хранилища.
- *
- * Битый файл — это ОТКАЗ, а не «пусто». Прежний молчаливый откат к пустому
- * значению вёл к худшему исходу, какой в этой программе вообще возможен:
- * loadVault отдавал null, загрузка решала «хранилище новое» и записывала
- * поверх пустые справочники, а через пять минут полное автосохранение звало
- * saveTransactions с пустым набором месяцев — а пустой набор по договору
- * означает «переписать все и подчистить лишние файлы». Вся история операций
- * стиралась. Достаточно было одной временной ошибки чтения от антивируса
- * или облачной синхронизации.
- */
 /**
  * Читает JSON хранилища.
  *
@@ -217,16 +196,6 @@ const writeJSON = (rel: string, value: unknown) => bridge.write(rel, JSON.string
  * Заодно чинится случай «data.json удалили руками, а месяцы остались»:
  * раньше до списка файлов дело просто не доходило.
  */
-/**
- * Читает справочники + все помесячные файлы операций.
- *
- * null означает ровно одно: хранилище пустое — ни справочников, ни месяцев.
- * Любая другая беда вылетает исключением, потому что вызывающая сторона
- * трактует null как «заводим новое» и пишет поверх.
- *
- * Заодно чинится случай «data.json удалили руками, а месяцы остались»:
- * раньше до списка файлов дело просто не доходило.
- */
 export async function loadVault(): Promise<Partial<VaultData> | null> {
   const core = await readJSON<Partial<VaultData>>(DATA_FILE)
   const files = await bridge.list('transactions', '.json')
@@ -242,11 +211,6 @@ export async function saveCore(data: VaultData): Promise<void> {
   await writeJSON(DATA_FILE, core)
 }
 
-/**
- * Переписывает только затронутые месяцы. Пустой набор означает полное
- * сохранение: тогда заодно подчищаются файлы месяцев, из которых удалили
- * последнюю операцию, — иначе они бы вернулись при следующей загрузке.
- */
 /**
  * Переписывает только затронутые месяцы. Пустой набор означает полное
  * сохранение: тогда заодно подчищаются файлы месяцев, из которых удалили
@@ -330,7 +294,6 @@ export const renameCanvas = (from: string, to: string) =>
   bridge.rename(canvasPath(from), canvasPath(to))
 
 /** Стирает заметки и канвасы — используется полной очисткой хранилища. */
-/** Стирает заметки и канвасы — используется полной очисткой хранилища. */
 export async function wipeSpaceFiles(): Promise<void> {
   const notes = await bridge.list('notes', '.md')
   const canvases = await bridge.list('canvas', '.canvas')
@@ -349,13 +312,11 @@ export async function saveAttachment(name: string, base64: string): Promise<stri
 }
 
 /** Пути всех вложений хранилища. Временные файлы атомарной записи пропускаем. */
-/** Пути всех вложений хранилища. Временные файлы атомарной записи пропускаем. */
 export async function listAttachments(): Promise<string[]> {
   const files = await bridge.list('attachments')
   return files.filter((f) => !f.endsWith('.tmp')).map((f) => `attachments/${f}`)
 }
 
-/** Голый base64 без префикса data-url — в таком виде вложение едет в архив. */
 /** Голый base64 без префикса data-url — в таком виде вложение едет в архив. */
 export async function readAttachmentBase64(rel: string): Promise<string | null> {
   const url = await bridge.readBinary(rel)
@@ -371,7 +332,6 @@ export async function wipeAttachments(): Promise<void> {
   await Promise.all(files.map((f) => bridge.remove(f)))
 }
 
-/** Пути загруженных значков (icons/*.png) внутри хранилища. */
 /** Пути загруженных значков (icons/*.png) внутри хранилища. */
 export async function listIconFiles(): Promise<string[]> {
   const files = await bridge.list('icons')

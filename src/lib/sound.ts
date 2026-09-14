@@ -30,7 +30,6 @@ export const SOUNDS: SoundOption[] = [
 ]
 
 /** Ноты тонов: частоты в герцах и длительности в секундах. */
-/** Ноты тонов: частоты в герцах и длительности в секундах. */
 const TONES: Record<string, { hz: number; at: number; len: number; type: OscillatorType }[]> = {
   soft: [{ hz: 528, at: 0, len: 0.32, type: 'sine' }],
   bell: [
@@ -65,12 +64,6 @@ function audio(): AudioContext | null {
  * Затухание обязательно: без него осциллятор обрывается на середине волны
  * и вместо мягкого тона слышен щелчок.
  */
-/**
- * Проигрывает встроенный тон.
- *
- * Затухание обязательно: без него осциллятор обрывается на середине волны
- * и вместо мягкого тона слышен щелчок.
- */
 export function playTone(id: ReminderSound): void {
   const notes = TONES[id]
   if (!notes) return
@@ -94,7 +87,6 @@ export function playTone(id: ReminderSound): void {
   }
 }
 
-/** Проигрывает свой файл человека. Ошибку глотаем: звук — не повод падать. */
 /** Проигрывает свой файл человека. Ошибку глотаем: звук — не повод падать. */
 export function playFile(dataUrl: string): void {
   try {

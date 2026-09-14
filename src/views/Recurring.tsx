@@ -13,7 +13,6 @@ import type { Freq, Recurring, TxKind } from '../lib/types'
 import { т, тр } from '../i18n'
 
 /** Один формат на колонку и на свёрнутую строку под названием. */
-/** Один формат на колонку и на свёрнутую строку под названием. */
 const freqText = (r: Recurring): string =>
   `${FREQ.find((f) => f.k === r.freq)?.t}${r.interval > 1 ? ` × ${r.interval}` : ''}` +
   (r.freq === 'monthly' && r.dayOfMonth ? т(', {0} числа', r.dayOfMonth) : '')
@@ -233,11 +232,6 @@ export default function RecurringView() {
  * рисовать его нечем, и оно печаталось бы текстом рядом с названием.
  * Свой смайлик человека показываем как есть.
  */
-/**
- * Значок из каталога — это имя вроде «credit-card»: в выпадающем списке
- * рисовать его нечем, и оно печаталось бы текстом рядом с названием.
- * Свой смайлик человека показываем как есть.
- */
 function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: (r: Recurring) => void; onClose: () => void }) {
   const { data } = useStore()
   const [r, setR] = useState<Recurring>(value)
@@ -250,12 +244,6 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
   const options = chosen && !cats.some((c) => c.id === chosen.id) ? [...cats, chosen] : cats
   const catBad = !!chosen && (chosen.archived || (r.kind !== 'transfer' && chosen.kind !== r.kind))
 
-  /**
-   * Смена вида сбрасывает категорию чужого направления — та же защита, что в
-   * карточке операции. Без неё расходная категория оставалась висеть на
-   * доходном правиле: в списке её уже нет, но в поле она есть, и правило
-   * сохранялось с чужой категорией.
-   */
   /**
    * Смена вида сбрасывает категорию чужого направления — та же защита, что в
    * карточке операции. Без неё расходная категория оставалась висеть на

@@ -3,7 +3,7 @@ import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { useAnalytics } from '../state/analytics'
 import { Icon } from '../lib/icons'
-import { money, moneyShort, pct } from '../lib/format'
+import { money, moneyShort, pct, plural } from '../lib/format'
 import { addMonths, daysInMonth, monthKey, monthTitle, parseISO, today } from '../lib/date'
 import { categoryTotals, median } from '../engine/stats'
 import { StackBar } from '../components/charts'
@@ -64,7 +64,6 @@ export default function Budget() {
     .sort((a, b) => (b.plan || b.spent) - (a.plan || a.spent))
 
   /** Автоплан: обязательное по факту, «хочу» ужимаем до ориентира, остаток — в цели. */
-  /** Автоплан: обязательное по факту, «хочу» ужимаем до ориентира, остаток — в цели. */
   const autoPlan = () => {
     const target = fc.avgIncome
     if (!target) {
@@ -85,7 +84,7 @@ export default function Budget() {
         changed++
       }
     }
-    toast(т('Лимиты пересобраны: {0} {1}', changed, changed === 1 ? 'категория' : 'категорий'))
+    toast(т('Лимиты пересобраны: {0} {1}', changed, plural(changed, 'категория', 'категории', 'категорий')))
   }
 
   return (
@@ -250,7 +249,7 @@ export default function Budget() {
                           />
                         </div>
                         <div className={'small ' + (over ? 'neg' : 'faint')} style={{ marginTop: 3 }}>
-                          {over ? `перерасход ${money((isCurrent ? projected : spent) - plan)}` : т('{0}% лимита', Math.round(use * 100))}
+                          {over ? т('перерасход {0}', money((isCurrent ? projected : spent) - plan)) : т('{0}% лимита', Math.round(use * 100))}
                         </div>
                       </>
                     ) : (

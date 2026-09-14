@@ -126,7 +126,7 @@ export default function Notes({ note }: { note?: string }) {
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>{n.name}</span>
               <span className="faint" style={{ fontSize: 11, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', width: '100%' }}>
-                {noteExcerpt(n.body, 60) || 'пусто'}
+                {noteExcerpt(n.body, 60) || т('пусто')}
               </span>
             </div>
           ))}

@@ -18,7 +18,6 @@ interface Cmd {
 }
 
 /** Ctrl+P — единая точка входа во всё, что умеет программа. */
-/** Ctrl+P — единая точка входа во всё, что умеет программа. */
 export function CommandPalette({ onClose }: { onClose: () => void }) {
   const app = useApp()
   const store = useStore()
@@ -85,7 +84,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         section: т('Оформление'),
         title: t.name,
         icon: 'palette',
-        hint: t.mode === 'dark' ? 'тёмная' : 'светлая',
+        hint: t.mode === 'dark' ? т('тёмная') : т('светлая'),
         run: () => store.patchSettings({ theme: t.id, accent: t.accent }),
       })),
       {
@@ -195,8 +194,9 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
           }}
         />
         <div className="palette-list" ref={listRef}>
-          {grouped.map((g) => (
-            <div key={g.section}>
+          {grouped.map((g, i) => (
+            // Раздел может встретиться дважды: «Действия», потом темы, потом снова «Действия».
+            <div key={i + ':' + g.section}>
               <div className="palette-sec">{g.section}</div>
               {g.items.map((c) => {
                 const idx = flat.indexOf(c)

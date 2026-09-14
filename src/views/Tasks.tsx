@@ -344,7 +344,7 @@ function Таймер() {
           {clock(p.phase === 'idle' ? data.settings.pomodoro.work * 60 : p.left)}
         </div>
         <div className="faint" style={{ textAlign: 'center', marginBottom: 16 }}>
-          {p.phase === 'idle' ? т('готов к работе') : p.phase === 'work' ? 'работа' : 'перерыв'}
+          {p.phase === 'idle' ? т('готов к работе') : p.phase === 'work' ? т('работа') : т('перерыв')}
           {задача ? ` · ${задача.title}` : ''}
           {p.doneToday > 0 && т(' · закрыто отрезков: {0}', p.doneToday)}
         </div>
@@ -411,7 +411,6 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
   const есть = (data.tasks ?? []).some((x) => x.id === value.id)
   const cats = data.categories.filter((c) => !c.archived && c.kind === (t.moneyKind === 'income' ? 'income' : 'expense'))
 
-  /** Закрыть задачу и сразу записать трату: ради этого сумма у задачи и нужна. */
   /** Закрыть задачу и сразу записать трату: ради этого сумма у задачи и нужна. */
   const записатьОперацию = () => {
     if (!t.amount) return
@@ -501,7 +500,7 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
 
         <div className="card-title">{т('Деньги')}</div>
         <div className="faint small" style={{ marginBottom: 10, lineHeight: 1.6 }}>
-          {тр('Сумма необязательна. Если её указать, задача попадёт в прогноз как разовая{0} в месяц своего срока, а закрыть её можно сразу с записью операции. Без срока сумма в прогноз не идёт — некуда её ставить.', t.moneyKind === 'income' ? ' прибыль' : ' трата')}</div>
+          {тр('Сумма необязательна. Если её указать, задача попадёт в прогноз как разовая{0} в месяц своего срока, а закрыть её можно сразу с записью операции. Без срока сумма в прогноз не идёт — некуда её ставить.', t.moneyKind === 'income' ? т(' прибыль') : т(' трата'))}</div>
         <div className="grid c2">
           <Field label={т('Сумма')}>
             <MoneyInput value={t.amount} onChange={(v) => patch({ amount: v || undefined })} />

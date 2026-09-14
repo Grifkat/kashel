@@ -1,5 +1,6 @@
 import { ICON_GROUPS } from '../lib/catalog'
 import { PALETTE } from '../lib/emoji'
+import { т } from '../i18n'
 import type { Account, Category, Settings, ThemeId, VaultData } from '../lib/types'
 
 export const DEFAULT_SETTINGS: VaultData['settings'] = {
@@ -51,35 +52,35 @@ export const emptyVault = (): VaultData => ({
  */
 export const DEFAULT_CATEGORIES: Category[] = [
   // расходы — набор, с которого начинают почти все
-  { id: 'cat_health', name: 'Здоровье', kind: 'expense', icon: 'heart-pulse', color: '#e05252', bucket: 'needs' },
-  { id: 'cat_fun', name: 'Досуг', kind: 'expense', icon: 'film', color: '#3ec9c0', bucket: 'wants' },
-  { id: 'cat_home', name: 'Дом', kind: 'expense', icon: 'house', color: '#e8833a', bucket: 'needs' },
-  { id: 'cat_cafe', name: 'Кафе', kind: 'expense', icon: 'utensils', color: '#8b5cf6', bucket: 'wants' },
-  { id: 'cat_edu', name: 'Образование', kind: 'expense', icon: 'graduation-cap', color: '#4aa3e8', bucket: 'savings' },
-  { id: 'cat_gifts', name: 'Подарки', kind: 'expense', icon: 'gift', color: '#e05a91', bucket: 'wants' },
-  { id: 'cat_food', name: 'Продукты', kind: 'expense', icon: 'shopping-basket', color: '#4cc46a', bucket: 'needs' },
-  { id: 'cat_family', name: 'Семья', kind: 'expense', icon: 'users', color: '#e8b93a', bucket: 'needs' },
-  { id: 'cat_sport', name: 'Спорт', kind: 'expense', icon: 'dumbbell', color: '#e8833a', bucket: 'wants' },
-  { id: 'cat_transport', name: 'Транспорт', kind: 'expense', icon: 'bus', color: '#4aa3e8', bucket: 'needs' },
-  { id: 'cat_other', name: 'Другое', kind: 'expense', icon: 'circle-help', color: '#7c8794', bucket: 'wants' },
-  { id: 'cat_charity', name: 'Благотворительность', kind: 'expense', icon: 'hand-heart', color: '#8fce4a', bucket: 'savings' },
-  { id: 'cat_subs', name: 'Подписки', kind: 'expense', icon: 'cloud', color: '#8b5cf6', bucket: 'wants' },
-  { id: 'cat_internet', name: 'Интернет', kind: 'expense', icon: 'wifi', color: '#3ec9c0', bucket: 'needs' },
-  { id: 'cat_work', name: 'Рабочие расходы', kind: 'expense', icon: 'briefcase', color: '#e8b93a', bucket: 'needs' },
-  { id: 'cat_taxi', name: 'Такси', kind: 'expense', icon: 'car-taxi-front', color: '#8fce4a', bucket: 'wants' },
-  { id: 'cat_takeaway', name: 'Готовая еда', kind: 'expense', icon: 'sandwich', color: '#c95cc9', bucket: 'wants' },
-  { id: 'cat_site', name: 'Сайт', kind: 'expense', icon: 'laptop', color: '#5566e8', bucket: 'needs' },
-  { id: 'cat_taxes', name: 'Налоги', kind: 'expense', icon: 'landmark', color: '#7c8794', bucket: 'needs' },
-  { id: 'cat_account', name: 'Бухгалтер', kind: 'expense', icon: 'receipt-text', color: '#8b5cf6', bucket: 'needs' },
-  { id: 'cat_clothes', name: 'Одежда', kind: 'expense', icon: 'shirt', color: '#3ec98a', bucket: 'wants' },
+  { id: 'cat_health', name: т('Здоровье'), kind: 'expense', icon: 'heart-pulse', color: '#e05252', bucket: 'needs' },
+  { id: 'cat_fun', name: т('Досуг'), kind: 'expense', icon: 'film', color: '#3ec9c0', bucket: 'wants' },
+  { id: 'cat_home', name: т('Дом'), kind: 'expense', icon: 'house', color: '#e8833a', bucket: 'needs' },
+  { id: 'cat_cafe', name: т('Кафе'), kind: 'expense', icon: 'utensils', color: '#8b5cf6', bucket: 'wants' },
+  { id: 'cat_edu', name: т('Образование'), kind: 'expense', icon: 'graduation-cap', color: '#4aa3e8', bucket: 'savings' },
+  { id: 'cat_gifts', name: т('Подарки'), kind: 'expense', icon: 'gift', color: '#e05a91', bucket: 'wants' },
+  { id: 'cat_food', name: т('Продукты'), kind: 'expense', icon: 'shopping-basket', color: '#4cc46a', bucket: 'needs' },
+  { id: 'cat_family', name: т('Семья'), kind: 'expense', icon: 'users', color: '#e8b93a', bucket: 'needs' },
+  { id: 'cat_sport', name: т('Спорт'), kind: 'expense', icon: 'dumbbell', color: '#e8833a', bucket: 'wants' },
+  { id: 'cat_transport', name: т('Транспорт'), kind: 'expense', icon: 'bus', color: '#4aa3e8', bucket: 'needs' },
+  { id: 'cat_other', name: т('Другое'), kind: 'expense', icon: 'circle-help', color: '#7c8794', bucket: 'wants' },
+  { id: 'cat_charity', name: т('Благотворительность'), kind: 'expense', icon: 'hand-heart', color: '#8fce4a', bucket: 'savings' },
+  { id: 'cat_subs', name: т('Подписки'), kind: 'expense', icon: 'cloud', color: '#8b5cf6', bucket: 'wants' },
+  { id: 'cat_internet', name: т('Интернет'), kind: 'expense', icon: 'wifi', color: '#3ec9c0', bucket: 'needs' },
+  { id: 'cat_work', name: т('Рабочие расходы'), kind: 'expense', icon: 'briefcase', color: '#e8b93a', bucket: 'needs' },
+  { id: 'cat_taxi', name: т('Такси'), kind: 'expense', icon: 'car-taxi-front', color: '#8fce4a', bucket: 'wants' },
+  { id: 'cat_takeaway', name: т('Готовая еда'), kind: 'expense', icon: 'sandwich', color: '#c95cc9', bucket: 'wants' },
+  { id: 'cat_site', name: т('Сайт'), kind: 'expense', icon: 'laptop', color: '#5566e8', bucket: 'needs' },
+  { id: 'cat_taxes', name: т('Налоги'), kind: 'expense', icon: 'landmark', color: '#7c8794', bucket: 'needs' },
+  { id: 'cat_account', name: т('Бухгалтер'), kind: 'expense', icon: 'receipt-text', color: '#8b5cf6', bucket: 'needs' },
+  { id: 'cat_clothes', name: т('Одежда'), kind: 'expense', icon: 'shirt', color: '#3ec98a', bucket: 'wants' },
   // доходы
-  { id: 'cat_salary', name: 'Зарплата', kind: 'income', icon: 'banknote', color: '#4cc46a' },
-  { id: 'cat_extra', name: 'Подработка', kind: 'income', icon: 'hard-hat', color: '#8fce4a' },
-  { id: 'cat_business', name: 'Своё дело', kind: 'income', icon: 'briefcase', color: '#3ec98a' },
-  { id: 'cat_interest', name: 'Проценты', kind: 'income', icon: 'percent', color: '#3ec9c0' },
-  { id: 'cat_refund', name: 'Возвраты', kind: 'income', icon: 'recycle', color: '#4aa3e8' },
-  { id: 'cat_income_gift', name: 'Подарки', kind: 'income', icon: 'gift', color: '#e05a91' },
-  { id: 'cat_income_other', name: 'Прочее', kind: 'income', icon: 'ellipsis', color: '#7c8794' },
+  { id: 'cat_salary', name: т('Зарплата'), kind: 'income', icon: 'banknote', color: '#4cc46a' },
+  { id: 'cat_extra', name: т('Подработка'), kind: 'income', icon: 'hard-hat', color: '#8fce4a' },
+  { id: 'cat_business', name: т('Своё дело'), kind: 'income', icon: 'briefcase', color: '#3ec98a' },
+  { id: 'cat_interest', name: т('Проценты'), kind: 'income', icon: 'percent', color: '#3ec9c0' },
+  { id: 'cat_refund', name: т('Возвраты'), kind: 'income', icon: 'recycle', color: '#4aa3e8' },
+  { id: 'cat_income_gift', name: т('Подарки'), kind: 'income', icon: 'gift', color: '#e05a91' },
+  { id: 'cat_income_other', name: т('Прочее'), kind: 'income', icon: 'ellipsis', color: '#7c8794' },
 ]
 
 /**
@@ -132,13 +133,13 @@ export function categoriesFromCatalog(existing: Category[]): Category[] {
     const bucket = kind === 'expense' ? GROUP_BUCKET[group.title] ?? 'wants' : undefined
     for (const icon of group.items) {
       if (usedIcons.has(icon.id)) continue
-      const key = kind + '|' + icon.title.trim().toLowerCase()
+      const key = kind + '|' + т(icon.title).trim().toLowerCase()
       if (taken.has(key)) continue
       taken.add(key)
       usedIcons.add(icon.id)
       out.push({
         id: 'cat_' + icon.id,
-        name: icon.title,
+        name: т(icon.title),
         kind,
         icon: icon.id,
         color: PALETTE[color++ % PALETTE.length],

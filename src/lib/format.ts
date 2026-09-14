@@ -1,4 +1,6 @@
 import type { Money } from './types'
+import { текущійЯзык } from '../i18n'
+import { EN } from '../i18n/en'
 
 export const uid = (prefix = ''): string =>
   prefix + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4)
@@ -71,16 +73,31 @@ export function money(m: Money, opts: { sign?: boolean; cents?: boolean; unit?: 
 export function moneyShort(m: Money): string {
   const v = Math.abs(m) / 100
   const sign = m < 0 ? '−' : ''
-  if (v >= 1_000_000) return `${sign}${(v / 1_000_000).toFixed(v >= 10_000_000 ? 0 : 1).replace('.', ',')} млн`
-  if (v >= 1_000) return `${sign}${(v / 1_000).toFixed(v >= 100_000 ? 0 : 1).replace('.', ',')} тыс`
+  const en = текущійЯзык() === 'en'
+  const дробь = (x: number, знаковъ: number) => (en ? x.toFixed(знаковъ) : x.toFixed(знаковъ).replace('.', ','))
+  if (v >= 1_000_000) return `${sign}${дробь(v / 1_000_000, v >= 10_000_000 ? 0 : 1)}${en ? 'M' : ' млн'}`
+  if (v >= 1_000) return `${sign}${дробь(v / 1_000, v >= 100_000 ? 0 : 1)}${en ? 'k' : ' тыс'}`
   return `${sign}${Math.round(v)}`
 }
 
+// Проценты — только показ, поэтому по-английски с точкой. Суммы денег
+// остаются в рублёвом виде «1 234,56»: поля ввода разбирают запятую.
 export const pct = (v: number, digits = 0): string =>
-  `${v.toFixed(digits).replace('.', ',')}%`
+  `${текущійЯзык() === 'en' ? v.toFixed(digits) : v.toFixed(digits).replace('.', ',')}%`
 
-/** Склонение: 1 день, 2 дня, 5 дней. */
+/**
+ * Склонение: 1 день, 2 дня, 5 дней.
+ * По-английски форм две; перевод лежит в словаре под ключом «один|два|пять»
+ * → «one|many», поэтому все места, где зовётся plural, переводятся сами.
+ */
 export function plural(n: number, one: string, few: string, many: string): string {
+  if (текущійЯзык() === 'en') {
+    const перевод = EN[`${one}|${few}|${many}`]
+    if (перевод) {
+      const [o, m] = перевод.split('|')
+      return Math.abs(n) === 1 ? o : m
+    }
+  }
   const abs = Math.abs(n) % 100
   const last = abs % 10
   if (abs > 10 && abs < 20) return many

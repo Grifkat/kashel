@@ -17,7 +17,6 @@ import { т } from '../i18n'
 export interface DueReminder {
   reminder: Reminder
   /** Что показать: заголовок человека плюс поясняющая строка от программы. */
-  /** Что показать: заголовок человека плюс поясняющая строка от программы. */
   detail: string
 }
 
@@ -31,7 +30,6 @@ export const EVENT_NAMES: Record<ReminderEvent, string> = {
 }
 
 /** Что значит threshold у каждого события — подпись к полю в форме. */
-/** Что значит threshold у каждого события — подпись к полю в форме. */
 export const EVENT_THRESHOLD: Record<ReminderEvent, { label: string; unit: 'days' | 'money' | 'times'; def: number }> = {
   'recurring-due': { label: т('За сколько дней предупредить'), unit: 'days', def: 1 },
   'no-entries': { label: т('Сколько дней молчания терпеть'), unit: 'days', def: 5 },
@@ -41,13 +39,6 @@ export const EVENT_THRESHOLD: Record<ReminderEvent, { label: string; unit: 'days
   'task-due': { label: т('За сколько дней предупредить'), unit: 'days', def: 1 },
 }
 
-/**
- * Следующий день, когда напоминание по дате должно прозвучать.
- *
- * Разовое просто ждёт своей даты. Повторяющееся отматывается вперёд от
- * заданной: если человек завёл «5 числа каждый месяц» полгода назад, звонить
- * надо пятого числа этого месяца, а не шесть раз подряд за прошлое.
- */
 /**
  * Следующий день, когда напоминание по дате должно прозвучать.
  *
@@ -66,7 +57,6 @@ export function nextDate(r: Reminder, now: string = today()): string | null {
   return d
 }
 
-/** Ближайшее срабатывание регулярного платежа, если оно вообще есть впереди. */
 /** Ближайшее срабатывание регулярного платежа, если оно вообще есть впереди. */
 function nearestRecurring(data: VaultData, within: number, now: string): { title: string; date: string; amount: number } | null {
   let best: { title: string; date: string; amount: number } | null = null
@@ -90,7 +80,6 @@ function nearestRecurring(data: VaultData, within: number, now: string): { title
 }
 
 /** Насколько крупной была последняя трата по сравнению с обычной в своей категории. */
-/** Насколько крупной была последняя трата по сравнению с обычной в своей категории. */
 function biggestOutlier(data: VaultData, times: number, now: string): string | null {
   const recent = data.transactions.filter((t) => t.kind === 'expense' && t.date === now)
   if (!recent.length) return null
@@ -112,19 +101,17 @@ function biggestOutlier(data: VaultData, times: number, now: string): string | n
 }
 
 /** Категории, вышедшие за свой месячный лимит. */
-/** Категории, вышедшие за свой месячный лимит. */
 function overLimit(data: VaultData, pct: number, now: string, only?: string): string | null {
   const mk = monthKey(now)
   const out: string[] = []
   for (const c of data.categories) {
     if (c.archived || !c.plan || (only && c.id !== only)) continue
     const spent = categoryMonthly(data.transactions, c.id, [mk], false, c.kind)[0]
-    if (spent >= (c.plan * pct) / 100) out.push(`${c.name} ${money(spent)} из ${money(c.plan)}`)
+    if (spent >= (c.plan * pct) / 100) out.push(т('{0} {1} из {2}', c.name, money(spent), money(c.plan)))
   }
   return out.length ? out.join(' · ') : null
 }
 
-/** Условие события выполнено? Тогда вернуть поясняющую строку, иначе null. */
 /** Условие события выполнено? Тогда вернуть поясняющую строку, иначе null. */
 function eventFired(r: Reminder, data: VaultData, now: string): string | null {
   const th = r.threshold ?? (r.event ? EVENT_THRESHOLD[r.event].def : 0)
@@ -133,7 +120,7 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
       const near = nearestRecurring(data, th, now)
       if (!near) return null
       const away = diffDays(now, near.date)
-      return `${near.title} — ${money(near.amount)} ${away === 0 ? 'сегодня' : away === 1 ? 'завтра' : т('через {0} дн.', away)}`
+      return `${near.title} — ${money(near.amount)} ${away === 0 ? т('сегодня') : away === 1 ? т('завтра') : т('через {0} дн.', away)}`
     }
     case 'no-entries': {
       if (!data.transactions.length) return null
@@ -152,7 +139,7 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
       if (!свои.length) return null
       const ближние = свои.sort((a, b) => (a.due! < b.due! ? -1 : 1)).slice(0, 3)
       return ближние
-        .map((t) => `${t.title} — ${t.due! < now ? 'просрочено' : t.due === now ? 'сегодня' : humanDate(t.due!)}`)
+        .map((t) => `${t.title} — ${t.due! < now ? т('просрочено') : t.due === now ? т('сегодня') : humanDate(t.due!)}`)
         .join(' · ') + (свои.length > 3 ? т(' и ещё {0}', свои.length - 3) : '')
     }
     case 'low-balance': {
@@ -174,12 +161,6 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
  * Чистая функция: ничего не показывает и ничего не сохраняет — только считает.
  * Отметку lastFired ставит тот, кто действительно показал.
  */
-/**
- * Какие напоминания надо показать прямо сейчас.
- *
- * Чистая функция: ничего не показывает и ничего не сохраняет — только считает.
- * Отметку lastFired ставит тот, кто действительно показал.
- */
 export function dueReminders(data: VaultData, now: string = today()): DueReminder[] {
   const out: DueReminder[] = []
   for (const r of data.reminders ?? []) {
@@ -189,7 +170,7 @@ export function dueReminders(data: VaultData, now: string = today()): DueReminde
       const when = nextDate(r, now)
       // Пропущенное разовое напоминание не выбрасываем: человек мог не
       // открывать программу неделю, и «заплатить за квартиру» всё ещё в силе.
-      if (when && when <= now) out.push({ reminder: r, detail: when === now ? 'сегодня' : `было ${humanDate(when)}` })
+      if (when && when <= now) out.push({ reminder: r, detail: when === now ? т('сегодня') : т('было {0}', humanDate(when)) })
       continue
     }
     const detail = eventFired(r, data, now)
@@ -198,7 +179,6 @@ export function dueReminders(data: VaultData, now: string = today()): DueReminde
   return out
 }
 
-/** Человеческое описание напоминания для списка. */
 /** Человеческое описание напоминания для списка. */
 export function describeReminder(r: Reminder, data: VaultData): string {
   if (r.kind === 'date') {

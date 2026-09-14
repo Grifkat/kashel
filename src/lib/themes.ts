@@ -6,12 +6,9 @@ export interface ThemeInfo {
   name: string
   mode: 'dark' | 'light'
   /** Короткое описание характера — показывается в галерее настроек. */
-  /** Короткое описание характера — показывается в галерее настроек. */
   about: string
   /** Акцент, с которым тема задумана; ставится при переключении. */
-  /** Акцент, с которым тема задумана; ставится при переключении. */
   accent: string
-  /** Три цвета для превью: фон, панель, акцент. */
   /** Три цвета для превью: фон, панель, акцент. */
   swatch: [string, string, string]
 }
@@ -125,7 +122,6 @@ export const THEMES: ThemeInfo[] = [
 
 export const themeById = (id: ThemeId): ThemeInfo => THEMES.find((t) => t.id === id) ?? THEMES[0]
 
-/** Ближайшая тема противоположной светлоты — для быстрого переключателя в ленте. */
 /** Ближайшая тема противоположной светлоты — для быстрого переключателя в ленте. */
 export function counterpart(id: ThemeId): ThemeId {
   const cur = themeById(id)

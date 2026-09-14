@@ -10,7 +10,6 @@ import type { Transaction, TxKind } from '../lib/types'
 import { т, тр } from '../i18n'
 
 /** Однострочный ввод: «кофе 250 кафе вчера #работа @наличные». */
-/** Однострочный ввод: «кофе 250 кафе вчера #работа @наличные». */
 export function QuickAdd({
   initial,
   kind: initialKind,
@@ -19,7 +18,6 @@ export function QuickAdd({
 }: {
   initial: string
   kind?: TxKind
-  /** Дата открытого периода. Пусто — значит сегодня. */
   /** Дата открытого периода. Пусто — значит сегодня. */
   date?: string
   onClose: () => void
@@ -56,11 +54,6 @@ export function QuickAdd({
   const togglePin = (id: string) =>
     patchSettings({ pinnedCategories: isPinned(id) ? pinned.filter((x) => x !== id) : [...pinned, id] })
 
-  /**
-   * Что показывать плитками: сначала закреплённые, потом просто частые за
-   * последние три месяца. Частота считается по операциям, а не по алфавиту —
-   * иначе список не экономит ни одного нажатия.
-   */
   /**
    * Что показывать плитками: сначала закреплённые, потом просто частые за
    * последние три месяца. Частота считается по операциям, а не по алфавиту —
@@ -107,7 +100,7 @@ export function QuickAdd({
       tags: draft.tags,
       note: draft.note || undefined,
     } as Omit<Transaction, 'id' | 'createdAt'>)
-    toast(`${kind === 'income' ? т('Доход') : kind === 'transfer' ? т('Перевод') : т('Расход')} ${money(draft.amount)} записан`)
+    toast(т('{0} {1} записан', kind === 'income' ? т('Доход') : kind === 'transfer' ? т('Перевод') : т('Расход'), money(draft.amount)))
     onClose()
   }
 

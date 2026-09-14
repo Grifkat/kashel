@@ -14,10 +14,6 @@ import { т } from '../../i18n'
  * Значок в шапке карточки: из каталога, эмодзи или свой загруженный.
  * Отдельным компонентом, потому что свой значок читается из хранилища хуком.
  */
-/**
- * Значок в шапке карточки: из каталога, эмодзи или свой загруженный.
- * Отдельным компонентом, потому что свой значок читается из хранилища хуком.
- */
 function ЗначокъУзла({ icon }: { icon?: string }) {
   const картинка = useСвойЗначокъ(icon)
   if (этоСвойЗначокъ(icon)) {
@@ -30,18 +26,9 @@ function ЗначокъУзла({ icon }: { icon?: string }) {
 }
 
 /** Ширина текстовой карточки по умолчанию — точка отсчёта для режима «тянуть». */
-/** Ширина текстовой карточки по умолчанию — точка отсчёта для режима «тянуть». */
 const BASE_WIDTH = 280
 export const DEFAULT_FONT_SIZE = 13
 
-/**
- * Текст, подстраивающийся под карточку.
- * scale  — кегль пропорционален ширине карточки;
- * shrink — уменьшается, пока содержимое не поместится по высоте;
- * grow   — кегль постоянный, а нужную высоту сообщаем наружу.
- * Замеры идут через DOM в layout-эффекте: держать подобранный размер в
- * состоянии React означало бы бесконечный цикл перерисовок.
- */
 /**
  * Текст, подстраивающийся под карточку.
  * scale  — кегль пропорционален ширине карточки;
@@ -138,7 +125,6 @@ function useПодгонка(
 }
 
 /** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */
-/** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */
 function ПолеПравки({
   node,
   fit,
@@ -184,11 +170,6 @@ export const CARD_STYLES: { id: CardStyle; name: string; about: string }[] = [
   { id: 'flat', name: т('Плашки'), about: т('Заливка цветом, крупная типографика, без рамки') },
 ]
 
-/**
- * Всё, что нужно карточкам, считается один раз на доску.
- * Иначе каждая карточка пробегала бы всю историю операций заново — и делала бы
- * это на каждом кадре перетаскивания.
- */
 /**
  * Всё, что нужно карточкам, считается один раз на доску.
  * Иначе каждая карточка пробегала бы всю историю операций заново — и делала бы
@@ -243,11 +224,11 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
         icon: a.icon,
         value,
         sub:
-          a.type === 'card' ? 'карта'
-          : a.type === 'cash' ? 'наличные'
-          : a.type === 'savings' ? 'копилка'
-          : a.type === 'credit' ? 'кредит'
-          : 'долг',
+          a.type === 'card' ? т('карта')
+          : a.type === 'cash' ? т('наличные')
+          : a.type === 'savings' ? т('копилка')
+          : a.type === 'credit' ? т('кредит')
+          : т('долг'),
         negative: value < 0,
       }
     }
@@ -259,7 +240,7 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
         title: c.name,
         icon: c.icon,
         value: amount,
-        sub: `${c.kind === 'income' ? 'доход' : 'расход'} · ${ctx.periodLabel}`,
+        sub: `${c.kind === 'income' ? т('доход') : т('расход')} · ${ctx.periodLabel}`,
         progress: c.plan ? Math.min(1, amount / c.plan) : undefined,
       }
     }
@@ -271,7 +252,7 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
         title: g.name,
         icon: g.icon,
         value: saved,
-        sub: `цель ${moneyShort(g.targetAmount)}`,
+        sub: т('цель {0}', moneyShort(g.targetAmount)),
         progress: g.targetAmount ? Math.min(1, saved / g.targetAmount) : 0,
       }
     }
@@ -299,7 +280,6 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
   }
 }
 
-/** Содержимое карточки. Оформление задаёт style, данные — nodeData. */
 /** Содержимое карточки. Оформление задаёт style, данные — nodeData. */
 export function NodeBody({
   node,

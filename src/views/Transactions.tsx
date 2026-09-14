@@ -77,7 +77,7 @@ export default function Transactions({ filter }: { filter?: string }) {
       [т('Дата'), т('Тип'), т('Сумма'), т('Категория'), т('Счёт'), т('Теги'), т('Комментарий')],
       ...rows.map((t) => [
         t.date,
-        t.kind === 'income' ? 'доход' : t.kind === 'expense' ? 'расход' : 'перевод',
+        t.kind === 'income' ? т('доход') : t.kind === 'expense' ? т('расход') : т('перевод'),
         (t.amount / 100).toFixed(2).replace('.', ','),
         catById.get(t.categoryId || '')?.name ?? '',
         accById.get(t.accountId)?.name ?? '',

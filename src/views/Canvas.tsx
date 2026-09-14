@@ -22,7 +22,6 @@ import type {
 import { т } from '../i18n'
 
 /** Углы для изменения размера: буквы сторон света, как в графических редакторах. */
-/** Углы для изменения размера: буквы сторон света, как в графических редакторах. */
 type Corner = 'nw' | 'ne' | 'sw' | 'se'
 const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se']
 const MIN_W = 150
@@ -38,29 +37,19 @@ const HISTORY_LIMIT = 60
  * значений браузер перерисовывает текст заново для каждой ступени, а 100 %
  * и 200 % вдобавок попадают в пиксели ровно.
  */
-/**
- * Масштаб меняется только по этим ступеням. Плавный зум выглядит приятнее в
- * момент прокрутки, но текст в карточках при произвольном коэффициенте
- * растягивается из готового растра и мылится. На фиксированном наборе
- * значений браузер перерисовывает текст заново для каждой ступени, а 100 %
- * и 200 % вдобавок попадают в пиксели ровно.
- */
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 2.5]
 const ZOOM_DEFAULT = 1
 
 /** Ближайшая ступень к произвольному масштабу (нужно после «вписать всё»). */
-/** Ближайшая ступень к произвольному масштабу (нужно после «вписать всё»). */
 const nearestStep = (k: number): number =>
   ZOOM_STEPS.reduce((best, s) => (Math.abs(s - k) < Math.abs(best - k) ? s : best), ZOOM_STEPS[0])
 
-/** Ступень на `dir` шагов в сторону от текущей. */
 /** Ступень на `dir` шагов в сторону от текущей. */
 const stepZoom = (k: number, dir: 1 | -1): number => {
   const i = ZOOM_STEPS.indexOf(nearestStep(k))
   return ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, i + dir))]
 }
 
-/** Наибольшая ступень, при которой содержимое ещё влезает целиком. */
 /** Наибольшая ступень, при которой содержимое ещё влезает целиком. */
 const stepBelow = (k: number): number => {
   const fit = [...ZOOM_STEPS].reverse().find((s) => s <= k)
@@ -70,11 +59,6 @@ const stepBelow = (k: number): number => {
 const opposite = (s: Side): Side =>
   s === 'left' ? 'right' : s === 'right' ? 'left' : s === 'top' ? 'bottom' : 'top'
 
-/**
- * Клик считается «по пустому месту», если он не попал ни в карточку, ни в
- * панель, ни в саму связь. Сравнивать target с currentTarget нельзя: сверху
- * лежат прозрачные слои, и событие приходит на них, а не на полотно.
- */
 /**
  * Клик считается «по пустому месту», если он не попал ни в карточку, ни в
  * панель, ни в саму связь. Сравнивать target с currentTarget нельзя: сверху
@@ -100,7 +84,6 @@ const DEFAULT_SIZE: Record<CanvasNodeKind, { w: number; h: number }> = {
 }
 
 /** Буфер обмена живёт в модуле: между досками копировать тоже нужно. */
-/** Буфер обмена живёт в модуле: между досками копировать тоже нужно. */
 let clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[] } | null = null
 
 type DragMode = 'pan' | 'marquee' | 'node' | 'resize' | 'edge' | 'edge-end'
@@ -116,7 +99,6 @@ interface DragState {
   sy: number
   ox: number
   oy: number
-  /** Исходные позиции всех перемещаемых узлов. */
   /** Исходные позиции всех перемещаемых узлов. */
   start?: Map<string, Point>
   before?: CanvasDoc
@@ -193,7 +175,6 @@ export default function CanvasView({ name }: { name?: string }) {
   const drag = useRef<DragState | null>(null)
   const space = useRef(false)
   /** Копим прокрутку: у мыши одна «щёлка» ≈ 100, у тачпада приходят крошки. */
-  /** Копим прокрутку: у мыши одна «щёлка» ≈ 100, у тачпада приходят крошки. */
   const wheelAcc = useRef(0)
   const docRef = useRef(doc)
   docRef.current = doc
@@ -216,7 +197,6 @@ export default function CanvasView({ name }: { name?: string }) {
   }, [toast])
 
   /** Изменение с записью в историю — всё, что можно отменить. */
-  /** Изменение с записью в историю — всё, что можно отменить. */
   const commit = useCallback(
     (next: CanvasDoc, before?: CanvasDoc) => {
       setPast((p) => [...p, before ?? docRef.current].slice(-HISTORY_LIMIT))
@@ -227,7 +207,6 @@ export default function CanvasView({ name }: { name?: string }) {
     [current, persist],
   )
 
-  /** Изменение без истории — для промежуточных состояний перетаскивания. */
   /** Изменение без истории — для промежуточных состояний перетаскивания. */
   const touch = useCallback((next: CanvasDoc) => setDoc(next), [])
 
@@ -303,7 +282,7 @@ export default function CanvasView({ name }: { name?: string }) {
 
   // -------------------------------------------------------- данные карточек
   const from = period === '1m' ? addMonths(today(), -1) : period === '3m' ? addMonths(today(), -3) : addMonths(today(), -12)
-  const periodLabel = period === '1m' ? 'месяц' : period === '3m' ? т('3 месяца') : 'год'
+  const periodLabel = period === '1m' ? т('месяц') : period === '3m' ? т('3 месяца') : т('год')
   const nodeById = useMemo(() => new Map(doc.nodes.map((n) => [n.id, n])), [doc.nodes])
   // Считаем один раз на доску: иначе каждая карточка перебирает всю историю,
   // причём на каждом кадре перетаскивания.
@@ -502,12 +481,6 @@ export default function CanvasView({ name }: { name?: string }) {
    * Новое значение считается внутри setView: два события колеса могут прийти
    * в одном такте, и снаружи масштаб к этому моменту ещё старый.
    */
-  /**
-   * Меняет масштаб, оставляя точку (px, py) экрана над той же точкой доски.
-   * Без центра берём середину полотна — так работают кнопки и клавиши.
-   * Новое значение считается внутри setView: два события колеса могут прийти
-   * в одном такте, и снаружи масштаб к этому моменту ещё старый.
-   */
   const zoomWith = useCallback(
     (next: (k: number) => number, px?: number, py?: number) => {
       const r = wrapRef.current?.getBoundingClientRect()
@@ -521,7 +494,6 @@ export default function CanvasView({ name }: { name?: string }) {
     },
     [],
   )
-  /** На `dir` ступеней от текущей. */
   /** На `dir` ступеней от текущей. */
   const zoomBy = useCallback(
     (dir: 1 | -1, px?: number, py?: number) => zoomWith((k) => stepZoom(k, dir), px, py),
@@ -750,11 +722,6 @@ export default function CanvasView({ name }: { name?: string }) {
     setMarquee({ x: w.x, y: w.y, width: 0, height: 0 })
   }
 
-  /**
-   * Итог перетаскивания считается из координат события, а не из состояния React.
-   * Иначе последнее движение мыши, не успевшее отрисоваться до отпускания,
-   * пропадало — узел приземлялся на кадр раньше, а рамка выделяла не всё.
-   */
   /**
    * Итог перетаскивания считается из координат события, а не из состояния React.
    * Иначе последнее движение мыши, не успевшее отрисоваться до отпускания,
@@ -1382,7 +1349,7 @@ export default function CanvasView({ name }: { name?: string }) {
         <div className="seg">
           {(['1m', '3m', '12m'] as const).map((p) => (
             <button key={p} className={period === p ? 'on' : ''} onClick={() => setPeriod(p)}>
-              {p === '1m' ? 'месяц' : p === '3m' ? т('3 мес') : 'год'}
+              {p === '1m' ? т('месяц') : p === '3m' ? т('3 мес') : т('год')}
             </button>
           ))}
         </div>
@@ -1406,7 +1373,7 @@ export default function CanvasView({ name }: { name?: string }) {
         </button>
         <span className="tool-sep" />
         <span className="faint small">
-          {sel.size > 0 ? `выделено ${sel.size}` : т('{0} узлов · {1} связей', doc.nodes.length, doc.edges.length)}
+          {sel.size > 0 ? т('выделено {0}', sel.size) : т('{0} узлов · {1} связей', doc.nodes.length, doc.edges.length)}
         </span>
         <span className="faint small" style={{ marginLeft: 8, opacity: 0.7 }}>
           {т('рамка — выделение · средняя кнопка или пробел — сдвиг · правый клик — меню')}</span>

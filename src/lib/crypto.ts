@@ -26,6 +26,8 @@
  * уверенность вместо защиты.
  */
 
+import { т } from '../i18n'
+
 /** Столько раз прокручивается пароль. Меньше — дешевле перебор по базе. */
 export const ОБОРОТОВЪ = 600_000
 
@@ -34,7 +36,7 @@ const буквы = new TextDecoder()
 
 const подсистема = (): SubtleCrypto => {
   const c = globalThis.crypto
-  if (!c?.subtle) throw new Error('в этом окружении нет WebCrypto — шифровать нечем')
+  if (!c?.subtle) throw new Error(т('в этом окружении нет WebCrypto — шифровать нечем'))
   return c.subtle
 }
 
@@ -59,8 +61,8 @@ export async function вывестиКлючи(
   оборотовъ: number = ОБОРОТОВЪ,
 ): Promise<Ключи> {
   const s = подсистема()
-  if (!пароль) throw new Error('пустой пароль')
-  if (!почта) throw new Error('пустая почта')
+  if (!пароль) throw new Error(т('пустой пароль'))
+  if (!почта) throw new Error(т('пустая почта'))
 
   const основа = await s.importKey('raw', цифры.encode(пароль), 'PBKDF2', false, ['deriveBits'])
   const корень = await s.deriveBits(
@@ -118,7 +120,7 @@ export async function зашифровать(ключ: CryptoKey, текстъ: 
 export async function расшифровать(ключ: CryptoKey, ком64: string): Promise<string> {
   const s = подсистема()
   const всё = изБазы64(ком64)
-  if (всё.length <= 12) throw new Error('запись повреждена')
+  if (всё.length <= 12) throw new Error(т('запись повреждена'))
   try {
     const открытое = await s.decrypt(
       { name: 'AES-GCM', iv: всё.subarray(0, 12) },
@@ -127,7 +129,7 @@ export async function расшифровать(ключ: CryptoKey, ком64: st
     )
     return буквы.decode(открытое)
   } catch {
-    throw new Error('не расшифровывается: другой пароль или запись повреждена')
+    throw new Error(т('не расшифровывается: другой пароль или запись повреждена'))
   }
 }
 

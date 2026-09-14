@@ -9,7 +9,6 @@ import { BarChart, Donut, LineChart } from './charts'
 import { т, тр } from '../i18n'
 
 /** Блок ```kashel — считает по операциям прямо в заметке. */
-/** Блок ```kashel — считает по операциям прямо в заметке. */
 export function QueryBlock({ source }: { source: string }) {
   const { data } = useStore()
   const res = useMemo(() => runQuery(source, data), [source, data])
@@ -22,7 +21,7 @@ export function QueryBlock({ source }: { source: string }) {
     <div className="query-block">
       <div className="query-head">
         <Icon name="donut" size={12} />
-        {тр('живой запрос · {0}{1}', res.spec.periodLabel, res.spec.kind && ` · ${res.spec.kind === 'expense' ? 'расходы' : res.spec.kind === 'income' ? 'доходы' : 'переводы'}`)}</div>
+        {тр('живой запрос · {0}{1}', res.spec.periodLabel, res.spec.kind && ` · ${res.spec.kind === 'expense' ? т('расходы') : res.spec.kind === 'income' ? т('доходы') : т('переводы')}`)}</div>
 
       {res.type === 'sum' && (
         <div>

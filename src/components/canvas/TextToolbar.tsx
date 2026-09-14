@@ -11,7 +11,6 @@ export const FIT_MODES: { id: TextFit; name: string; about: string }[] = [
 ]
 
 /** Обёртка вокруг выделения в textarea: **жирный**, *курсив*, <u>подчёркнутый</u>. */
-/** Обёртка вокруг выделения в textarea: **жирный**, *курсив*, <u>подчёркнутый</u>. */
 export function wrapSelection(el: HTMLTextAreaElement, before: string, after = before): string {
   const { selectionStart: s, selectionEnd: e, value } = el
   const picked = value.slice(s, e)
@@ -23,12 +22,11 @@ export function wrapSelection(el: HTMLTextAreaElement, before: string, after = b
     queueMicrotask(() => el.setSelectionRange(s - before.length, e - before.length))
     return next
   }
-  const next = value.slice(0, s) + before + (picked || 'текст') + after + value.slice(e)
-  queueMicrotask(() => el.setSelectionRange(s + before.length, s + before.length + (picked || 'текст').length))
+  const next = value.slice(0, s) + before + (picked || т('текст')) + after + value.slice(e)
+  queueMicrotask(() => el.setSelectionRange(s + before.length, s + before.length + (picked || т('текст')).length))
   return next
 }
 
-/** Префикс в начало строки: заголовки, списки, цитаты. */
 /** Префикс в начало строки: заголовки, списки, цитаты. */
 export function prefixLine(el: HTMLTextAreaElement, prefix: string): string {
   const { selectionStart: s, value } = el
@@ -67,10 +65,6 @@ const BUTTONS: Btn[] = [
   { id: 'link', label: т('Ссылка на заметку'), icon: 'link', apply: (el) => wrapSelection(el, '[[', ']]') },
 ]
 
-/**
- * Панель форматирования текстовой карточки. Кнопки вставляют обычную разметку,
- * поэтому файл доски остаётся читаемым и совместимым с Obsidian.
- */
 /**
  * Панель форматирования текстовой карточки. Кнопки вставляют обычную разметку,
  * поэтому файл доски остаётся читаемым и совместимым с Obsidian.

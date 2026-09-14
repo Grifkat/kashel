@@ -1848,6 +1848,18 @@ async function besjeda() {
   check('и онѣ разныя',
     помѣты[0].includes('записями') && помѣты[1].includes('итогами'), помѣты.join(' / '))
 
+  // --- языкъ отвѣта: напоминаніе стоитъ прямо передъ вопросомъ и на его языкѣ
+  const сообщенія = (тѣло: string) => (JSON.parse(тѣло).messages as { role: string; content: string }[])
+  const передъВопросомъ = (тѣло: string) => сообщенія(тѣло).slice(-2)[0]
+  check('русскій вопросъ — напоминаніе отвѣчать по-русски',
+    передъВопросомъ(тѣла[0]).role === 'system' && передъВопросомъ(тѣла[0]).content.includes('Отвечай по-русски'), передъВопросомъ(тѣла[0]).content)
+  await спросить('How much did I spend on groceries?')
+  check('англійскій вопросъ — напоминаніе отвѣчать на языкѣ вопроса',
+    передъВопросомъ(тѣла[3]).content.startsWith('Answer in the same language') && сообщенія(тѣла[3]).slice(-1)[0].content === 'How much did I spend on groceries?',
+    передъВопросомъ(тѣла[3]).content)
+  check('и въ исторіи прежнія напоминанія не копятся',
+    сообщенія(тѣла[3]).filter((m) => m.role === 'system' && /Отвечай по-русски|Answer in the same language/.test(m.content)).length === 1)
+
   g.fetch = былъ
 }
 

@@ -85,7 +85,7 @@ export default function Goals() {
                     {g.done && <span className="badge good">{т('закрыта')}</span>}
                   </div>
                   <div className="faint small">
-                    {g.targetDate ? `до ${humanDate(g.targetDate, true)}` : т('без срока')}
+                    {g.targetDate ? т('до {0}', humanDate(g.targetDate, true)) : т('без срока')}
                     {g.accountId ? т(' · счёт {0}', data.accounts.find((a) => a.id === g.accountId)?.name) : ''}
                   </div>
                 </div>
@@ -183,13 +183,6 @@ export default function Goals() {
   )
 }
 
-/**
- * Окно «Пополнить цель».
- *
- * Прежде кнопка открывала форму перевода со счёта на счёт — и у цели без
- * счёта перевести было некуда: форма требовала второй счёт и не давала
- * сохранить. Пополнить цель было нельзя вовсе.
- */
 /**
  * Окно «Пополнить цель».
  *

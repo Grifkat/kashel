@@ -16,8 +16,7 @@ import { т, тр } from '../i18n'
 const ВѢТВИ: RankBranch[] = ['civil', 'military', 'merchant']
 
 /** Дни недѣли полностью — въ короткомъ спискѣ «Вс» читается хуже. */
-/** Дни недѣли полностью — въ короткомъ спискѣ «Вс» читается хуже. */
-const ДНИ = ['воскресенье', 'понедѣльникъ', 'вторникъ', 'среда', 'четвергъ', 'пятница', 'суббота']
+const ДНИ = [т('воскресенье'), т('понедѣльникъ'), т('вторникъ'), т('среда'), т('четвергъ'), т('пятница'), т('суббота')]
 
 export default function Profile() {
   const { data, patchHonors, patchSettings } = useStore()
@@ -84,7 +83,7 @@ export default function Profile() {
           <div className="gramota-rank">{st.rank}</div>
           <div className="faint small" style={{ marginTop: 2 }}>
             {тр('{0} лѣстница · {1}-й уровень изъ 14{2}', BRANCH_NAMES[branch], st.level, данныйТитулъ(званія, data.honors?.pinned) && ` · ${данныйТитулъ(званія, data.honors?.pinned)}`)}</div>
-          <div className="xp-bar" title={`${st.xp} опыта`}>
+          <div className="xp-bar" title={т('{0} опыта', st.xp)}>
             <span style={{ width: `${Math.round(st.progress * 100)}%` }} />
           </div>
           <div className="faint small">
@@ -258,9 +257,9 @@ export default function Profile() {
           {званія.map((t) => (
             <span
               key={t.key}
-              className={'chip' + (data.honors?.pinned === t.title ? ' on' : '') + (t.earned ? '' : ' faint')}
+              className={'chip' + (закрѣпленъ(t, data.honors?.pinned) ? ' on' : '') + (t.earned ? '' : ' faint')}
               style={{ cursor: t.earned ? 'pointer' : 'default' }}
-              onClick={() => t.earned && patchHonors({ pinned: data.honors?.pinned === t.title ? undefined : t.title })}
+              onClick={() => t.earned && patchHonors({ pinned: закрѣпленъ(t, data.honors?.pinned) ? undefined : t.key })}
             >
               {t.title}{t.earned ? '' : т(' — не заслужено')}
             </span>
@@ -312,12 +311,19 @@ export default function Profile() {
   )
 }
 
-const данныйТитулъ = (
-  список: { title: string; earned: boolean }[],
-  закрѣплённый?: string,
-): string | null => (закрѣплённый && список.some((t) => t.title === закрѣплённый && t.earned) ? закрѣплённый : null)
+/**
+ * Закреплён ли титул. Раньше закреплялось название, теперь — ключ: название
+ * зависит от языка окна, и в английском окне русский титул терялся бы.
+ * Старое русское название узнаётся через перевод.
+ */
+const закрѣпленъ = (t: { key: string; title: string }, закрѣплённый?: string): boolean =>
+  !!закрѣплённый && (t.key === закрѣплённый || t.title === т(закрѣплённый))
 
-/** Строка чина для правой панели: чинъ, доля до слѣдующаго и ближайшая награда. */
+const данныйТитулъ = (
+  список: { key: string; title: string; earned: boolean }[],
+  закрѣплённый?: string,
+): string | null => список.find((t) => t.earned && закрѣпленъ(t, закрѣплённый))?.title ?? null
+
 /** Строка чина для правой панели: чинъ, доля до слѣдующаго и ближайшая награда. */
 export function StandingLine() {
   const { data } = useStore()

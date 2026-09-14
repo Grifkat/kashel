@@ -23,7 +23,6 @@ export default function Znaki() {
   const пожалованы = data.honors?.awarded ?? {}
 
   /** Награда, отвѣчающая знаку. У ордена берётся младшая степень. */
-  /** Награда, отвѣчающая знаку. У ордена берётся младшая степень. */
   const награда = (key: string) => {
     const свои = всѣ.filter((a) => ключъЗнака(a.id) === key)
     return свои.find((a) => a.earned) ?? свои[0] ?? null
@@ -68,7 +67,7 @@ export default function Znaki() {
                     <span className="faint small">{f.years}</span>
                     <span className="spacer" />
                     <span className={'badge' + (взято ? ' on' : '')}>
-                      {взято ? (день ? `пожаловано ${humanDate(день, true)}` : 'пожаловано') : т('ещё нѣтъ')}
+                      {взято ? (день ? т('пожаловано {0}', humanDate(день, true)) : т('пожаловано')) : т('ещё нѣтъ')}
                     </span>
                   </div>
                   <div className="znaki-award">{a?.order ?? a?.title ?? '—'}</div>

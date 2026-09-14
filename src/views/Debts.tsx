@@ -19,7 +19,6 @@ interface Row {
 }
 
 /** График аннуитетного погашения с возможным досрочным платежом. */
-/** График аннуитетного погашения с возможным досрочным платежом. */
 function schedule(principal: Money, ratePct: number, payment: Money, extra = 0): Row[] {
   const rows: Row[] = []
   const r = ratePct / 100 / 12

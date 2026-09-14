@@ -1,6 +1,6 @@
 import type { Account, Category, Money, Transaction, VaultData } from '../lib/types'
 import { сЗначкомъ } from '../lib/catalog'
-import { addDays, addMonths, daysInMonth, diffDays, diffMonths, humanDate, monthKey, monthTitle, parseISO, today } from '../lib/date'
+import { addDays, addMonths, daysInMonth, diffDays, diffMonths, humanDate, monthKey, monthTitle, parseISO, today, вСтрочную } from '../lib/date'
 import { money, moneyShort, months as monthsWord, pct, plural, times } from '../lib/format'
 import { balances, categoryMonthly, categoryTotals, creditRemaining, isAsset, mean, median, stdev, trendSlope } from './stats'
 import { historyKeys, occurrencesInMonth, type ForecastResult } from './forecast'
@@ -113,12 +113,17 @@ export function buildAdvice(data: VaultData, fc: ForecastResult): Advice[] {
 
 // ---------------------------------------------------------------- правила
 
-/** Регулярные списания: сколько съедают и что из этого забыто. */
+/**
+ * Статья подписок — и русская, и та, что заведена в английском окне:
+ * язык окна меняется, а названия статей в хранилище остаются какими были.
+ */
+const этоПодписки = (имя: string | undefined) => имя === 'Подписки' || имя === т('Подписки')
+
 /** Регулярные списания: сколько съедают и что из этого забыто. */
 function ruleSubscriptions(c: Ctx): Advice[] {
   const subs = c.data.recurring.filter(
     (r) => r.active && r.kind === 'expense' &&
-      (r.tags.includes('подписка') || c.catById.get(r.categoryId || '')?.name === 'Подписки'),
+      (r.tags.includes('подписка') || r.tags.includes('subscription') || этоПодписки(c.catById.get(r.categoryId || '')?.name)),
   )
   if (!subs.length) return []
   const monthly = subs.reduce((s, r) => s + r.amount * occurrencesInMonth(r, c.curKey), 0)
@@ -152,7 +157,6 @@ function ruleSubscriptions(c: Ctx): Advice[] {
   }]
 }
 
-/** Категории, которые в этом месяце идут заметно выше собственной нормы. */
 /** Категории, которые в этом месяце идут заметно выше собственной нормы. */
 function ruleCategoryDrift(c: Ctx): Advice[] {
   const out: Advice[] = []
@@ -192,7 +196,6 @@ function ruleCategoryDrift(c: Ctx): Advice[] {
   return out.slice(0, 3)
 }
 
-/** «Кофейный эффект»: много мелких операций, которые в сумме дают крупную статью. */
 /** «Кофейный эффект»: много мелких операций, которые в сумме дают крупную статью. */
 function ruleSmallLeaks(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -238,7 +241,6 @@ function ruleSmallLeaks(c: Ctx): Advice[] {
 }
 
 /** Разовые выбросы: операция сильно больше типичной для своей категории. */
-/** Разовые выбросы: операция сильно больше типичной для своей категории. */
 function ruleAnomalies(c: Ctx): Advice[] {
   const since = addMonths(today(), -2)
   const recent = c.data.transactions.filter((t) => t.kind === 'expense' && t.date >= since)
@@ -276,7 +278,6 @@ function ruleAnomalies(c: Ctx): Advice[] {
 }
 
 /** Категории с заданным лимитом, который будет превышен. */
-/** Категории с заданным лимитом, который будет превышен. */
 function rulePlanOverrun(c: Ctx): Advice[] {
   const curTx = c.data.transactions.filter((t) => monthKey(t.date) === c.curKey)
   const totals = new Map(categoryTotals(curTx, 'expense').map((t) => [t.categoryId, t.amount]))
@@ -309,7 +310,6 @@ function rulePlanOverrun(c: Ctx): Advice[] {
   }]
 }
 
-/** Крупные категории без лимита — бюджет неуправляем. */
 /** Крупные категории без лимита — бюджет неуправляем. */
 function ruleMissingPlans(c: Ctx): Advice[] {
   const totals = categoryTotals(
@@ -344,7 +344,6 @@ function ruleMissingPlans(c: Ctx): Advice[] {
   }]
 }
 
-/** Норма сбережений против цели из профиля. */
 /** Норма сбережений против цели из профиля. */
 function ruleSavingsRate(c: Ctx): Advice[] {
   if (!c.avgIncome) return []
@@ -402,7 +401,6 @@ function bucketSum(c: Ctx, bucket: 'needs' | 'wants' | 'savings'): Money {
 }
 
 /** Подушка безопасности в месяцах расходов. */
-/** Подушка безопасности в месяцах расходов. */
 function ruleEmergencyFund(c: Ctx): Advice[] {
   if (!c.avgExpense) return []
   const target = c.data.settings.profile.emergencyMonths
@@ -446,7 +444,6 @@ function ruleEmergencyFund(c: Ctx): Advice[] {
 }
 
 /** Вероятность ухода в минус по симуляциям. */
-/** Вероятность ухода в минус по симуляциям. */
 function ruleNegativeRisk(c: Ctx): Advice[] {
   const risk = c.fc.riskNegative
   if (risk < 0.05 && !c.fc.firstNegative) return []
@@ -463,7 +460,7 @@ function ruleNegativeRisk(c: Ctx): Advice[] {
     body:
       т('Из {0} симуляций {1}% заканчиваются отрицательным остатком хотя бы в одном месяце. ', c.data.settings.monteCarloRuns, Math.round(risk * 100)) +
       (when
-        ? т('Медианный сценарий пробивает ноль в {0}. ', when.toLowerCase())
+        ? т('Медианный сценарий пробивает ноль в {0}. ', вСтрочную(when))
         : т('Медианный сценарий держится в плюсе, но запас невелик. ')) +
       т('Это считается по вашей же истории: разброс берётся из фактических отклонений месяц к месяцу, а не из абстрактных процентов.'),
     evidence: [
@@ -477,7 +474,6 @@ function ruleNegativeRisk(c: Ctx): Advice[] {
   }]
 }
 
-/** Правило 50/30/20 как ориентир, а не догма. */
 /** Правило 50/30/20 как ориентир, а не догма. */
 function ruleBuckets(c: Ctx): Advice[] {
   const needs = bucketSum(c, 'needs')
@@ -516,7 +512,6 @@ function ruleBuckets(c: Ctx): Advice[] {
 }
 
 /** Насколько доход зависит от одного источника. */
-/** Насколько доход зависит от одного источника. */
 function ruleIncomeConcentration(c: Ctx): Advice[] {
   const since = addMonths(today(), -6)
   const totals = categoryTotals(c.data.transactions.filter((t) => t.date >= since), 'income')
@@ -550,7 +545,6 @@ function ruleIncomeConcentration(c: Ctx): Advice[] {
   }]
 }
 
-/** Насколько доход рваный — от этого зависит нужный размер буфера. */
 /** Насколько доход рваный — от этого зависит нужный размер буфера. */
 function ruleIncomeVolatility(c: Ctx): Advice[] {
   const series = c.fc.history.filter((h) => h.key < c.curKey).map((h) => h.income)
@@ -586,7 +580,6 @@ function ruleIncomeVolatility(c: Ctx): Advice[] {
   }]
 }
 
-/** Растёт ли доход быстрее инфляции. */
 /** Растёт ли доход быстрее инфляции. */
 function ruleIncomeTrend(c: Ctx): Advice[] {
   const series = c.fc.history.filter((h) => h.key < c.curKey).map((h) => h.income)
@@ -639,7 +632,6 @@ function ruleIncomeTrend(c: Ctx): Advice[] {
 }
 
 /** Деньги, которые лежат мёртвым грузом на текущем счёте. */
-/** Деньги, которые лежат мёртвым грузом на текущем счёте. */
 function ruleIdleCash(c: Ctx): Advice[] {
   if (!c.avgExpense) return []
   const target = c.data.settings.profile.emergencyMonths
@@ -667,7 +659,6 @@ function ruleIdleCash(c: Ctx): Advice[] {
   }]
 }
 
-/** Кредиты и долги: что гасить первым и что даёт досрочный платёж. */
 /** Кредиты и долги: что гасить первым и что даёт досрочный платёж. */
 function ruleDebts(c: Ctx): Advice[] {
   const out: Advice[] = []
@@ -744,7 +735,6 @@ function ruleDebts(c: Ctx): Advice[] {
 }
 
 /** Достижимость целей при текущем свободном остатке. */
-/** Достижимость целей при текущем свободном остатке. */
 function ruleGoals(c: Ctx): Advice[] {
   const bal = balances(c.data.accounts, c.data.transactions)
   const active = c.data.goals.filter((g) => !g.done)
@@ -786,7 +776,6 @@ function ruleGoals(c: Ctx): Advice[] {
 }
 
 /** Хватит ли остатка до зарплаты при текущем темпе. */
-/** Хватит ли остатка до зарплаты при текущем темпе. */
 function rulePaydayGap(c: Ctx): Advice[] {
   const payday = c.data.settings.profile.payday
   const now = today()
@@ -824,7 +813,6 @@ function rulePaydayGap(c: Ctx): Advice[] {
 }
 
 /** Какая доля расходов зафиксирована — это про гибкость, а не про сумму. */
-/** Какая доля расходов зафиксирована — это про гибкость, а не про сумму. */
 function ruleFixedShare(c: Ctx): Advice[] {
   const fixed = c.data.recurring
     .filter((r) => r.active && r.kind === 'expense')
@@ -854,7 +842,6 @@ function ruleFixedShare(c: Ctx): Advice[] {
 }
 
 /** Операции без категории портят всю аналитику. */
-/** Операции без категории портят всю аналитику. */
 function ruleUncategorized(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
   const recent = c.data.transactions.filter((t) => t.kind === 'expense' && t.date >= since)
@@ -877,7 +864,6 @@ function ruleUncategorized(c: Ctx): Advice[] {
   }]
 }
 
-/** Выходные против будней — типичная точка утечки. */
 /** Выходные против будней — типичная точка утечки. */
 function ruleWeekendSpending(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -926,11 +912,6 @@ function ruleWeekendSpending(c: Ctx): Advice[] {
 }
 
 
-/**
- * Дни подряд с тратами. Сумма за месяц может быть в норме, а привычка
- * тратить каждый день — уже сложившейся: именно она мешает случайной
- * экономии, потому что кошелёк не закрывается ни на день.
- */
 /**
  * Дни подряд с тратами. Сумма за месяц может быть в норме, а привычка
  * тратить каждый день — уже сложившейся: именно она мешает случайной
@@ -1006,11 +987,6 @@ function ruleSpendingStreak(c: Ctx): Advice[] {
  * истории — здесь она превращается в предупреждение заранее, а не в объяснение
  * задним числом.
  */
-/**
- * Сезонный пик впереди. Сезонность уже посчитана движком прогноза по году
- * истории — здесь она превращается в предупреждение заранее, а не в объяснение
- * задним числом.
- */
 function ruleSeasonalPeak(c: Ctx): Advice[] {
   if (c.keys.length < 12) return []
   const nextKey = addMonths(c.curKey + '-01', 1).slice(0, 7)
@@ -1054,11 +1030,6 @@ function ruleSeasonalPeak(c: Ctx): Advice[] {
   }]
 }
 
-/**
- * Крупная разовая трата, которая была в этом же месяце год назад. Страховка,
- * шины, продление домена: такие вещи не попадают в регулярные платежи, потому
- * что случаются раз в год, — и каждый раз оказываются неожиданностью.
- */
 /**
  * Крупная разовая трата, которая была в этом же месяце год назад. Страховка,
  * шины, продление домена: такие вещи не попадают в регулярные платежи, потому
@@ -1129,13 +1100,6 @@ function ruleLastYearRepeat(c: Ctx): Advice[] {
  * (avg₂ − avg₁)·count₂ + (count₂ − count₁)·avg₁. Первое слагаемое — цена,
  * второе — количество покупок. Управляемо, как правило, только второе.
  */
-/**
- * Почему категория подорожала: цена или объём.
- *
- * Рост суммы раскладывается точно: count₂·avg₂ − count₁·avg₁ =
- * (avg₂ − avg₁)·count₂ + (count₂ − count₁)·avg₁. Первое слагаемое — цена,
- * второе — количество покупок. Управляемо, как правило, только второе.
- */
 function rulePriceVsVolume(c: Ctx): Advice[] {
   const midFrom = addMonths(today(), -3)
   const oldFrom = addMonths(today(), -6)
@@ -1198,7 +1162,6 @@ function rulePriceVsVolume(c: Ctx): Advice[] {
 }
 
 /** Категория появилась недавно — и уже в верхней части расходов. */
-/** Категория появилась недавно — и уже в верхней части расходов. */
 function ruleNewcomerCategory(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
   const recent = c.data.transactions.filter((t) => t.kind === 'expense' && t.date >= since)
@@ -1243,7 +1206,6 @@ function ruleNewcomerCategory(c: Ctx): Advice[] {
 }
 
 /** Категория замолчала: раньше тратили, три месяца — ничего. */
-/** Категория замолчала: раньше тратили, три месяца — ничего. */
 function ruleFadedCategory(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
   const out: Advice[] = []
@@ -1285,7 +1247,6 @@ function ruleFadedCategory(c: Ctx): Advice[] {
   return out.sort((a, b) => a.title.localeCompare(b.title)).slice(0, 2)
 }
 
-/** Лидер по числу операций, а не по деньгам: куда уходит внимание. */
 /** Лидер по числу операций, а не по деньгам: куда уходит внимание. */
 function ruleFrequencyLeader(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -1333,7 +1294,6 @@ function ruleFrequencyLeader(c: Ctx): Advice[] {
   }]
 }
 
-/** Подозрение на двойное списание: одинаковая сумма, категория и день. */
 /** Подозрение на двойное списание: одинаковая сумма, категория и день. */
 function ruleDuplicates(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)

@@ -23,7 +23,6 @@ import { addDays, addMonths, dateFormat, iso, MONTHS, numericDate, parseISO, п�
 import { т } from '../i18n'
 
 /** Разбор вписанной руками даты. null — не понял. */
-/** Разбор вписанной руками даты. null — не понял. */
 export function разобратьДату(текстъ: string, формат: 'ru' | 'us' = dateFormat()): string | null {
   const т = текстъ.trim()
   if (!т) return null
@@ -56,11 +55,6 @@ export function разобратьДату(текстъ: string, формат: '
  * выбран первым в настройках. Всегда шесть недель, а не «сколько вышло»:
  * иначе календарик прыгал бы по высоте, пока листаешь месяцы.
  */
-/**
- * Сетка месяца: 42 клетки, шесть недель, от начала недели того дня, что
- * выбран первым в настройках. Всегда шесть недель, а не «сколько вышло»:
- * иначе календарик прыгал бы по высоте, пока листаешь месяцы.
- */
 export function сеткаМесяца(ключъ: string, firstDay: number): string[] {
   const начало = startOfWeek(startOfMonth(ключъ), firstDay)
   return Array.from({ length: 42 }, (_, i) => addDays(начало, i))
@@ -76,7 +70,6 @@ export function DateField({
 }: {
   value: string
   onChange: (v: string) => void
-  /** Можно ли стереть дату — для необязательных сроков. */
   /** Можно ли стереть дату — для необязательных сроков. */
   allowEmpty?: boolean
   style?: React.CSSProperties
@@ -184,7 +177,7 @@ export function DateField({
         type="text"
         inputMode="numeric"
         value={текстъ}
-        placeholder={placeholder ?? (формат === 'us' ? 'мм/дд/гггг' : т('дд.мм.гггг'))}
+        placeholder={placeholder ?? (формат === 'us' ? т('мм/дд/гггг') : т('дд.мм.гггг'))}
         onChange={(e) => setТекстъ(e.target.value)}
         onBlur={принять}
         onKeyDown={(e) => {

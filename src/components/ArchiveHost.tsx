@@ -19,9 +19,7 @@ import { т, тр } from '../i18n'
 
 interface ArchiveApi {
   /** Сохранить всё содержимое программы в файл. */
-  /** Сохранить всё содержимое программы в файл. */
   save(): Promise<void>
-  /** Выбрать файл вручную и предложить загрузку. */
   /** Выбрать файл вручную и предложить загрузку. */
   pick(): Promise<void>
   busy: string
@@ -35,7 +33,6 @@ export const useArchive = (): ArchiveApi => {
   return v
 }
 
-/** Вес файла в мегабайтах — по нему сразу видно, влезет ли он в письмо. */
 /** Вес файла в мегабайтах — по нему сразу видно, влезет ли он в письмо. */
 export function fileSize(chars: number): string {
   const mb = chars / 1024 / 1024
@@ -80,7 +77,6 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
   }, [toast])
 
   /** Разбирает текст файла и показывает, что внутри, до всякой записи. */
-  /** Разбирает текст файла и показывает, что внутри, до всякой записи. */
   const offer = useCallback(
     (text: string, name: string) => {
       const res = parseArchive(text)
@@ -98,11 +94,6 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
     if (file) offer(file.text, file.name)
   }, [offer])
 
-  /**
-   * Загрузка заменяет хранилище целиком, поэтому первым делом складывает
-   * нынешнее состояние в backups/ таким же архивом: вернуться можно будет
-   * той же кнопкой «Открыть».
-   */
   /**
    * Загрузка заменяет хранилище целиком, поэтому первым делом складывает
    * нынешнее состояние в backups/ таким же архивом: вернуться можно будет
@@ -219,7 +210,7 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
                   <td>{label}</td>
                   <td className="r num strong">{next}</td>
                   <td className="r num faint" style={{ width: 130 }}>
-                    {now == null ? '' : `сейчас ${now}`}
+                    {now == null ? '' : т('сейчас {0}', now)}
                   </td>
                 </tr>
               ))}

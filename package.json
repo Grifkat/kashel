@@ -19,9 +19,10 @@
     "start": "npm run build && electron .",
     "preview": "vite preview",
     "dev:web": "vite",
-    "selftest": "esbuild scripts/selftest.ts --bundle --platform=node --format=cjs --loader:.png=dataurl --loader:.jpg=dataurl --outfile=node_modules/.cache/selftest.cjs --log-level=warning && node node_modules/.cache/selftest.cjs",
+    "selftest": "esbuild scripts/selftest.ts --bundle --platform=node --format=cjs --external:typescript --loader:.png=dataurl --loader:.jpg=dataurl --outfile=node_modules/.cache/selftest.cjs --log-level=warning && node node_modules/.cache/selftest.cjs",
     "typecheck": "tsc --noEmit",
-    "uitest": "esbuild scripts/uitest.tsx --bundle --platform=node --format=cjs --external:jsdom --loader:.tsx=tsx --loader:.png=dataurl --loader:.jpg=dataurl --outfile=node_modules/.cache/uitest.cjs --log-level=warning && node node_modules/.cache/uitest.cjs"
+    "uitest": "esbuild scripts/uitest.tsx --bundle --platform=node --format=cjs --external:jsdom --loader:.tsx=tsx --loader:.png=dataurl --loader:.jpg=dataurl --outfile=node_modules/.cache/uitest.cjs --log-level=warning && node node_modules/.cache/uitest.cjs",
+    "uitest:en": "esbuild scripts/uitest-en.tsx --bundle --platform=node --format=cjs --external:jsdom --loader:.tsx=tsx --loader:.png=dataurl --loader:.jpg=dataurl --outfile=node_modules/.cache/uitest-en.cjs --log-level=warning && node node_modules/.cache/uitest-en.cjs"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

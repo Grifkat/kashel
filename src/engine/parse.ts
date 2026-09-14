@@ -1,4 +1,5 @@
 import type { Account, Category, Money, TxKind } from '../lib/types'
+import { т } from '../i18n'
 import { addDays, iso, parseISO, relDate, today } from '../lib/date'
 import { toMinor } from '../lib/format'
 
@@ -15,8 +16,12 @@ export interface QuickDraft {
   matchedAccount?: string
 }
 
-const INCOME_WORDS = ['доход', 'зарплата', 'аванс', 'получил', 'получила', 'приход', 'навар', 'премия', 'вернули', 'возврат']
-const TRANSFER_WORDS = ['перевод', 'переведи', 'перевёл', 'перевел', 'снятие', 'снял', 'в копилку', 'на счёт']
+// Слова понимаются на обоих языках разом, а не по языку окна: запись
+// «кофе 350 вчера» не должна перестать разбираться, если окно по-английски.
+const INCOME_WORDS = ['доход', 'зарплата', 'аванс', 'получил', 'получила', 'приход', 'навар', 'премия', 'вернули', 'возврат',
+  'income', 'salary', 'paycheck', 'earnings', 'earned', 'received', 'bonus', 'refund']
+const TRANSFER_WORDS = ['перевод', 'переведи', 'перевёл', 'перевел', 'снятие', 'снял', 'в копилку', 'на счёт',
+  'transfer', 'moved', 'withdraw', 'withdrew']
 
 /**
  * Разбор строки быстрого ввода: «кофе 250 кафе вчера #работа @наличные».
@@ -76,6 +81,9 @@ export function parseQuick(
       ['вчера', -1],
       ['сегодня', 0],
       ['завтра', 1],
+      ['yesterday', -1],
+      ['today', 0],
+      ['tomorrow', 1],
     ]
     for (const [w, shift] of keywords) {
       const re = word(w)
@@ -172,11 +180,11 @@ function findByName<T extends { name: string }>(list: T[], name: string): T | un
 /** Человекочитаемое описание разбора — показывается под полем ввода. */
 export function describeDraft(d: QuickDraft, categories: Category[], accounts: Account[]): string {
   const parts: string[] = []
-  parts.push(d.kind === 'income' ? 'Доход' : d.kind === 'transfer' ? 'Перевод' : 'Расход')
+  parts.push(d.kind === 'income' ? т('Доход') : d.kind === 'transfer' ? т('Перевод') : т('Расход'))
   if (d.amount) parts.push((d.amount / 100).toLocaleString('ru-RU') + ' ₽')
-  else parts.push('сумма не найдена')
+  else parts.push(т('сумма не найдена'))
   if (d.matchedCategory) parts.push('→ ' + d.matchedCategory)
-  if (d.matchedAccount) parts.push('со счёта ' + d.matchedAccount)
+  if (d.matchedAccount) parts.push(т('со счёта {0}', d.matchedAccount))
   if (d.date !== today()) parts.push(relDate(d.date))
   if (d.tags.length) parts.push(d.tags.map((t) => '#' + t).join(' '))
   if (d.note) parts.push('«' + d.note + '»')

@@ -59,7 +59,6 @@ export default function GraphView() {
   const [wrapRef, { w: gw, h: gh }] = useSize<HTMLDivElement>()
   const nodesRef = useRef<GNode[]>([])
   /** Взводится, как только человек сам подвинул или приблизил граф. */
-  /** Взводится, как только человек сам подвинул или приблизил граф. */
   const touched = useRef(false)
   const [, force] = useState(0)
 
@@ -236,10 +235,6 @@ export default function GraphView() {
     else if (n.kind === 'goal') app.openTab('goals')
   }
 
-  /**
-   * Вписать граф в холст. Прежняя кнопка возвращала масштаб 1, а при разбросе
-   * узлов в шестьсот пикселей это не влезает даже в широкую панель.
-   */
   /**
    * Вписать граф в холст. Прежняя кнопка возвращала масштаб 1, а при разбросе
    * узлов в шестьсот пикселей это не влезает даже в широкую панель.

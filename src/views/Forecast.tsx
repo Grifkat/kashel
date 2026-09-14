@@ -6,7 +6,7 @@ import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, moneyShort, months as monthsWord, pct, toMinor, uid } from '../lib/format'
 import { isCatalogIcon } from '../lib/catalog'
-import { addMonths, monthKey, monthTitle, MONTHS_SHORT, today } from '../lib/date'
+import { addMonths, monthKey, monthTitle, MONTHS_SHORT, today, вСтрочную } from '../lib/date'
 import { ALL_ACCOUNTS, forecast, scopeToAccount } from '../engine/forecast'
 import { LineChart } from '../components/charts'
 import { Avatar, Field, Modal, MoneyInput, Tbl, useToast } from '../components/ui'
@@ -75,7 +75,7 @@ export default function Forecast() {
     }))
     return [
       ...back,
-      { label: 'сейчас', value: fc.startBalance },
+      { label: т('сейчас'), value: fc.startBalance },
       ...future,
     ]
   }, [base, fc])
@@ -211,7 +211,7 @@ export default function Forecast() {
               {pct(fc.riskNegative * 100)}
             </span>
             <span className="d faint">
-              {fc.firstNegative ? т('медиана пробивает ноль в {0}', monthTitle(fc.firstNegative).toLowerCase()) : т('медиана держится в плюсе')}
+              {fc.firstNegative ? т('медиана пробивает ноль в {0}', вСтрочную(monthTitle(fc.firstNegative))) : т('медиана держится в плюсе')}
             </span>
           </div>
         </div>
@@ -448,7 +448,7 @@ function SaveScenario({
   onSave: (name: string) => void
   onClose: () => void
 }) {
-  const [name, setName] = useState(scenario.name === 'Как есть' ? т('Мой сценарий') : scenario.name)
+  const [name, setName] = useState(scenario.id === BASE.id || scenario.name === 'Как есть' ? т('Мой сценарий') : scenario.name)
   return (
     <Modal
       title={т('Сохранить сценарий')}
