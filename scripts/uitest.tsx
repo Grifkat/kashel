@@ -587,13 +587,77 @@ async function canvasText() {
   await wait(200)
   check('шрифт уменьшается', sizeNow() === s0, String(sizeNow()))
 
-  // Режим подгонки.
-  const fitSel = document.querySelector('.text-toolbar select') as any
-  check('переключатель поведения текста есть', !!fitSel)
-  const setSelect = Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, 'value')!.set!
-  setSelect.call(fitSel, 'shrink')
-  fitSel.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-  await wait(300)
+  /*
+   * Режим подгонки.
+   *
+   * Прежде здесь был <select>, и этот тест выставлял ему значение напрямую —
+   * jsdom не смотрит на погашенный mousedown, так что тест был зелёным, а у
+   * человека список не открывался вовсе. Теперь проверяем ровно то, что
+   * делает человек: жмём кнопку режима, затем пункт меню. И отдельно — что
+   * <select> в панель не вернётся.
+   */
+  check('в панели нет <select> — он там не раскрывается', !document.querySelector('.text-toolbar select'))
+  const выбратьРежимъ = async (имя: string) => {
+    click(document.querySelector('.tt-fit-btn'))
+    await wait(200)
+    const пунктъ = all('.tt-fit-item').find((b) => (b.textContent || '').includes(имя)) as any
+    click(пунктъ)
+    await wait(250)
+    return !!пунктъ
+  }
+  click(document.querySelector('.tt-fit-btn'))
+  await wait(200)
+  check('кнопка режима раскрыла меню', all('.tt-fit-item').length === 4, String(all('.tt-fit-item').length))
+  check('и правка при этом не оборвалась', !!area())
+  click(document.querySelector('.tt-fit-btn'))
+  await wait(200)
+
+  check('режим «Вписывать» выбирается из меню', await выбратьРежимъ('Вписывать'))
+  check('кнопка показывает выбранный режим', (document.querySelector('.tt-fit-btn')?.textContent || '').includes('Вписывать'))
+  check('поле правки тоже без прокрутки — подгонка работает и при правке', area()?.classList.contains('no-scroll') === true)
+
+  /*
+   * Уход фокуса в панель — ещё правка, а не её конец.
+   *
+   * Синтетический focusout здесь до onBlur не доходит: React загружен
+   * раньше, чем поднят jsdom, и часть событий живёт мимо него (та же беда,
+   * что с вводом в textarea). Первая версия этой проверки поэтому была
+   * пустой — зеленела и без защиты, мутация это показала. Вызываем
+   * обработчик React напрямую: он получает то же, что получил бы в окне.
+   */
+  const пропсыПоля = (el: any) => el?.[Object.keys(el).find((k) => k.startsWith('__reactProps')) as string]
+  const onBlur = пропсыПоля(area())?.onBlur
+  check('у поля правки есть обработчик ухода фокуса', typeof onBlur === 'function')
+  onBlur?.({ relatedTarget: document.querySelector('.tt-fit-btn') })
+  await wait(200)
+  check('фокус в панели не обрывает правку', !!area())
+
+  /*
+   * Панель встаёт над карточкой по своей настоящей высоте. jsdom высоту не
+   * мерит (offsetHeight всегда 0), поэтому подставляем её сами: верх панели
+   * плюс её высота обязан оставаться одним и тем же — это верх карточки
+   * минус зазор. Прежняя постоянная «−44» этого не выдержала бы.
+   */
+  const держатель = () => document.querySelector('.text-toolbar-holder') as HTMLElement
+  const верхъ0 = parseFloat(держатель().style.top)
+  const место0 = держатель().dataset.place
+  const proto = dom.window.HTMLElement.prototype
+  const родное = Object.getOwnPropertyDescriptor(proto, 'offsetHeight')!
+  Object.defineProperty(proto, 'offsetHeight', {
+    configurable: true,
+    get(this: HTMLElement) { return this.classList?.contains('text-toolbar-holder') ? 110 : 0 },
+  })
+  click(ttBtn('Крупнее'))
+  await wait(200)
+  click(ttBtn('Мельче'))
+  await wait(200)
+  const верхъ1 = parseFloat(держатель().style.top)
+  const место1 = держатель().dataset.place
+  Object.defineProperty(proto, 'offsetHeight', родное)
+  check('панель поднимается на свою высоту, а не на постоянные 44',
+    место0 === 'above' && место1 === 'above' ? Math.abs((верхъ0 + 0) - (верхъ1 + 110)) < 0.5 : место1 === 'below',
+    `${место0} ${верхъ0} → ${место1} ${верхъ1}`)
+
   key('Escape')
   await wait(300)
   check('режим «вписывать» отключил прокрутку', !!document.querySelector('.cnode-scroll.no-scroll'),
@@ -602,11 +666,7 @@ async function canvasText() {
   const again = all('.cnode').find((c) => c.className.includes('cnode-t-text')) as any
   again.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true, clientX: 400, clientY: 400 }))
   await wait(300)
-  const sel2 = document.querySelector('.text-toolbar select') as any
-
-  setSelect.call(sel2, 'fixed')
-  sel2.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
-  await wait(250)
+  await выбратьРежимъ('Обычный')
 
   key('Escape')
   await wait(250)

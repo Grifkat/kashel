@@ -1,4 +1,4 @@
-import React from 'react'
+import React, { useState } from 'react'
 import { Icon } from '../../lib/icons'
 import type { TextFit } from '../../lib/types'
 
@@ -89,7 +89,18 @@ export function TextToolbar({
     onText(b.apply(el))
     el.focus()
   }
+  const [режимы, setРежимы] = useState(false)
+  const текущій = FIT_MODES.find((m) => m.id === fit) ?? FIT_MODES[0]
 
+  /*
+   * mousedown гасится на всей панели: иначе нажатие на кнопку уводит фокус
+   * из поля, и оно теряет выделение, к которому применяется «жирный».
+   *
+   * Из-за этого же здѣсь нельзя обычный <select>: в Chromium погашенный
+   * mousedown не даёт списку раскрыться — выбор режима «Обычный /
+   * Вписывать / Растить» просто не открывался, и текст никогда не
+   * подстраивался под карточку. Поэтому режимы — своё меню из кнопок.
+   */
   return (
     <div className="text-toolbar" onMouseDown={(e) => e.preventDefault()}>
       {BUTTONS.map((b) => (
@@ -113,16 +124,38 @@ export function TextToolbar({
       </button>
 
       <span className="tool-sep" />
-      <select
-        value={fit}
-        onChange={(e) => onFit(e.target.value as TextFit)}
-        title={FIT_MODES.find((m) => m.id === fit)?.about}
-        style={{ width: 152, padding: '3px 6px' }}
-      >
-        {FIT_MODES.map((m) => (
-          <option key={m.id} value={m.id}>{m.name}</option>
-        ))}
-      </select>
+      <div className="tt-fit">
+        <button
+          className="tt-btn tt-fit-btn"
+          title={текущій.about}
+          aria-haspopup="menu"
+          aria-expanded={режимы}
+          onClick={() => setРежимы((v) => !v)}
+        >
+          <span>{текущій.name}</span>
+          <Icon name={режимы ? 'up' : 'down'} size={12} />
+        </button>
+        {режимы && (
+          <div className="tt-fit-menu" role="menu">
+            {FIT_MODES.map((m) => (
+              <button
+                key={m.id}
+                role="menuitemradio"
+                aria-checked={m.id === fit}
+                className={'tt-fit-item' + (m.id === fit ? ' on' : '')}
+                onClick={() => {
+                  onFit(m.id)
+                  setРежимы(false)
+                  areaRef.current?.focus()
+                }}
+              >
+                <span className="tt-fit-name">{m.name}</span>
+                <span className="tt-fit-about">{m.about}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

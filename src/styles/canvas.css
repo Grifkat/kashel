@@ -465,6 +465,48 @@
 .tt-code { font-family: var(--mono); font-size: 12px; }
 .tt-size { width: 24px; text-align: center; font-size: 12px; color: var(--faint); }
 
+/*
+ * Выбор режима подгонки — своё меню, а не <select> (почему — см. TextToolbar).
+ *
+ * Меню раскрывается отдельной строкой внутри самой панели, а не всплывает
+ * поверх: панель от этого становится выше, и её положение над карточкой
+ * пересчитывается по новой высоте. Иначе раскрытое меню ложилось бы на
+ * текст карточки — ровно то, на что и жаловались.
+ */
+.tt-fit { display: contents; }
+.tt-fit-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  color: var(--text);
+  background: var(--panel-2);
+}
+.tt-fit-menu {
+  flex-basis: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border-soft);
+}
+.tt-fit-item {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--tr), border-color var(--tr);
+}
+.tt-fit-item:hover { background: var(--hover); }
+.tt-fit-item.on { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.tt-fit-name { font-size: 12.5px; font-weight: 600; color: var(--text-strong); }
+.tt-fit-about { font-size: 11px; line-height: 1.3; color: var(--muted); }
+
 /* ------------------------------------------------------------ палитра */
 .pal-quick {
   width: 30px;

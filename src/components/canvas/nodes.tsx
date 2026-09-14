@@ -34,7 +34,30 @@ function FittedText({
   children: React.ReactNode
 }) {
   const ref = useRef<HTMLDivElement>(null)
+  useПодгонка(ref, node, fit, fontSize, onGrow)
 
+  return (
+    <div ref={ref} className={'cnode-scroll cnode-md' + (fit === 'fixed' ? '' : ' no-scroll')}>
+      {children}
+    </div>
+  )
+}
+
+/*
+ * Подгонка текста под карточку — одна и та же для чтения и для правки.
+ *
+ * Раньше она работала только на готовом тексте, а поле правки всегда писало
+ * одним кеглем: пока печатаешь, «Растить карточку» карточку не растила,
+ * «Вписывать» не вписывала, и казалось, что режимы не работают вовсе.
+ * Правило общее, поэтому поведение при правке и после неё совпадает.
+ */
+function useПодгонка(
+  ref: React.RefObject<HTMLElement>,
+  node: CanvasNode,
+  fit: TextFit,
+  fontSize: number,
+  onGrow?: (height: number) => void,
+) {
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
@@ -79,12 +102,48 @@ function FittedText({
         if (Math.abs(next - node.height) > 4) onGrow(next)
       }
     }
+    // ref в зависимостях не нужен: объект стабилен, меняется только .current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fit, fontSize, node.width, node.height, node.text, onGrow])
+}
 
+/** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */
+function ПолеПравки({
+  node,
+  fit,
+  fontSize,
+  areaRef,
+  onChange,
+  onEndEdit,
+  onGrow,
+}: {
+  node: CanvasNode
+  fit: TextFit
+  fontSize: number
+  areaRef?: React.RefObject<HTMLTextAreaElement>
+  onChange(patch: Partial<CanvasNode>): void
+  onEndEdit(): void
+  onGrow?(height: number): void
+}) {
+  const свой = useRef<HTMLTextAreaElement>(null)
+  const ref = areaRef ?? свой
+  useПодгонка(ref, node, fit, fontSize, onGrow)
   return (
-    <div ref={ref} className={'cnode-scroll cnode-md' + (fit === 'fixed' ? '' : ' no-scroll')}>
-      {children}
-    </div>
+    <textarea
+      ref={ref}
+      className={'cnode-edit' + (fit === 'fixed' ? '' : ' no-scroll')}
+      autoFocus
+      style={{ fontSize }}
+      value={node.text ?? ''}
+      onChange={(e) => onChange({ text: e.target.value })}
+      onBlur={(e) => {
+        // Фокус ушёл в панель форматирования — это ещё правка, а не её конец.
+        // Иначе любое нажатие мимо кнопок панели обрывало бы редактирование.
+        if ((e.relatedTarget as Element | null)?.closest?.('.text-toolbar')) return
+        onEndEdit()
+      }}
+      placeholder={'Текст, **жирный**, [[ссылка]], #тег\n\n```kashel\ntype: sum\nkind: expense\nperiod: 1m\n```'}
+    />
   )
 }
 
@@ -259,15 +318,14 @@ export function NodeBody({
   if (node.type === 'text') {
     if (editing) {
       return (
-        <textarea
-          ref={areaRef}
-          className="cnode-edit"
-          autoFocus
-          style={{ fontSize }}
-          value={node.text ?? ''}
-          onChange={(e) => onChange({ text: e.target.value })}
-          onBlur={onEndEdit}
-          placeholder={'Текст, **жирный**, [[ссылка]], #тег\n\n```kashel\ntype: sum\nkind: expense\nperiod: 1m\n```'}
+        <ПолеПравки
+          node={node}
+          fit={fit}
+          fontSize={fontSize}
+          areaRef={areaRef}
+          onChange={onChange}
+          onEndEdit={onEndEdit}
+          onGrow={onGrow}
         />
       )
     }

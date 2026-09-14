@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -102,6 +102,46 @@ interface DragState {
   start?: Map<string, Point>
   before?: CanvasDoc
   moved?: boolean
+}
+
+/*
+ * Панель форматирования над карточкой — с зазором и по своей настоящей высоте.
+ *
+ * Прежде она ставилась ровно на 44 точки выше карточки. Но панель переносится
+ * в два-три ряда, это 67–110 точек, и нижние ряды ложились на саму карточку,
+ * закрывая первые строки текста. Проверено вживую: при двух рядах нахлёст
+ * был 23 точки. Теперь высота мерится, панель встаёт над карточкой с
+ * зазором, а если сверху места нет — под карточкой.
+ */
+const ЗАЗОРЪ_ПАНЕЛИ = 12
+
+function ПанельНадъКарточкой({
+  left,
+  cardTop,
+  cardBottom,
+  children,
+}: {
+  left: number
+  cardTop: number
+  cardBottom: number
+  children: React.ReactNode
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [высота, setВысота] = useState(0)
+  // Без списка зависимостей нарочно: высота меняется, когда раскрывается
+  // меню режимов, а оно — внутреннее состояние панели. setState только при
+  // изменении, поэтому зацикливания нет.
+  useLayoutEffect(() => {
+    const h = ref.current?.offsetHeight ?? 0
+    if (h !== высота) setВысота(h)
+  })
+  const сверху = cardTop - высота - ЗАЗОРЪ_ПАНЕЛИ
+  const top = сверху >= 8 ? сверху : cardBottom + ЗАЗОРЪ_ПАНЕЛИ
+  return (
+    <div ref={ref} className="text-toolbar-holder" style={{ left, top }} data-place={сверху >= 8 ? 'above' : 'below'}>
+      {children}
+    </div>
+  )
 }
 
 export default function CanvasView({ name }: { name?: string }) {
@@ -1351,8 +1391,9 @@ export default function CanvasView({ name }: { name?: string }) {
         const n = nodeById.get(editing)
         if (!n || n.type !== 'text') return null
         const p = toScreen({ x: n.x, y: n.y })
+        const низъ = toScreen({ x: n.x, y: n.y + n.height })
         return (
-          <div className="text-toolbar-holder" style={{ left: p.x, top: p.y - 44 }}>
+          <ПанельНадъКарточкой left={p.x} cardTop={p.y} cardBottom={низъ.y}>
             <TextToolbar
               areaRef={areaRef}
               fontSize={n.fontSize ?? DEFAULT_FONT_SIZE}
@@ -1361,7 +1402,7 @@ export default function CanvasView({ name }: { name?: string }) {
               onFontSize={(fontSize) => patchNode(n.id, { fontSize }, false)}
               onFit={(fit) => patchNode(n.id, { fit }, false)}
             />
-          </div>
+          </ПанельНадъКарточкой>
         )
       })()}
 
