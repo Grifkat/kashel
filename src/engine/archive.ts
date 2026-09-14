@@ -1,3 +1,4 @@
+import { путьЗначкаДопустимъ } from '../lib/svoiznachki'
 import type {
   Account, AccountType, Bucket, CanvasDoc, CanvasEdge, CanvasNode, Category, Freq, Goal,
   ImportRule, Money, Recurring, Reminder, ReminderEvent, ReminderRepeat, ReminderSound,
@@ -7,7 +8,7 @@ import { migrateSettings } from '../state/defaults'
 import { today } from '../lib/date'
 import {
   bridge, canvasPath, listAttachments, listCanvases, listNotes, notePath,
-  readAttachmentBase64, readCanvas, readNote,
+  readAttachmentBase64, readCanvas, readNote, listIconFiles,
 } from '../state/vault'
 
 /*
@@ -81,7 +82,10 @@ export async function buildArchive(data: VaultData): Promise<Archive> {
     }),
   )
 
-  const attachmentPaths = await listAttachments()
+  // Свои значки категорий едут вместе с вложениями: и то и другое —
+  // картинки из хранилища, и без значков восстановленные категории
+  // остались бы с пустыми кружками.
+  const attachmentPaths = [...(await listAttachments()), ...(await listIconFiles())]
   const attachments: Record<string, string> = {}
   await Promise.all(
     attachmentPaths.map(async (rel) => {
@@ -539,7 +543,10 @@ export function safeFileName(name: string): string {
 }
 
 const isSafeAttachment = (rel: string): boolean =>
-  /^attachments\/[^\\/]+$/.test(rel) && !rel.includes('..') && safeFileName(rel.slice(12)) === rel.slice(12)
+  (/^attachments\/[^\\/]+$/.test(rel) && !rel.includes('..') && safeFileName(rel.slice(12)) === rel.slice(12)) ||
+  // Значки — строго icons/имя.png: архив приходит снаружи, и писать по нему
+  // в хранилище куда попало нельзя.
+  путьЗначкаДопустимъ(rel)
 
 // ------------------------------------------------------------------ разбор
 

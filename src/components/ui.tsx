@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { этоСвойЗначокъ, useСвойЗначокъ, подготовитьЗначокъ, сохранитьЗначокъ, списокЗначковъ } from '../lib/svoiznachki'
 import { createPortal } from 'react-dom'
 import { motion } from 'motion/react'
 import { Toaster, toast as sonnerToast } from 'sonner'
@@ -367,13 +368,17 @@ export function Avatar({
 }) {
   const hex = color || '#7c8794'
   const known = isCatalogIcon(icon)
+  const свой = этоСвойЗначокъ(icon)
+  const картинка = useСвойЗначокъ(icon)
   return (
     <span
-      className={'avatar' + (size === 'md' ? '' : ' ' + size)}
+      className={'avatar' + (size === 'md' ? '' : ' ' + size) + (свой ? ' svoy' : '')}
       title={title}
       style={{ background: hex, color: iconInk(hex), ...style }}
     >
-      {known ? <CatalogGlyph id={icon!} size={GLYPH_SIZE[size]} /> : icon || ''}
+      {свой
+        ? (картинка ? <img src={картинка} alt="" draggable={false} /> : null)
+        : known ? <CatalogGlyph id={icon!} size={GLYPH_SIZE[size]} /> : icon || ''}
     </span>
   )
 }
@@ -415,6 +420,36 @@ export function IconPicker({
   // Цвет применяем сразу: человек мог прийти сюда только за ним.
   const pickColor = (next: string) => onChange(icon, next)
 
+  /*
+   * Свои значки. Файл выбирается обычным полем <input type=file>, а не
+   * диалогом оболочки: тот есть только на рабочем столе, а в браузере и в
+   * облачной версии значок тоже должен загружаться.
+   */
+  const [свои, setСвои] = useState<string[]>([])
+  const [грузимъ, setГрузимъ] = useState(false)
+  const [бѣда, setБѣда] = useState('')
+  const поле = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    void списокЗначковъ().then(setСвои).catch(() => setСвои([]))
+  }, [])
+  const загрузить = async (файлъ: File | undefined) => {
+    if (!файлъ) return
+    setБѣда('')
+    setГрузимъ(true)
+    try {
+      const png = await подготовитьЗначокъ(файлъ)
+      const значокъ = await сохранитьЗначокъ(png)
+      setСвои((с) => [...с, значокъ])
+      onChange(значокъ, col)
+      onClose()
+    } catch (e) {
+      setБѣда((e as Error).message)
+    } finally {
+      setГрузимъ(false)
+      if (поле.current) поле.current.value = ''
+    }
+  }
+
   return (
     <Modal title="Каталог иконок" icon="palette" onClose={onClose}>
       <div className="row" style={{ gap: 14, marginBottom: 14, alignItems: 'flex-start' }}>
@@ -433,6 +468,49 @@ export function IconPicker({
         style={{ marginBottom: 14 }}
         autoFocus
       />
+
+      <div style={{ marginBottom: 16 }}>
+        <div className="row" style={{ marginBottom: 7 }}>
+          <div className="card-title" style={{ margin: 0 }}>Свои</div>
+          <span className="spacer" />
+          <button className="btn sm" disabled={грузимъ} onClick={() => поле.current?.click()}>
+            <Icon name="upload" size={13} /> {грузимъ ? 'Загружаю…' : 'Загрузить картинку'}
+          </button>
+          <input
+            ref={поле}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+            style={{ display: 'none' }}
+            onChange={(e) => void загрузить(e.target.files?.[0])}
+          />
+        </div>
+        {бѣда && <div className="neg small" style={{ marginBottom: 6 }}>{бѣда}</div>}
+        {свои.length > 0 ? (
+          <div className="icon-grid">
+            {свои.map((з) => {
+              const on = icon === з
+              return (
+                <button
+                  key={з}
+                  className={'icon-cell' + (on ? ' on' : '')}
+                  title="Свой значок"
+                  style={on ? { borderColor: col } : undefined}
+                  onClick={() => {
+                    onChange(з, col)
+                    onClose()
+                  }}
+                >
+                  <Avatar icon={з} color={col} size="sm" />
+                </button>
+              )
+            })}
+          </div>
+        ) : (
+          <div className="faint small">
+            PNG, JPG, WebP, GIF или SVG. Картинка обрежется по центру в квадрат и ужмётся до 128 точек.
+          </div>
+        )}
+      </div>
 
       {groups.length === 0 && <div className="empty">Ничего не нашлось — попробуйте другое слово</div>}
       {groups.map((g) => (

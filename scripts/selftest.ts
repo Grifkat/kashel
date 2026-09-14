@@ -15,6 +15,8 @@ import { ICON_GROUPS, isCatalogIcon, сЗначкомъ } from '../src/lib/catal
 import { DEFAULT_CATEGORIES } from '../src/state/defaults'
 import type { Goal, Recurring, Reminder, Scenario, Task, Transaction } from '../src/lib/types'
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../src/engine/goals'
+import { квадратъ, путьЗначкаДопустимъ, этоСвойЗначокъ } from '../src/lib/svoiznachki'
+import { parseArchive } from '../src/engine/archive'
 import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
 import {
@@ -1888,6 +1890,46 @@ async function шифрованіе() {
  * тема съ украшеніемъ въ углу споткнётся о ту же строку.
  */
 /*
+ * Свои значки.
+ *
+ * Сама обработка картинки идёт на холсте, которого в Node нет, — её
+ * проверяли в живом окне (300×200 → 128×128, граница цветов ровно
+ * посередине). Здесь — всё, что можно проверить без холста: арифметика
+ * обрезки, распознавание значка и то, что архив снаружи не может писать
+ * значками куда попало.
+ */
+function своиЗначки() {
+  console.log('\n— свои значки —')
+  const ш = квадратъ(300, 200)
+  check('широкая картинка режется по центру', ш.sx === 50 && ш.sy === 0 && ш.s === 200, JSON.stringify(ш))
+  const в = квадратъ(200, 300)
+  check('высокая — тоже по центру', в.sx === 0 && в.sy === 50 && в.s === 200, JSON.stringify(в))
+  check('квадрат не режется', JSON.stringify(квадратъ(128, 128)) === JSON.stringify({ sx: 0, sy: 0, s: 128 }))
+
+  check('file:icons/… — свой значок', этоСвойЗначокъ('file:icons/a1.png'))
+  check('значок каталога — не свой', !этоСвойЗначокъ('shopping-basket') && !этоСвойЗначокъ(undefined))
+
+  check('icons/имя.png — допустимый путь', путьЗначкаДопустимъ('icons/mu1lib9evw.png'))
+  const злые = ['icons/../data.json', 'icons/a/b.png', 'icons/x.svg', '../icons/x.png', 'data.json', 'icons/.png']
+  check('выход из папки, вложенные папки и не-PNG — нет', злые.every((п) => !путьЗначкаДопустимъ(п)),
+    злые.filter((п) => путьЗначкаДопустимъ(п)).join(', '))
+
+  // Архив приходит снаружи: значок он донести может, а запись мимо папки — нет.
+  const архивъ = {
+    kashel: 'vault', formatVersion: 1, app: 'Кошель', exportedAt: '2026-09-14T00:00:00Z',
+    counts: {}, data: buildSeed(), notes: {}, canvases: {},
+    attachments: { 'icons/probaznachok.png': 'AAAA', 'icons/../data.json': 'BBBB', 'attachments/чек.png': 'CCCC' },
+  }
+  const разборъ = parseArchive(JSON.stringify(архивъ))
+  check('архив с значком разбирается', разборъ.ok)
+  if (разборъ.ok) {
+    check('значок из архива сохранён', разборъ.archive.attachments['icons/probaznachok.png'] === 'AAAA')
+    check('путь мимо папки отброшен', !('icons/../data.json' in разборъ.archive.attachments))
+    check('обычные вложения по-прежнему идут', разборъ.archive.attachments['attachments/чек.png'] === 'CCCC')
+  }
+}
+
+/*
  * Пополнение целей.
  *
  * Прежде кнопка открывала форму перевода, и у цели без счёта перевести было
@@ -2207,6 +2249,7 @@ async function завершить() {
   подписиЗначковъ()
   недѣля()
   пополненіеЦѣлей()
+  своиЗначки()
   await полнаяВыгрузкаПровѣрка()
   await шифрованіе()
   console.log(`\nПровалено проверок: ${fail.length}`)

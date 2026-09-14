@@ -932,9 +932,18 @@ async function archiveRoundTrip(root: Root): Promise<Root> {
   const board = await readCanvas(boardName)
   await writeCanvas(boardName, { ...board!, cardStyle: 'flat', quickColors: ['#e05252', '#4cc46a'] })
 
+  // Свой значок категории — картинка в хранилище, и без неё восстановленная
+  // категория осталась бы с пустым кружком. Кладём значок и ставим его статье.
+  const ЗНАЧОКЪ = 'icons/probaznachok.png'
+  const КРАСНАЯ_ТОЧКА = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg=='
+  await bridge.writeBinary(ЗНАЧОКЪ, КРАСНАЯ_ТОЧКА)
+  const живой = (await loadVault()) as VaultData
+  await saveCore({ ...живой, categories: живой.categories.map((к, i) => (i === 0 ? { ...к, icon: 'file:' + ЗНАЧОКЪ } : к)) })
+
   const live = (await loadVault()) as VaultData
   const noteNames = await listNotes()
   const archive = await buildArchive(live)
+  check('свой значок попал в архив', archive.attachments[ЗНАЧОКЪ] === КРАСНАЯ_ТОЧКА)
 
   check('операции собраны', archive.counts.transactions === live.transactions.length,
     `${archive.counts.transactions} из ${live.transactions.length}`)
@@ -986,6 +995,13 @@ async function archiveRoundTrip(root: Root): Promise<Root> {
   check('оформление доски пережило перенос', restored?.cardStyle === 'flat', String(restored?.cardStyle))
   check('быстрые цвета доски пережили перенос', restored?.quickColors?.length === 2,
     String(restored?.quickColors?.length))
+
+  check('свой значок вернулся в хранилище', (await bridge.readBinary(ЗНАЧОКЪ))?.endsWith(КРАСНАЯ_ТОЧКА) === true)
+  await open('Категории')
+  await wait(300)
+  const картинка = document.querySelector('.card .avatar.svoy img') as HTMLImageElement | null
+  check('и рисуется в списке категорий картинкой', !!картинка && картинка.src.startsWith('data:image/png;base64,'),
+    картинка?.src.slice(0, 30))
   return next
 }
 

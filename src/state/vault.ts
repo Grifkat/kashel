@@ -325,6 +325,14 @@ export async function readAttachmentBase64(rel: string): Promise<string | null> 
 }
 
 export async function wipeAttachments(): Promise<void> {
-  const files = await listAttachments()
+  // «Стереть всё» стирает и свои значки: иначе они остались бы сиротами —
+  // картинками, на которые не ссылается ни одна категория.
+  const files = [...(await listAttachments()), ...(await listIconFiles())]
   await Promise.all(files.map((f) => bridge.remove(f)))
+}
+
+/** Пути загруженных значков (icons/*.png) внутри хранилища. */
+export async function listIconFiles(): Promise<string[]> {
+  const files = await bridge.list('icons')
+  return files.filter((f) => f.endsWith('.png')).map((f) => `icons/${f}`)
 }

@@ -4,9 +4,25 @@ import { accountBalance, balances, categoryTotals, creditRemaining } from '../..
 import { renderMarkdown } from '../../lib/markdown'
 import { CatalogGlyph } from '../../lib/icons'
 import { isCatalogIcon } from '../../lib/catalog'
+import { этоСвойЗначокъ, useСвойЗначокъ } from '../../lib/svoiznachki'
 import { QueryBlock } from '../QueryBlock'
 import { Spark } from '../charts'
 import type { CanvasNode, CardStyle, Money, TextFit, VaultData } from '../../lib/types'
+
+/**
+ * Значок в шапке карточки: из каталога, эмодзи или свой загруженный.
+ * Отдельным компонентом, потому что свой значок читается из хранилища хуком.
+ */
+function ЗначокъУзла({ icon }: { icon?: string }) {
+  const картинка = useСвойЗначокъ(icon)
+  if (этоСвойЗначокъ(icon)) {
+    return картинка
+      ? <img src={картинка} alt="" draggable={false} style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 'inherit' }} />
+      : null
+  }
+  if (isCatalogIcon(icon)) return <CatalogGlyph id={icon!} size={15} />
+  return <>{icon ?? '•'}</>
+}
 
 /** Ширина текстовой карточки по умолчанию — точка отсчёта для режима «тянуть». */
 const BASE_WIDTH = 280
@@ -364,7 +380,7 @@ export function NodeBody({
       <>
         <div className="cnode-head" style={{ background: `color-mix(in srgb, ${col} 22%, transparent)` }}>
           <span className="cnode-avatar" style={{ background: `color-mix(in srgb, ${col} 40%, transparent)` }}>
-            {isCatalogIcon(info.icon) ? <CatalogGlyph id={info.icon!} size={15} /> : info.icon ?? '•'}
+            <ЗначокъУзла icon={info.icon} />
           </span>
           <span className="cnode-name">{info.title}</span>
         </div>
