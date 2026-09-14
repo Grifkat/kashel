@@ -124,8 +124,51 @@ export function Reveal({
   )
 }
 
-/** Класс блика при наведении — вешается на карточки без всплывающих меню. */
+/** Класс подсветки при наведении. */
 export const glare = (extra?: string) => (extra ? extra + ' fx-glare' : 'fx-glare')
+
+/**
+ * Цвет подсветки карточки — цвет её хозяина: категории, цели, счёта.
+ * Карточка «Здоровья» светится красным, «Досуга» — бирюзовым; одинаковый
+ * акцент на всех превращал бы разноцветный список в одноцветный.
+ */
+export const цвѣтъПодсвѣтки = (цвѣтъ: string | undefined): React.CSSProperties =>
+  (цвѣтъ ? ({ ['--glare' as string]: цвѣтъ } as React.CSSProperties) : {})
+
+/**
+ * Пятно света следует за курсором.
+ *
+ * Один слушатель на всё окно, а не по обработчику на карточку: карточек в
+ * списке категорий бывает полсотни, и вешать на каждую свой слушатель
+ * незачем. Координаты кладутся в CSS-переменные ближайшей .fx-glare — сама
+ * подсветка целиком в CSS и без JS просто стоит пятном посередине.
+ */
+export function useПодсвѣткаЗаКурсоромъ() {
+  useEffect(() => {
+    let кадръ = 0
+    let послѣдній: PointerEvent | null = null
+    const поставить = () => {
+      кадръ = 0
+      const e = послѣдній
+      if (!e) return
+      const карточка = (e.target as Element | null)?.closest?.('.fx-glare') as HTMLElement | null
+      if (!карточка) return
+      const r = карточка.getBoundingClientRect()
+      карточка.style.setProperty('--mx', `${e.clientX - r.left}px`)
+      карточка.style.setProperty('--my', `${e.clientY - r.top}px`)
+    }
+    const onMove = (e: PointerEvent) => {
+      послѣдній = e
+      // Не чаще кадра: pointermove приходит сотнями в секунду.
+      if (!кадръ) кадръ = requestAnimationFrame(поставить)
+    }
+    window.addEventListener('pointermove', onMove, { passive: true })
+    return () => {
+      window.removeEventListener('pointermove', onMove)
+      if (кадръ) cancelAnimationFrame(кадръ)
+    }
+  }, [])
+}
 
 // ----------------------------------------------------------------------- искры
 interface Spark {

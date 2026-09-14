@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { цвѣтъПодсвѣтки } from '../components/effects'
 import { Money } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -46,7 +47,7 @@ export default function Accounts() {
     const b = bal.byAccount.get(a.id) ?? 0
     const left = a.type === 'credit' ? creditRemaining(a, data.transactions) : 0
     return (
-      <div key={a.id} className="card tight fx-glare">
+      <div key={a.id} className="card tight fx-glare" style={цвѣтъПодсвѣтки(a.color)}>
         <div className="row">
           <Avatar icon={a.icon} color={a.color} size="lg" />
           <div style={{ flex: 1, minWidth: 0 }}>

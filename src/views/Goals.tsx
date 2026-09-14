@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { цвѣтъПодсвѣтки } from '../components/effects'
 import { сЗначкомъ } from '../lib/catalog'
 import { Money } from '../components/anim'
 import { useApp } from '../App'
@@ -77,7 +78,7 @@ export default function Goals() {
         {rows.map(({ g, saved, left, monthsLeft, need, atPace, share }) => {
           const late = need != null && need > Math.max(0, free)
           return (
-            <div key={g.id} className="card fx-glare">
+            <div key={g.id} className="card fx-glare" style={цвѣтъПодсвѣтки(g.color)}>
               <div className="row">
                 <Avatar icon={g.icon} color={g.color} size="lg" />
                 <div style={{ flex: 1, minWidth: 0 }}>

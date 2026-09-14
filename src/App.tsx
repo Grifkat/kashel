@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
-import { ClickSparkLayer, ShinyText } from './components/effects'
+import { ClickSparkLayer, ShinyText, useПодсвѣткаЗаКурсоромъ } from './components/effects'
 import { useAnimLevel } from './components/anim'
 import { MotionConfig, motion } from 'motion/react'
 import { Icon } from './lib/icons'
@@ -163,6 +163,7 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [themeOpen, setThemeOpen] = useState(false)
   const animLevel = useAnimLevel()
+  useПодсвѣткаЗаКурсоромъ()
 
   useEffect(() => {
     const root = document.documentElement

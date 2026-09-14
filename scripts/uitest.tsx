@@ -227,13 +227,35 @@ async function dashboardWipe() {
 }
 
 async function cardGlare() {
-  console.log('\n— блик на карточках —')
+  console.log('\n— подсветка карточек —')
   await open('Счета')
-  check('карточки счетов с бликом', document.querySelectorAll('.card.fx-glare').length > 0,
+  check('карточки счетов с подсветкой', document.querySelectorAll('.card.fx-glare').length > 0,
     String(document.querySelectorAll('.card.fx-glare').length))
   await open('Категории')
-  check('карточки категорий с бликом', document.querySelectorAll('.card.fx-glare').length > 0,
-    String(document.querySelectorAll('.card.fx-glare').length))
+  const карточки = [...document.querySelectorAll('.card.fx-glare')] as HTMLElement[]
+  check('карточки категорий с подсветкой', карточки.length > 0, String(карточки.length))
+
+  // Каждая светится своим цветом, а не общим акцентом.
+  const цвета = new Set(карточки.map((к) => к.style.getPropertyValue('--glare')).filter(Boolean))
+  check('у карточек свой цвет подсветки', цвета.size > 1, `${цвета.size} разных`)
+
+  /*
+   * Пятно света идёт за курсором: один слушатель на окно кладёт координаты
+   * в ближайшую карточку. jsdom не мерит раскладку (прямоугольник нулевой),
+   * поэтому координаты выходят равными clientX/clientY — этого и ждём.
+   */
+  const к = карточки[0]
+  const внутри = к.querySelector('.row') || к
+  внутри.dispatchEvent(new dom.window.MouseEvent('pointermove', { bubbles: true, clientX: 37, clientY: 21 }))
+  await wait(60)
+  check('координаты курсора дошли до карточки',
+    к.style.getPropertyValue('--mx') === '37px' && к.style.getPropertyValue('--my') === '21px',
+    `${к.style.getPropertyValue('--mx')} ${к.style.getPropertyValue('--my')}`)
+
+  await open('Цели')
+  const цели = [...document.querySelectorAll('.card.fx-glare')] as HTMLElement[]
+  check('карточки целей с подсветкой своего цвета',
+    цели.length > 0 && цели.every((ц) => !!ц.style.getPropertyValue('--glare')), String(цели.length))
 }
 
 /**

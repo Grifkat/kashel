@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { цвѣтъПодсвѣтки } from '../components/effects'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -67,7 +68,7 @@ export default function Categories() {
           const avg = t ? Math.round(t.amount / 3) : 0
           const overPlan = c.plan && avg > c.plan
           return (
-            <div key={c.id} className="card tight fx-glare">
+            <div key={c.id} className="card tight fx-glare" style={цвѣтъПодсвѣтки(c.color)}>
               <div className="row">
                 <Avatar icon={c.icon} color={c.color} size="lg" />
                 <div style={{ flex: 1, minWidth: 0 }}>
