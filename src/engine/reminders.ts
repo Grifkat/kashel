@@ -3,6 +3,7 @@ import { addDays, addMonths, diffDays, humanDate, monthKey, parseISO, today } fr
 import { money } from '../lib/format'
 import { balances, categoryMonthly } from './stats'
 import { occurrencesInMonth } from './forecast'
+import { т } from '../i18n'
 
 /*
  * Когда напоминание должно сработать.
@@ -16,28 +17,37 @@ import { occurrencesInMonth } from './forecast'
 export interface DueReminder {
   reminder: Reminder
   /** Что показать: заголовок человека плюс поясняющая строка от программы. */
+  /** Что показать: заголовок человека плюс поясняющая строка от программы. */
   detail: string
 }
 
 export const EVENT_NAMES: Record<ReminderEvent, string> = {
-  'recurring-due': 'Скоро регулярный платёж',
-  'no-entries': 'Давно не вносили операции',
-  'limit-exceeded': 'Категория вышла за лимит',
-  'big-expense': 'Необычно крупная трата',
-  'low-balance': 'Остаток счёта ниже порога',
-  'task-due': 'Скоро срок задачи',
+  'recurring-due': т('Скоро регулярный платёж'),
+  'no-entries': т('Давно не вносили операции'),
+  'limit-exceeded': т('Категория вышла за лимит'),
+  'big-expense': т('Необычно крупная трата'),
+  'low-balance': т('Остаток счёта ниже порога'),
+  'task-due': т('Скоро срок задачи'),
 }
 
 /** Что значит threshold у каждого события — подпись к полю в форме. */
+/** Что значит threshold у каждого события — подпись к полю в форме. */
 export const EVENT_THRESHOLD: Record<ReminderEvent, { label: string; unit: 'days' | 'money' | 'times'; def: number }> = {
-  'recurring-due': { label: 'За сколько дней предупредить', unit: 'days', def: 1 },
-  'no-entries': { label: 'Сколько дней молчания терпеть', unit: 'days', def: 5 },
-  'limit-exceeded': { label: 'С какого процента лимита предупреждать', unit: 'times', def: 100 },
-  'big-expense': { label: 'Во сколько раз больше обычного', unit: 'times', def: 3 },
-  'low-balance': { label: 'Ниже какой суммы предупреждать', unit: 'money', def: 1_000_000 },
-  'task-due': { label: 'За сколько дней предупредить', unit: 'days', def: 1 },
+  'recurring-due': { label: т('За сколько дней предупредить'), unit: 'days', def: 1 },
+  'no-entries': { label: т('Сколько дней молчания терпеть'), unit: 'days', def: 5 },
+  'limit-exceeded': { label: т('С какого процента лимита предупреждать'), unit: 'times', def: 100 },
+  'big-expense': { label: т('Во сколько раз больше обычного'), unit: 'times', def: 3 },
+  'low-balance': { label: т('Ниже какой суммы предупреждать'), unit: 'money', def: 1_000_000 },
+  'task-due': { label: т('За сколько дней предупредить'), unit: 'days', def: 1 },
 }
 
+/**
+ * Следующий день, когда напоминание по дате должно прозвучать.
+ *
+ * Разовое просто ждёт своей даты. Повторяющееся отматывается вперёд от
+ * заданной: если человек завёл «5 числа каждый месяц» полгода назад, звонить
+ * надо пятого числа этого месяца, а не шесть раз подряд за прошлое.
+ */
 /**
  * Следующий день, когда напоминание по дате должно прозвучать.
  *
@@ -56,6 +66,7 @@ export function nextDate(r: Reminder, now: string = today()): string | null {
   return d
 }
 
+/** Ближайшее срабатывание регулярного платежа, если оно вообще есть впереди. */
 /** Ближайшее срабатывание регулярного платежа, если оно вообще есть впереди. */
 function nearestRecurring(data: VaultData, within: number, now: string): { title: string; date: string; amount: number } | null {
   let best: { title: string; date: string; amount: number } | null = null
@@ -79,6 +90,7 @@ function nearestRecurring(data: VaultData, within: number, now: string): { title
 }
 
 /** Насколько крупной была последняя трата по сравнению с обычной в своей категории. */
+/** Насколько крупной была последняя трата по сравнению с обычной в своей категории. */
 function biggestOutlier(data: VaultData, times: number, now: string): string | null {
   const recent = data.transactions.filter((t) => t.kind === 'expense' && t.date === now)
   if (!recent.length) return null
@@ -92,13 +104,14 @@ function biggestOutlier(data: VaultData, times: number, now: string): string | n
     if (past.length < 3 || !hist.some((v) => v > 0)) continue
     const avg = past.reduce((s, x) => s + x.amount, 0) / past.length
     if (avg > 0 && t.amount >= avg * times) {
-      const name = data.categories.find((c) => c.id === t.categoryId)?.name ?? 'без категории'
-      return `${name}: ${money(t.amount)} при обычных ${money(Math.round(avg))}`
+      const name = data.categories.find((c) => c.id === t.categoryId)?.name ?? т('без категории')
+      return т('{0}: {1} при обычных {2}', name, money(t.amount), money(Math.round(avg)))
     }
   }
   return null
 }
 
+/** Категории, вышедшие за свой месячный лимит. */
 /** Категории, вышедшие за свой месячный лимит. */
 function overLimit(data: VaultData, pct: number, now: string, only?: string): string | null {
   const mk = monthKey(now)
@@ -112,6 +125,7 @@ function overLimit(data: VaultData, pct: number, now: string, only?: string): st
 }
 
 /** Условие события выполнено? Тогда вернуть поясняющую строку, иначе null. */
+/** Условие события выполнено? Тогда вернуть поясняющую строку, иначе null. */
 function eventFired(r: Reminder, data: VaultData, now: string): string | null {
   const th = r.threshold ?? (r.event ? EVENT_THRESHOLD[r.event].def : 0)
   switch (r.event) {
@@ -119,13 +133,13 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
       const near = nearestRecurring(data, th, now)
       if (!near) return null
       const away = diffDays(now, near.date)
-      return `${near.title} — ${money(near.amount)} ${away === 0 ? 'сегодня' : away === 1 ? 'завтра' : `через ${away} дн.`}`
+      return `${near.title} — ${money(near.amount)} ${away === 0 ? 'сегодня' : away === 1 ? 'завтра' : т('через {0} дн.', away)}`
     }
     case 'no-entries': {
       if (!data.transactions.length) return null
       const last = data.transactions.reduce((m, t) => (t.date > m ? t.date : m), data.transactions[0].date)
       const away = diffDays(last, now)
-      return away >= th ? `Последняя запись — ${humanDate(last)}, это ${away} дн. назад` : null
+      return away >= th ? т('Последняя запись — {0}, это {1} дн. назад', humanDate(last), away) : null
     }
     case 'limit-exceeded':
       return overLimit(data, th, now, r.categoryId)
@@ -139,7 +153,7 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
       const ближние = свои.sort((a, b) => (a.due! < b.due! ? -1 : 1)).slice(0, 3)
       return ближние
         .map((t) => `${t.title} — ${t.due! < now ? 'просрочено' : t.due === now ? 'сегодня' : humanDate(t.due!)}`)
-        .join(' · ') + (свои.length > 3 ? ` и ещё ${свои.length - 3}` : '')
+        .join(' · ') + (свои.length > 3 ? т(' и ещё {0}', свои.length - 3) : '')
     }
     case 'low-balance': {
       const bal = balances(data.accounts, data.transactions)
@@ -154,6 +168,12 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
   }
 }
 
+/**
+ * Какие напоминания надо показать прямо сейчас.
+ *
+ * Чистая функция: ничего не показывает и ничего не сохраняет — только считает.
+ * Отметку lastFired ставит тот, кто действительно показал.
+ */
 /**
  * Какие напоминания надо показать прямо сейчас.
  *
@@ -179,19 +199,20 @@ export function dueReminders(data: VaultData, now: string = today()): DueReminde
 }
 
 /** Человеческое описание напоминания для списка. */
+/** Человеческое описание напоминания для списка. */
 export function describeReminder(r: Reminder, data: VaultData): string {
   if (r.kind === 'date') {
     const when = nextDate(r) ?? r.date ?? ''
     const rep =
-      r.repeat === 'monthly' ? ', каждый месяц'
-        : r.repeat === 'weekly' ? ', каждую неделю'
-          : r.repeat === 'yearly' ? ', каждый год' : ''
-    return `${when ? humanDate(when, parseISO(when).getFullYear() !== new Date().getFullYear()) : 'без даты'}${rep}`
+      r.repeat === 'monthly' ? т(', каждый месяц')
+        : r.repeat === 'weekly' ? т(', каждую неделю')
+          : r.repeat === 'yearly' ? т(', каждый год') : ''
+    return `${when ? humanDate(when, parseISO(when).getFullYear() !== new Date().getFullYear()) : т('без даты')}${rep}`
   }
-  if (!r.event) return 'событие не выбрано'
+  if (!r.event) return т('событие не выбрано')
   const th = r.threshold ?? EVENT_THRESHOLD[r.event].def
   const unit = EVENT_THRESHOLD[r.event].unit
-  const val = unit === 'money' ? money(th) : unit === 'days' ? `${th} дн.` : `${th}${r.event === 'limit-exceeded' ? '%' : '×'}`
+  const val = unit === 'money' ? money(th) : unit === 'days' ? т('{0} дн.', th) : `${th}${r.event === 'limit-exceeded' ? '%' : '×'}`
   const где =
     r.event === 'low-balance' && r.accountId
       ? ` · ${data.accounts.find((a) => a.id === r.accountId)?.name ?? '?'}`

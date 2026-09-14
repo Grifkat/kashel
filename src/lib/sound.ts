@@ -1,4 +1,5 @@
 import type { ReminderSound } from './types'
+import { т } from '../i18n'
 
 /*
  * Звуки напоминаний.
@@ -20,14 +21,15 @@ export interface SoundOption {
 }
 
 export const SOUNDS: SoundOption[] = [
-  { id: 'none', name: 'Без звука', hint: 'только окно' },
-  { id: 'soft', name: 'Мягкий', hint: 'короткий тёплый тон' },
-  { id: 'bell', name: 'Звонкий', hint: 'как колокольчик' },
-  { id: 'low', name: 'Низкий', hint: 'глухой, не вздрагиваешь' },
-  { id: 'double', name: 'Двойной', hint: 'два коротких — трудно не заметить' },
-  { id: 'file', name: 'Свой файл', hint: 'из вашего хранилища' },
+  { id: 'none', name: т('Без звука'), hint: т('только окно') },
+  { id: 'soft', name: т('Мягкий'), hint: т('короткий тёплый тон') },
+  { id: 'bell', name: т('Звонкий'), hint: т('как колокольчик') },
+  { id: 'low', name: т('Низкий'), hint: т('глухой, не вздрагиваешь') },
+  { id: 'double', name: т('Двойной'), hint: т('два коротких — трудно не заметить') },
+  { id: 'file', name: т('Свой файл'), hint: т('из вашего хранилища') },
 ]
 
+/** Ноты тонов: частоты в герцах и длительности в секундах. */
 /** Ноты тонов: частоты в герцах и длительности в секундах. */
 const TONES: Record<string, { hz: number; at: number; len: number; type: OscillatorType }[]> = {
   soft: [{ hz: 528, at: 0, len: 0.32, type: 'sine' }],
@@ -63,6 +65,12 @@ function audio(): AudioContext | null {
  * Затухание обязательно: без него осциллятор обрывается на середине волны
  * и вместо мягкого тона слышен щелчок.
  */
+/**
+ * Проигрывает встроенный тон.
+ *
+ * Затухание обязательно: без него осциллятор обрывается на середине волны
+ * и вместо мягкого тона слышен щелчок.
+ */
 export function playTone(id: ReminderSound): void {
   const notes = TONES[id]
   if (!notes) return
@@ -86,6 +94,7 @@ export function playTone(id: ReminderSound): void {
   }
 }
 
+/** Проигрывает свой файл человека. Ошибку глотаем: звук — не повод падать. */
 /** Проигрывает свой файл человека. Ошибку глотаем: звук — не повод падать. */
 export function playFile(dataUrl: string): void {
   try {

@@ -7,7 +7,13 @@ import { Avatar } from '../components/ui'
 import { money, plural } from '../lib/format'
 import { addDays, humanDate, MONTHS_SHORT, startOfWeek, today, WEEKDAYS } from '../lib/date'
 import { yearSummary, type DayPoint } from '../engine/stats'
+import { т, тр } from '../i18n'
 
+/**
+ * Год днями. Смысл экрана — увидеть ритм трат: выходные, дни зарплаты,
+ * недели, когда деньги утекали каждый день. Средние по месяцам этого не
+ * показывают, а календарь показывает без единой цифры.
+ */
 /**
  * Год днями. Смысл экрана — увидеть ритм трат: выходные, дни зарплаты,
  * недели, когда деньги утекали каждый день. Средние по месяцам этого не
@@ -118,17 +124,16 @@ export default function CalendarView() {
     <div className="view wide">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Календарь</h1>
+          <h1 className="view-title">{т('Календарь')}</h1>
           <div className="view-sub">
-            Каждая клетка — день года, насыщенность — сколько в этот день {side === 'expense' ? 'потрачено' : 'получено'}
-          </div>
+            {тр('Каждая клетка — день года, насыщенность — сколько в этот день {0}', side === 'expense' ? 'потрачено' : 'получено')}</div>
         </div>
       </div>
 
       <div className="row wrap" style={{ marginBottom: 16, gap: 12 }}>
         <div className="seg">
-          <button className={side === 'expense' ? 'on' : ''} onClick={() => setSide('expense')}>Расходы</button>
-          <button className={side === 'income' ? 'on' : ''} onClick={() => setSide('income')}>Доходы</button>
+          <button className={side === 'expense' ? 'on' : ''} onClick={() => setSide('expense')}>{т('Расходы')}</button>
+          <button className={side === 'income' ? 'on' : ''} onClick={() => setSide('income')}>{т('Доходы')}</button>
         </div>
         <div className="row" style={{ gap: 4 }}>
           <button
@@ -149,7 +154,7 @@ export default function CalendarView() {
         </div>
         <span className="spacer" />
         <button className="btn sm ghost" onClick={() => app.openTab('year')}>
-          Итоги года <Icon name="right" size={13} />
+          {т('Итоги года ')}<Icon name="right" size={13} />
         </button>
       </div>
 
@@ -172,7 +177,7 @@ export default function CalendarView() {
                 const point = byDate.get(d)
                 const v = valueOf(point)
                 if (!own || d > sum.through) {
-                  return <div key={d} className="cal-cell blank" title={own ? 'ещё не наступил' : ''} />
+                  return <div key={d} className="cal-cell blank" title={own ? т('ещё не наступил') : ''} />
                 }
                 return (
                   <button
@@ -190,20 +195,17 @@ export default function CalendarView() {
 
         <div className="row" style={{ marginTop: 14 }}>
           <div className="cal-legend">
-            меньше
-            {[0, 1, 2, 3, 4, 5].map((l) => (
+            {тр('меньше{0}больше', [0, 1, 2, 3, 4, 5].map((l) => (
               <i key={l} style={{ background: fill(l) }} />
-            ))}
-            больше
-          </div>
+            )))}</div>
           <span className="spacer" />
-          <span className="faint small">Клик по дню — операции этого дня</span>
+          <span className="faint small">{т('Клик по дню — операции этого дня')}</span>
         </div>
       </div>
 
       <div className="grid c4" style={{ marginTop: 16 }}>
         <div className="card tight">
-          <div className="card-title">{side === 'expense' ? 'Потрачено за год' : 'Получено за год'}</div>
+          <div className="card-title">{side === 'expense' ? т('Потрачено за год') : т('Получено за год')}</div>
           <div className={'stat'}>
             <span className={'v amount ' + (side === 'expense' ? 'out' : 'in')}>
               {hidden ? '••••' : money(total)}
@@ -211,14 +213,14 @@ export default function CalendarView() {
           </div>
         </div>
         <div className="card tight">
-          <div className="card-title">В среднем в день</div>
+          <div className="card-title">{т('В среднем в день')}</div>
           <div className="stat">
             <span className="v">{hidden ? '••••' : money(Math.round(total / Math.max(1, sum.daysLived)))}</span>
-            <span className="d faint">по {sum.daysLived} {plural(sum.daysLived, 'дню', 'дням', 'дням')}</span>
+            <span className="d faint">{тр('по {0} {1}', sum.daysLived, plural(sum.daysLived, 'дню', 'дням', 'дням'))}</span>
           </div>
         </div>
         <div className="card tight">
-          <div className="card-title">Самый {side === 'expense' ? 'дорогой' : 'щедрый'} день</div>
+          <div className="card-title">{тр('Самый {0} день', side === 'expense' ? 'дорогой' : 'щедрый')}</div>
           <div className="stat">
             <span className="v">{top ? (hidden ? '••••' : money(valueOf(top))) : '—'}</span>
             {top && (
@@ -229,10 +231,10 @@ export default function CalendarView() {
           </div>
         </div>
         <div className="card tight">
-          <div className="card-title">{side === 'expense' ? 'Дней без трат' : 'Дней без дохода'}</div>
+          <div className="card-title">{side === 'expense' ? т('Дней без трат') : т('Дней без дохода')}</div>
           <div className="stat">
             <span className="v">{sum.daysLived - active.length}</span>
-            <span className="d faint">из {sum.daysLived}</span>
+            <span className="d faint">{тр('из {0}', sum.daysLived)}</span>
           </div>
         </div>
       </div>
@@ -248,13 +250,13 @@ export default function CalendarView() {
               className="btn sm ghost"
               onClick={() => app.openTab('transactions', 'day:' + sel, { title: humanDate(sel) })}
             >
-              Открыть в операциях <Icon name="right" size={13} />
+              {т('Открыть в операциях ')}<Icon name="right" size={13} />
             </button>
-            <button className="icon-btn" title="Закрыть" onClick={() => setSel(null)}>
+            <button className="icon-btn" title={т('Закрыть')} onClick={() => setSel(null)}>
               <Icon name="x" size={14} />
             </button>
           </div>
-          {selList.length === 0 && <div className="empty">В этот день операций не было</div>}
+          {selList.length === 0 && <div className="empty">{т('В этот день операций не было')}</div>}
           {selList.map((t) => {
             const c = t.categoryId ? catById.get(t.categoryId) : undefined
             return (
@@ -265,8 +267,8 @@ export default function CalendarView() {
               >
                 <Avatar icon={c?.icon} color={c?.color} />
                 <div className="tx-main">
-                  <div className="tx-title">{t.note || c?.name || 'Операция'}</div>
-                  <div className="tx-sub">{c?.name ?? 'без категории'}</div>
+                  <div className="tx-title">{t.note || c?.name || т('Операция')}</div>
+                  <div className="tx-sub">{c?.name ?? т('без категории')}</div>
                 </div>
                 <Amount value={t.amount} kind={t.kind} hidden={hidden} />
               </div>

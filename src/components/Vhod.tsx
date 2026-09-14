@@ -8,6 +8,7 @@ import {
   type Сеансъ,
 } from '../state/supabase'
 import { isDesktop, поставитьМостъ } from '../state/vault'
+import { т } from '../i18n'
 
 /*
  * Ворота: вход в облако перед тем, как откроется хранилище.
@@ -25,8 +26,8 @@ import { isDesktop, поставитьМостъ } from '../state/vault'
  * отдать и то и другое всякому, кто получит устройство.
  */
 
-const ГДѢ_СЕАНСЪ = 'kashel:облако:сеансъ'
-const ГДѢ_ОТКАЗЪ = 'kashel:облако:безъВхода'
+const ГДѢ_СЕАНСЪ = т('kashel:облако:сеансъ')
+const ГДѢ_ОТКАЗЪ = т('kashel:облако:безъВхода')
 
 type Видъ =
   | { в: 'ждёмъ' }
@@ -55,6 +56,7 @@ const запомнить = (с: Сеансъ | null) => {
   }
 }
 
+/** Выйти совсем: сеанс забыт, окно перезагружается на чистый браузерный мост. */
 /** Выйти совсем: сеанс забыт, окно перезагружается на чистый браузерный мост. */
 export async function выйтиИзъОблака(): Promise<void> {
   const с = прочестьСеансъ()
@@ -86,7 +88,7 @@ export function Vhod({ children }: { children: React.ReactNode }) {
    */
   const впустить = useCallback(async (с: Сеансъ, ключи: Ключи) => {
     if (!(await паролеВѣрный(с, ключи))) {
-      throw new Error('Не тот пароль: записи этой почты им не открываются')
+      throw new Error(т('Не тот пароль: записи этой почты им не открываются'))
     }
     поставитьМостъ(облачныйМостъ(с, ключи))
     запомнить(с)
@@ -100,8 +102,8 @@ export function Vhod({ children }: { children: React.ReactNode }) {
     <div className="vorota">
       <div className="vorota-karta">
         <div className="vorota-glava">
-          <h1>Кошель</h1>
-          <p className="faint">Учёт денег, который никуда о вас не сообщает</p>
+          <h1>{т('Кошель')}</h1>
+          <p className="faint">{т('Учёт денег, который никуда о вас не сообщает')}</p>
         </div>
 
         {видъ.в === 'выборъ' && (
@@ -151,17 +153,13 @@ function Выборъ({ входъ, заводимъ, безъВхода }: {
   return (
     <>
       <p className="vorota-рѣчь">
-        Войдите, чтобы ваши записи открывались на любом устройстве. Или начните
-        без входа — тогда всё останется в этом браузере и пропадёт вместе с его
-        историей.
-      </p>
+        {т('Войдите, чтобы ваши записи открывались на любом устройстве. Или начните без входа — тогда всё останется в этом браузере и пропадёт вместе с его историей.')}</p>
       <div className="vorota-кнопки">
-        <button className="btn primary" onClick={входъ}>Войти</button>
-        <button className="btn" onClick={заводимъ}>Завести запись</button>
+        <button className="btn primary" onClick={входъ}>{т('Войти')}</button>
+        <button className="btn" onClick={заводимъ}>{т('Завести запись')}</button>
       </div>
       <button className="btn ghost sm vorota-мимо" onClick={безъВхода}>
-        Продолжить без входа
-      </button>
+        {т('Продолжить без входа')}</button>
     </>
   )
 }
@@ -180,11 +178,11 @@ function Форма({ видъ, назадъ, впустить }: {
 
   const пустить = async () => {
     setБѣда('')
-    if (!почта.trim() || !пароль) return setБѣда('Заполните почту и пароль')
+    if (!почта.trim() || !пароль) return setБѣда(т('Заполните почту и пароль'))
     if (заводимъ && пароль.length < 10) {
-      return setБѣда('Пароль короче десяти знаков. Восстановить его будет нечем — возьмите длиннее')
+      return setБѣда(т('Пароль короче десяти знаков. Восстановить его будет нечем — возьмите длиннее'))
     }
-    if (заводимъ && !кодъ.trim()) return setБѣда('Нужен код приглашения')
+    if (заводимъ && !кодъ.trim()) return setБѣда(т('Нужен код приглашения'))
 
     setИдёмъ(true)
     try {
@@ -192,12 +190,12 @@ function Форма({ видъ, назадъ, впустить }: {
       if (заводимъ) {
         const с = await завести(почта.trim(), ключи.пароль)
         if (!с) {
-          setБѣда('Запись создана. Подтвердите почту письмом и войдите.')
+          setБѣда(т('Запись создана. Подтвердите почту письмом и войдите.'))
           setИдёмъ(false)
           return
         }
         if (!(await занятьПриглашеніе(с, кодъ))) {
-          setБѣда('Код не подошёл: его нет или он уже занят')
+          setБѣда(т('Код не подошёл: его нет или он уже занят'))
           setИдёмъ(false)
           return
         }
@@ -214,19 +212,19 @@ function Форма({ видъ, назадъ, впустить }: {
   return (
     <>
       <label className="vorota-поле">
-        <span>Почта</span>
+        <span>{т('Почта')}</span>
         <input type="email" autoFocus value={почта} disabled={идёмъ}
           onChange={(e) => setПочта(e.target.value)} />
       </label>
       <label className="vorota-поле">
-        <span>Пароль</span>
+        <span>{т('Пароль')}</span>
         <input type="password" value={пароль} disabled={идёмъ}
           onChange={(e) => setПароль(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void пустить() }} />
       </label>
       {заводимъ && (
         <label className="vorota-поле">
-          <span>Код приглашения</span>
+          <span>{т('Код приглашения')}</span>
           <input type="text" value={кодъ} disabled={идёмъ} placeholder="XXXXX-XXXXX"
             onChange={(e) => setКодъ(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') void пустить() }} />
@@ -235,20 +233,16 @@ function Форма({ видъ, назадъ, впустить }: {
 
       {заводимъ && (
         <div className="vorota-остереженіе">
-          <b>Пароль восстановить нельзя.</b> Ваши записи шифруются им прямо
-          здесь, и ключа нет ни у кого, кроме вас, — ни у сервера, ни у автора
-          программы. Забудете пароль — данные пропадут навсегда. Это плата за
-          то, что чужие деньги никто не прочтёт.
-        </div>
+          <b>{т('Пароль восстановить нельзя.')}</b> {т(' Ваши записи шифруются им прямо здесь, и ключа нет ни у кого, кроме вас, — ни у сервера, ни у автора программы. Забудете пароль — данные пропадут навсегда. Это плата за то, что чужие деньги никто не прочтёт.')}</div>
       )}
 
       {бѣда && <div className="vorota-бѣда">{бѣда}</div>}
 
       <div className="vorota-кнопки">
         <button className="btn primary" onClick={() => void пустить()} disabled={идёмъ}>
-          {идёмъ ? 'Открываю…' : заводимъ ? 'Завести' : 'Войти'}
+          {идёмъ ? т('Открываю…') : заводимъ ? т('Завести') : т('Войти')}
         </button>
-        <button className="btn ghost" onClick={назадъ} disabled={идёмъ}>Назад</button>
+        <button className="btn ghost" onClick={назадъ} disabled={идёмъ}>{т('Назад')}</button>
       </div>
     </>
   )
@@ -265,7 +259,7 @@ function Отпираніе({ почта, впустить, другой }: {
 
   const отпереть = async () => {
     setБѣда('')
-    if (!пароль) return setБѣда('Введите пароль')
+    if (!пароль) return setБѣда(т('Введите пароль'))
     setИдёмъ(true)
     try {
       const ключи = await вывестиКлючи(пароль, почта)
@@ -283,11 +277,9 @@ function Отпираніе({ почта, впустить, другой }: {
   return (
     <>
       <p className="vorota-рѣчь">
-        Вы вошли как <b>{почта}</b>. Введите пароль, чтобы открыть записи —
-        ключ на устройстве не хранится.
-      </p>
+        {т('Вы вошли как ')}<b>{почта}</b>{т('. Введите пароль, чтобы открыть записи — ключ на устройстве не хранится.')}</p>
       <label className="vorota-поле">
-        <span>Пароль</span>
+        <span>{т('Пароль')}</span>
         <input type="password" autoFocus value={пароль} disabled={идёмъ}
           onChange={(e) => setПароль(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') void отпереть() }} />
@@ -295,9 +287,9 @@ function Отпираніе({ почта, впустить, другой }: {
       {бѣда && <div className="vorota-бѣда">{бѣда}</div>}
       <div className="vorota-кнопки">
         <button className="btn primary" onClick={() => void отпереть()} disabled={идёмъ}>
-          {идёмъ ? 'Открываю…' : 'Открыть'}
+          {идёмъ ? т('Открываю…') : т('Открыть')}
         </button>
-        <button className="btn ghost" onClick={другой} disabled={идёмъ}>Другая запись</button>
+        <button className="btn ghost" onClick={другой} disabled={идёмъ}>{т('Другая запись')}</button>
       </div>
     </>
   )

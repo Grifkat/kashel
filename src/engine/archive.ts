@@ -10,6 +10,7 @@ import {
   bridge, canvasPath, listAttachments, listCanvases, listNotes, notePath,
   readAttachmentBase64, readCanvas, readNote, listIconFiles,
 } from '../state/vault'
+import { т } from '../i18n'
 
 /*
  * Архив хранилища — всё содержимое программы одним файлом.
@@ -25,10 +26,11 @@ import {
 
 export const ARCHIVE_EXT = 'kashel'
 /** Версия формата. Файл более новой версии открывать не беремся. */
+/** Версия формата. Файл более новой версии открывать не беремся. */
 export const ARCHIVE_FORMAT = 1
 
 export const ARCHIVE_FILTERS = [
-  { name: 'Архив Кошеля', extensions: [ARCHIVE_EXT, 'json'] },
+  { name: т('Архив Кошеля'), extensions: [ARCHIVE_EXT, 'json'] },
 ]
 
 export interface ArchiveCounts {
@@ -52,17 +54,22 @@ export interface Archive {
   exportedAt: string
   counts: ArchiveCounts
   /** Справочники, операции и настройки — ровно то, что лежит в data.json. */
+  /** Справочники, операции и настройки — ровно то, что лежит в data.json. */
   data: VaultData
+  /** Имя заметки → тело markdown. */
   /** Имя заметки → тело markdown. */
   notes: Record<string, string>
   /** Имя доски → документ канваса. */
+  /** Имя доски → документ канваса. */
   canvases: Record<string, CanvasDoc>
+  /** Путь внутри хранилища → содержимое картинки в base64. */
   /** Путь внутри хранилища → содержимое картинки в base64. */
   attachments: Record<string, string>
 }
 
 // ----------------------------------------------------------------- сборка
 
+/** Собирает всё содержимое хранилища в один объект. */
 /** Собирает всё содержимое хранилища в один объект. */
 export async function buildArchive(data: VaultData): Promise<Archive> {
   const noteNames = await listNotes()
@@ -97,7 +104,7 @@ export async function buildArchive(data: VaultData): Promise<Archive> {
   return {
     kashel: 'vault',
     formatVersion: ARCHIVE_FORMAT,
-    app: 'Кошель',
+    app: т('Кошель'),
     exportedAt: new Date().toISOString(),
     counts: {
       transactions: data.transactions.length,
@@ -124,14 +131,15 @@ export const archiveText = (a: Archive): string => JSON.stringify(a, null, 2)
 const stamp = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
-export const archiveFileName = (): string => `Кошель ${stamp()}.${ARCHIVE_EXT}`
+export const archiveFileName = (): string => т('Кошель {0}.{1}', stamp(), ARCHIVE_EXT)
 
+/** Имя резервной копии внутри хранилища: с часами, их за день бывает несколько. */
 /** Имя резервной копии внутри хранилища: с часами, их за день бывает несколько. */
 export function backupPath(d = new Date()): string {
   const hh = String(d.getHours()).padStart(2, '0')
   const mm = String(d.getMinutes()).padStart(2, '0')
   const ss = String(d.getSeconds()).padStart(2, '0')
-  return `backups/до-загрузки ${stamp(d)} ${hh}-${mm}-${ss}.${ARCHIVE_EXT}`
+  return т('backups/до-загрузки {0} {1}-{2}-{3}.{4}', stamp(d), hh, mm, ss, ARCHIVE_EXT)
 }
 
 // ------------------------------------------------------------- приведение
@@ -162,6 +170,7 @@ const REMINDER_EVENTS: readonly ReminderEvent[] =
 const SIDES = ['top', 'right', 'bottom', 'left'] as const
 const NODE_KINDS = ['text', 'note', 'account', 'category', 'goal', 'flow', 'query', 'scenario', 'group'] as const
 
+/** Счётчик отброшенного: показываем итог, а не молчим о потере. */
 /** Счётчик отброшенного: показываем итог, а не молчим о потере. */
 interface Drop {
   n: number
@@ -216,7 +225,7 @@ function normAccount(v: unknown, drop: Drop): Account | null {
   const debt = asRaw(r.debt)
   return {
     id,
-    name: str(r.name, 'Счёт'),
+    name: str(r.name, т('Счёт')),
     type: oneOf<AccountType>(r.type, ACCOUNT_TYPES, 'card'),
     icon: str(r.icon, 'credit-card'),
     color: str(r.color, '#4cc46a'),
@@ -256,7 +265,7 @@ function normCategory(v: unknown, drop: Drop): Category | null {
   const plan = r.plan == null ? undefined : money(r.plan)
   return {
     id,
-    name: str(r.name, 'Категория'),
+    name: str(r.name, т('Категория')),
     kind: r.kind === 'income' ? 'income' : 'expense',
     parentId: opt(r.parentId),
     icon: str(r.icon, 'circle-help'),
@@ -277,7 +286,7 @@ function normRecurring(v: unknown, drop: Drop): Recurring | null {
   const day = Math.round(num(r.dayOfMonth, 1))
   return {
     id,
-    title: str(r.title, 'Платёж'),
+    title: str(r.title, т('Платёж')),
     kind: oneOf<TxKind>(r.kind, KINDS, 'expense'),
     amount: Math.abs(money(r.amount)),
     accountId: str(r.accountId),
@@ -304,6 +313,13 @@ function normRecurring(v: unknown, drop: Drop): Recurring | null {
  * неизвестное событие превратило бы вечно молчащее напоминание в вечно
  * звонящее или наоборот, и человек не понял бы, почему.
  */
+/**
+ * Напоминание из чужого архива.
+ *
+ * Вид и событие приводим к известным значениям, а не доверяем строке:
+ * неизвестное событие превратило бы вечно молчащее напоминание в вечно
+ * звонящее или наоборот, и человек не понял бы, почему.
+ */
 function normReminder(v: unknown, drop: Drop): Reminder | null {
   const r = asRaw(v)
   const id = str(r.id)
@@ -317,7 +333,7 @@ function normReminder(v: unknown, drop: Drop): Reminder | null {
     : 'no-entries'
   return {
     id,
-    title: str(r.title, 'Напоминание'),
+    title: str(r.title, т('Напоминание')),
     active: r.active !== false,
     sound: oneOf<ReminderSound>(r.sound, REMINDER_SOUNDS, 'soft'),
     ...(typeof r.soundFile === 'string' && r.soundFile ? { soundFile: str(r.soundFile) } : {}),
@@ -345,6 +361,14 @@ function normReminder(v: unknown, drop: Drop): Reminder | null {
  * известному, а сумму без вида считаем тратой — так ошибка идёт в сторону
  * осторожности, а не в сторону мнимого богатства.
  */
+/**
+ * Задача из чужого архива.
+ *
+ * Сумма без вида — беда: пришлось бы гадать, трата это или приход, и
+ * ошибка гадания уехала бы прямо в прогноз. Поэтому вид приводим к
+ * известному, а сумму без вида считаем тратой — так ошибка идёт в сторону
+ * осторожности, а не в сторону мнимого богатства.
+ */
 function normTask(v: unknown, drop: Drop): Task | null {
   const r = asRaw(v)
   const id = str(r.id)
@@ -355,7 +379,7 @@ function normTask(v: unknown, drop: Drop): Task | null {
   const amount = Math.abs(money(r.amount))
   return {
     id,
-    title: str(r.title, 'Задача'),
+    title: str(r.title, т('Задача')),
     done: r.done === true,
     ...(isDate(str(r.doneAt)) ? { doneAt: str(r.doneAt) } : {}),
     ...(isDate(str(r.due)) ? { due: str(r.due) } : {}),
@@ -384,9 +408,15 @@ function normTaskList(v: unknown, drop: Drop): TaskList | null {
     drop.n++
     return null
   }
-  return { id, name: str(r.name, 'Список'), color: str(r.color, '#4cc46a'), ...(r.archived ? { archived: true } : {}) }
+  return { id, name: str(r.name, т('Список')), color: str(r.color, '#4cc46a'), ...(r.archived ? { archived: true } : {}) }
 }
 
+/**
+ * Чины и награды изъ чужого архива.
+ *
+ * Даты полученія переносимъ какъ есть, а условія всё равно пересчитаются
+ * на своихъ данныхъ: чужая награда за чужой доходъ у себя не удержится.
+ */
 /**
  * Чины и награды изъ чужого архива.
  *
@@ -411,7 +441,7 @@ function normGoal(v: unknown, drop: Drop): Goal | null {
   }
   return {
     id,
-    name: str(r.name, 'Цель'),
+    name: str(r.name, т('Цель')),
     icon: str(r.icon, 'target'),
     color: str(r.color, '#4cc46a'),
     targetAmount: Math.abs(money(r.targetAmount)),
@@ -433,7 +463,7 @@ function normScenario(v: unknown, drop: Drop): Scenario | null {
   }
   return {
     id,
-    name: str(r.name, 'Сценарий'),
+    name: str(r.name, т('Сценарий')),
     incomeFactor: num(r.incomeFactor, 1),
     adjusts: list(r.adjusts)
       .map((a) => {
@@ -538,7 +568,7 @@ export function safeFileName(name: string): string {
     .trim()
     .replace(/[. ]+$/, '')
     .slice(0, 100)
-  if (!cleaned) return 'Без названия'
+  if (!cleaned) return т('Без названия')
   return RESERVED.test(cleaned) ? cleaned + '_' : cleaned
 }
 
@@ -555,26 +585,27 @@ export type ParseResult =
   | { ok: false; error: string }
 
 /** Читает файл архива: проверяет формат и приводит содержимое к нужному виду. */
+/** Читает файл архива: проверяет формат и приводит содержимое к нужному виду. */
 export function parseArchive(text: string): ParseResult {
   // Блокнот и часть выгрузок дописывают метку порядка байтов — JSON.parse
   // на ней спотыкается, поэтому снимаем её молча.
   const clean = text.replace(/^﻿/, '').trim()
-  if (!clean) return { ok: false, error: 'Файл пустой' }
+  if (!clean) return { ok: false, error: т('Файл пустой') }
 
   let raw: unknown
   try {
     raw = JSON.parse(clean)
   } catch {
-    return { ok: false, error: 'Файл повреждён: внутри не JSON' }
+    return { ok: false, error: т('Файл повреждён: внутри не JSON') }
   }
 
   const r = asRaw(raw)
   if (r.kashel !== 'vault') {
-    return { ok: false, error: 'Это не архив Кошеля — в файле нет его признака' }
+    return { ok: false, error: т('Это не архив Кошеля — в файле нет его признака') }
   }
   const format = num(r.formatVersion, 0)
   if (format > ARCHIVE_FORMAT) {
-    return { ok: false, error: `Файл сделан более новой версией программы (формат ${format}) — обновите Кошель` }
+    return { ok: false, error: т('Файл сделан более новой версией программы (формат {0}) — обновите Кошель', format) }
   }
 
   const d = asRaw(r.data)
@@ -614,7 +645,7 @@ export function parseArchive(text: string): ParseResult {
   const archive: Archive = {
     kashel: 'vault',
     formatVersion: format || ARCHIVE_FORMAT,
-    app: str(r.app, 'Кошель'),
+    app: str(r.app, т('Кошель')),
     exportedAt: str(r.exportedAt),
     counts: {
       transactions: data.transactions.length,
@@ -636,7 +667,7 @@ export function parseArchive(text: string): ParseResult {
   }
 
   if (!data.accounts.length && !data.transactions.length && !archive.counts.notes && !archive.counts.canvases) {
-    return { ok: false, error: 'В архиве нет ни одной записи — открывать нечего' }
+    return { ok: false, error: т('В архиве нет ни одной записи — открывать нечего') }
   }
   return { ok: true, archive, dropped: drop.n }
 }
@@ -648,9 +679,14 @@ export interface ApplyReport {
   canvases: number
   attachments: number
   /** Имена, которые не удалось записать: чаще всего запрещённые в системе. */
+  /** Имена, которые не удалось записать: чаще всего запрещённые в системе. */
   failed: string[]
 }
 
+/**
+ * Раскладывает заметки, доски и вложения по хранилищу. Операции и справочники
+ * сюда не входят: их пишет само хранилище через store, одной транзакцией.
+ */
 /**
  * Раскладывает заметки, доски и вложения по хранилищу. Операции и справочники
  * сюда не входят: их пишет само хранилище через store, одной транзакцией.

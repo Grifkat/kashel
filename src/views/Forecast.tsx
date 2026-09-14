@@ -11,9 +11,10 @@ import { ALL_ACCOUNTS, forecast, scopeToAccount } from '../engine/forecast'
 import { LineChart } from '../components/charts'
 import { Avatar, Field, Modal, MoneyInput, Tbl, useToast } from '../components/ui'
 import type { Scenario, ScenarioEvent } from '../lib/types'
+import { т, тр } from '../i18n'
 
 const BASE: Scenario = {
-  id: '__base__', name: 'Как есть', incomeFactor: 1, adjusts: [], events: [], extraSavingsMonthly: 0,
+  id: '__base__', name: т('Как есть'), incomeFactor: 1, adjusts: [], events: [], extraSavingsMonthly: 0,
 }
 
 export default function Forecast() {
@@ -113,20 +114,12 @@ export default function Forecast() {
     <div className="view wide">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Прогноз</h1>
+          <h1 className="view-title">{т('Прогноз')}</h1>
           <div className="view-sub">
-            Тренд по вашей истории плюс известные регулярные платежи. Текущий месяц учтён по
-            прожитой части: деньги этого месяца считаются, но растянуть их на полный месяц
-            программа не берётся. Коридор — {data.settings.monteCarloRuns}{' '}
-            симуляций на фактическом разбросе ваших месяцев.
-            {oneAccount && (
+            {тр('Тренд по вашей истории плюс известные регулярные платежи. Текущий месяц учтён по прожитой части: деньги этого месяца считаются, но растянуть их на полный месяц программа не берётся. Коридор — {0}{1}симуляций на фактическом разбросе ваших месяцев.{2}', data.settings.monteCarloRuns, ' ', oneAccount && (
               <>
-                {' '}Показан один счёт, поэтому переводы на другие ваши счета считаются его
-                расходом, а пополнения с них — приходом. На «всех счетах» они по-прежнему не
-                учитываются: там перекладывание денег из кармана в карман итог не меняет.
-              </>
-            )}
-          </div>
+                {тр('{0}Показан один счёт, поэтому переводы на другие ваши счета считаются его расходом, а пополнения с них — приходом. На «всех счетах» они по-прежнему не учитываются: там перекладывание денег из кармана в карман итог не меняет.', ' ')}</>
+            ))}</div>
         </div>
         <div className="row wrap">
           {/* Тот же выбор счёта, что на дашборде. Список, а не переключатель:
@@ -135,9 +128,9 @@ export default function Forecast() {
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
             style={{ maxWidth: 210 }}
-            title="По какому счёту строить прогноз"
+            title={т('По какому счёту строить прогноз')}
           >
-            <option value={ALL_ACCOUNTS}>Все счета вместе</option>
+            <option value={ALL_ACCOUNTS}>{т('Все счета вместе')}</option>
             {/* Значок из каталога — это имя вроде «credit-card»: в списке его
                 рисовать нечем, и оно печаталось бы текстом рядом с названием.
                 Свой смайлик человека показываем как есть. */}
@@ -150,8 +143,7 @@ export default function Forecast() {
           <div className="seg">
             {[6, 12, 24].map((h) => (
               <button key={h} className={horizon === h ? 'on' : ''} onClick={() => setHorizon(h)}>
-                {h} мес
-              </button>
+                {тр('{0} мес', h)}</button>
             ))}
           </div>
         </div>
@@ -159,10 +151,9 @@ export default function Forecast() {
 
       {/* ------------------------------------------------------ сценарии */}
       <div className="row wrap" style={{ gap: 7, marginBottom: 14 }}>
-        <span className="faint small" style={{ marginRight: 4 }}>Сценарий:</span>
+        <span className="faint small" style={{ marginRight: 4 }}>{т('Сценарий:')}</span>
         <span className={'chip' + (scenario.id === '__base__' ? ' on' : '')} onClick={() => setScenario(BASE)}>
-          Как есть
-        </span>
+          {т('Как есть')}</span>
         {data.scenarios.filter((s) => s.id !== 'sc_base').map((s) => (
           <span key={s.id} className={'chip' + (scenario.id === s.id ? ' on' : '')} onClick={() => setScenario(s)}>
             {s.name}
@@ -172,9 +163,8 @@ export default function Forecast() {
         {dirty && (
           <>
             <button className="btn sm" onClick={() => setSaveOpen(true)}>
-              <Icon name="save" size={13} /> Сохранить сценарий
-            </button>
-            <button className="btn sm ghost" onClick={() => setScenario(BASE)}>Сбросить</button>
+              <Icon name="save" size={13} /> {т(' Сохранить сценарий')}</button>
+            <button className="btn sm ghost" onClick={() => setScenario(BASE)}>{т('Сбросить')}</button>
           </>
         )}
       </div>
@@ -183,12 +173,12 @@ export default function Forecast() {
       <div className="grid c4" style={{ marginBottom: 16 }}>
         <div className="card tight">
           <div className="stat">
-            <span className="l">Через {monthsWord(horizon)}</span>
+            <span className="l">{тр('Через {0}', monthsWord(horizon))}</span>
             <span className={'v num ' + (last && last.p50 < 0 ? 'neg' : '')}>{last ? <Money value={last.p50} /> : '—'}</span>
             <span className="d faint">
               {last ? `${moneyShort(last.p10)} … ${moneyShort(last.p90)}` : ''}
               {dirty && delta !== 0 && (
-                <span className={delta > 0 ? 'pos' : 'neg'}> · {money(delta, { sign: true })} к базе</span>
+                <span className={delta > 0 ? 'pos' : 'neg'}> {тр(' · {0} к базе', money(delta, { sign: true }))}</span>
               )}
             </span>
           </div>
@@ -199,31 +189,29 @@ export default function Forecast() {
             плитка под ней не шевелилась. */}
         <div className="card tight">
           <div className="stat">
-            <span className="l">Средний месяц</span>
+            <span className="l">{т('Средний месяц')}</span>
             <span className={'v num ' + (fc.planNet >= 0 ? 'pos' : 'neg')}><Money value={fc.planNet} sign /></span>
             <span className="d faint">
-              доход {moneyShort(fc.planIncome)} · расход {moneyShort(fc.planExpense)}
-              {!!fc.planEvents && ` · события ${moneyShort(fc.planEvents)}`}
-            </span>
+              {тр('доход {0} · расход {1}{2}', moneyShort(fc.planIncome), moneyShort(fc.planExpense), !!fc.planEvents && т(' · события {0}', moneyShort(fc.planEvents)))}</span>
           </div>
         </div>
         <div className="card tight">
           <div className="stat">
-            <span className="l">Норма сбережений</span>
+            <span className="l">{т('Норма сбережений')}</span>
             <span className={'v num ' + (fc.planSavingsRate >= data.settings.profile.savingsRateTarget ? 'pos' : '')}>
               <Num value={fc.planSavingsRate} digits={1} suffix="%" />
             </span>
-            <span className="d faint">цель {pct(data.settings.profile.savingsRateTarget)}</span>
+            <span className="d faint">{тр('цель {0}', pct(data.settings.profile.savingsRateTarget))}</span>
           </div>
         </div>
         <div className="card tight">
           <div className="stat">
-            <span className="l">Риск уйти в минус</span>
+            <span className="l">{т('Риск уйти в минус')}</span>
             <span className={'v num ' + (fc.riskNegative > 0.2 ? 'neg' : fc.riskNegative > 0.05 ? '' : 'pos')}>
               {pct(fc.riskNegative * 100)}
             </span>
             <span className="d faint">
-              {fc.firstNegative ? `медиана пробивает ноль в ${monthTitle(fc.firstNegative).toLowerCase()}` : 'медиана держится в плюсе'}
+              {fc.firstNegative ? т('медиана пробивает ноль в {0}', monthTitle(fc.firstNegative).toLowerCase()) : т('медиана держится в плюсе')}
             </span>
           </div>
         </div>
@@ -231,11 +219,9 @@ export default function Forecast() {
 
       <div className="card" style={{ marginBottom: 16 }}>
         <div className="card-title">
-          <Icon name="chart" size={14} /> Остаток на счетах: факт и прогноз
-          <span className="spacer" />
+          <Icon name="chart" size={14} /> {т(' Остаток на счетах: факт и прогноз')}<span className="spacer" />
           <span className="faint" style={{ textTransform: 'none', letterSpacing: 0 }}>
-            закрашено — коридор от 10-го до 90-го процентиля
-          </span>
+            {т('закрашено — коридор от 10-го до 90-го процентиля')}</span>
         </div>
         <LineChart points={points} height={280} />
       </div>
@@ -243,14 +229,14 @@ export default function Forecast() {
       {/* ------------------------------------------------------ что если */}
       <div className="grid c2" style={{ alignItems: 'start' }}>
         <div className="card">
-          <div className="card-title"><Icon name="scale" size={14} /> Что если</div>
+          <div className="card-title"><Icon name="scale" size={14} /> {т(' Что если')}</div>
 
           <div style={{ marginBottom: 18 }}>
             <div className="row small" style={{ marginBottom: 4 }}>
-              <span className="strong">Доход</span>
+              <span className="strong">{т('Доход')}</span>
               <span className="spacer" />
               <span className={'num ' + (scenario.incomeFactor > 1 ? 'pos' : scenario.incomeFactor < 1 ? 'neg' : 'faint')}>
-                {scenario.incomeFactor === 1 ? 'как есть' : pct((scenario.incomeFactor - 1) * 100, 0)}
+                {scenario.incomeFactor === 1 ? т('как есть') : pct((scenario.incomeFactor - 1) * 100, 0)}
               </span>
             </div>
             <input
@@ -264,11 +250,10 @@ export default function Forecast() {
               }
             />
             <div className="faint small">
-              {money(Math.round(fc.avgIncome * scenario.incomeFactor))} в месяц вместо {money(fc.avgIncome)}
-            </div>
+              {тр('{0} в месяц вместо {1}', money(Math.round(fc.avgIncome * scenario.incomeFactor)), money(fc.avgIncome))}</div>
           </div>
 
-          <div className="card-title">Расходы по категориям</div>
+          <div className="card-title">{т('Расходы по категориям')}</div>
           {topCats.map((b) => {
             const c = catById.get(b.categoryId)
             if (!c) return null
@@ -300,7 +285,7 @@ export default function Forecast() {
           })}
 
           <div className="row" style={{ marginTop: 8, gap: 7 }}>
-            <span className="chip" onClick={() => topCats.forEach((b) => setFactor(b.categoryId, 0.9))}>Все −10%</span>
+            <span className="chip" onClick={() => topCats.forEach((b) => setFactor(b.categoryId, 0.9))}>{т('Все −10%')}</span>
             <span
               className="chip"
               onClick={() =>
@@ -309,59 +294,53 @@ export default function Forecast() {
                   .forEach((b) => setFactor(b.categoryId, 0.6))
               }
             >
-              «Хочу» −40%
-            </span>
-            <span className="chip" onClick={() => setScenario((s) => ({ ...s, adjusts: [] }))}>Сбросить расходы</span>
+              {т('«Хочу» −40%')}</span>
+            <span className="chip" onClick={() => setScenario((s) => ({ ...s, adjusts: [] }))}>{т('Сбросить расходы')}</span>
           </div>
         </div>
 
         <div>
           <div className="card" style={{ marginBottom: 14 }}>
-            <div className="card-title"><Icon name="sparkle" size={14} /> Что это даёт</div>
+            <div className="card-title"><Icon name="sparkle" size={14} /> {т(' Что это даёт')}</div>
             {!dirty ? (
               <div className="faint" style={{ lineHeight: 1.6 }}>
-                Подвигайте ползунки слева — здесь появится разница между сценарием и текущим положением дел:
-                сколько это даёт в месяц, в год и как сдвигает точку риска.
-              </div>
+                {т('Подвигайте ползунки слева — здесь появится разница между сценарием и текущим положением дел: сколько это даёт в месяц, в год и как сдвигает точку риска.')}</div>
             ) : (
               <>
                 <div className="row" style={{ gap: 22, marginBottom: 12 }}>
                   <div className="stat">
-                    <span className="l">В месяц</span>
+                    <span className="l">{т('В месяц')}</span>
                     <span className={'v ' + (monthlySaving >= 0 ? 'pos' : 'neg')}>{money(monthlySaving, { sign: true })}</span>
                   </div>
                   <div className="stat">
-                    <span className="l">За год</span>
+                    <span className="l">{т('За год')}</span>
                     <span className={'v ' + (monthlySaving >= 0 ? 'pos' : 'neg')}>{money(monthlySaving * 12, { sign: true })}</span>
                   </div>
                   <div className="stat">
-                    <span className="l">Риск минуса</span>
+                    <span className="l">{т('Риск минуса')}</span>
                     <span className="v">{pct(fc.riskNegative * 100)}</span>
-                    <span className="d faint">было {pct(base.riskNegative * 100)}</span>
+                    <span className="d faint">{тр('было {0}', pct(base.riskNegative * 100))}</span>
                   </div>
                 </div>
                 <div className="advice-body">
                   {monthlySaving > 0 ? (
                     <>
-                      Такой сценарий высвобождает <b>{money(monthlySaving)}</b> в месяц. За {monthsWord(horizon)}{' '}
-                      разница в остатке — <b>{money(delta, { sign: true })}</b>.
+                      {т('Такой сценарий высвобождает ')}<b>{money(monthlySaving)}</b> {тр(' в месяц. За {0}{1}разница в остатке — ', monthsWord(horizon), ' ')}<b>{money(delta, { sign: true })}</b>.
                       {/* Сравниваем прогноз со сценарием и прогноз без него.
                           Раньше обе половины брались из прошлого и потому были
                           равны — фраза не показывалась никогда. */}
                       {fc.planSavingsRate > base.planSavingsRate &&
-                        ` Норма сбережений поднимается с ${pct(base.planSavingsRate, 1)} до ${pct(fc.planSavingsRate, 1)}.`}
+                        т(' Норма сбережений поднимается с {0} до {1}.', pct(base.planSavingsRate, 1), pct(fc.planSavingsRate, 1))}
                     </>
                   ) : (
                     <>
-                      Сценарий увеличивает траты на <b>{money(Math.abs(monthlySaving))}</b> в месяц.
-                      За {monthsWord(horizon)} это <b>{money(delta, { sign: true })}</b> к остатку.
-                    </>
+                      {т('Сценарий увеличивает траты на ')}<b>{money(Math.abs(monthlySaving))}</b> {тр(' в месяц. За {0} это ', monthsWord(horizon))}<b>{money(delta, { sign: true })}</b> {т(' к остатку.')}</>
                   )}
                 </div>
               </>
             )}
 
-            <div className="card-title" style={{ marginTop: 16 }}>Разовые события</div>
+            <div className="card-title" style={{ marginTop: 16 }}>{т('Разовые события')}</div>
             {scenario.events.map((e) => (
               <div key={e.id} className="row" style={{ gap: 7, marginBottom: 6 }}>
                 <DateField
@@ -374,7 +353,7 @@ export default function Forecast() {
                 <input
                   type="text"
                   value={e.title}
-                  placeholder="Событие"
+                  placeholder={т('Событие')}
                   onChange={(ev) =>
                     setScenario((s) => ({ ...s, events: s.events.map((x) => (x.id === e.id ? { ...x, title: ev.target.value } : x)) }))
                   }
@@ -401,27 +380,25 @@ export default function Forecast() {
                 setScenario((s) => ({
                   ...s,
                   id: s.id === '__base__' ? uid('sc') : s.id,
-                  events: [...s.events, { id: uid('e'), date: addMonths(today(), 2), title: 'Крупная покупка', amount: -toMinor(50000) }],
+                  events: [...s.events, { id: uid('e'), date: addMonths(today(), 2), title: т('Крупная покупка'), amount: -toMinor(50000) }],
                 }))
               }
             >
-              <Icon name="plus" size={13} /> Добавить событие
-            </button>
+              <Icon name="plus" size={13} /> {т(' Добавить событие')}</button>
             <div className="faint small" style={{ marginTop: 6 }}>
-              Отрицательная сумма — трата, положительная — поступление.
-            </div>
+              {т('Отрицательная сумма — трата, положительная — поступление.')}</div>
           </div>
 
           <div className="card">
-            <div className="card-title"><Icon name="list" size={14} /> Помесячно</div>
+            <div className="card-title"><Icon name="list" size={14} /> {т(' Помесячно')}</div>
             <Tbl>
               <thead>
                 <tr>
-                  <th>Месяц</th>
-                  <th className="r">Доход</th>
-                  <th className="r">Расход</th>
-                  <th className="r">Итог</th>
-                  <th className="r">Остаток</th>
+                  <th>{т('Месяц')}</th>
+                  <th className="r">{т('Доход')}</th>
+                  <th className="r">{т('Расход')}</th>
+                  <th className="r">{т('Итог')}</th>
+                  <th className="r">{т('Остаток')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -454,7 +431,7 @@ export default function Forecast() {
             upsertScenario(s)
             setScenario(s)
             setSaveOpen(false)
-            toast(`Сценарий «${name}» сохранён`)
+            toast(т('Сценарий «{0}» сохранён', name))
           }}
         />
       )}
@@ -471,26 +448,24 @@ function SaveScenario({
   onSave: (name: string) => void
   onClose: () => void
 }) {
-  const [name, setName] = useState(scenario.name === 'Как есть' ? 'Мой сценарий' : scenario.name)
+  const [name, setName] = useState(scenario.name === 'Как есть' ? т('Мой сценарий') : scenario.name)
   return (
     <Modal
-      title="Сохранить сценарий"
+      title={т('Сохранить сценарий')}
       icon="save"
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>Отмена</button>
-          <button className="btn primary" onClick={() => onSave(name.trim() || 'Сценарий')}>Сохранить</button>
+          <button className="btn" onClick={onClose}>{т('Отмена')}</button>
+          <button className="btn primary" onClick={() => onSave(name.trim() || т('Сценарий'))}>{т('Сохранить')}</button>
         </>
       }
     >
-      <Field label="Название">
+      <Field label={т('Название')}>
         <input type="text" autoFocus value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
       <div className="faint small">
-        Сохранённый сценарий можно открыть одним кликом и положить карточкой на канвас,
-        чтобы сравнивать варианты рядом.
-      </div>
+        {т('Сохранённый сценарий можно открыть одним кликом и положить карточкой на канвас, чтобы сравнивать варианты рядом.')}</div>
     </Modal>
   )
 }

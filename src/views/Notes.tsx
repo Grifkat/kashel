@@ -7,6 +7,7 @@ import { deleteNote, listNotes, readNote, renameNote, writeNote } from '../state
 import { extractLinks, extractTags, noteExcerpt, renderMarkdown } from '../lib/markdown'
 import { QueryBlock } from '../components/QueryBlock'
 import { Confirm, InlineEdit, useToast } from '../components/ui'
+import { т, тр } from '../i18n'
 
 type Mode = 'read' | 'edit' | 'split'
 
@@ -53,16 +54,16 @@ export default function Notes({ note }: { note?: string }) {
     // стал бы необработанным промисом, а человек думал бы, что заметка цела.
     saveTimer.current = window.setTimeout(
       () => void writeNote(current, text).catch((e) =>
-        toast('Заметка не сохранена: ' + (e instanceof Error ? e.message : String(e))),
+        toast(т('Заметка не сохранена: ') + (e instanceof Error ? e.message : String(e))),
       ),
       400,
     )
   }
 
   const create = async () => {
-    let name = 'Новая заметка'
+    let name = т('Новая заметка')
     let i = 2
-    while (all.some((x) => x.name === name)) name = `Новая заметка ${i++}`
+    while (all.some((x) => x.name === name)) name = т('Новая заметка {0}', i++)
     await writeNote(name, `# ${name}\n\n`)
     await reload()
     void open(name)
@@ -73,7 +74,7 @@ export default function Notes({ note }: { note?: string }) {
     await renameNote(current, next)
     await reload()
     setCurrent(next)
-    toast('Переименовано')
+    toast(т('Переименовано'))
   }
 
   const followLink = async (name: string) => {
@@ -81,7 +82,7 @@ export default function Notes({ note }: { note?: string }) {
     if (!exists) {
       await writeNote(name, `# ${name}\n\n`)
       await reload()
-      toast(`Создана заметка «${name}»`)
+      toast(т('Создана заметка «{0}»', name))
     }
     void open(name)
   }
@@ -110,8 +111,8 @@ export default function Notes({ note }: { note?: string }) {
       {/* ------------------------------------------------ список заметок */}
       <div style={{ flex: '0 1 230px', minWidth: 150, borderRight: '1px solid var(--border-soft)', display: 'flex', flexDirection: 'column' }}>
         <div className="row" style={{ padding: '8px 10px', gap: 6 }}>
-          <input type="search" placeholder="Поиск" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="icon-btn" title="Новая заметка" onClick={create}>
+          <input type="search" placeholder={т('Поиск')} value={q} onChange={(e) => setQ(e.target.value)} />
+          <button className="icon-btn" title={т('Новая заметка')} onClick={create}>
             <Icon name="plus" size={16} />
           </button>
         </div>
@@ -129,7 +130,7 @@ export default function Notes({ note }: { note?: string }) {
               </span>
             </div>
           ))}
-          {!filtered.length && <div className="empty" style={{ padding: 20 }}>Ничего не найдено</div>}
+          {!filtered.length && <div className="empty" style={{ padding: 20 }}>{т('Ничего не найдено')}</div>}
         </div>
       </div>
 
@@ -137,8 +138,7 @@ export default function Notes({ note }: { note?: string }) {
       <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
         {!current ? (
           <div className="empty" style={{ marginTop: 60 }}>
-            Заметок пока нет.{' '}
-            <button className="btn sm" onClick={create}>Создать первую</button>
+            {тр('Заметок пока нет.{0}', ' ')}<button className="btn sm" onClick={create}>{т('Создать первую')}</button>
           </div>
         ) : (
           <>
@@ -148,11 +148,11 @@ export default function Notes({ note }: { note?: string }) {
               <div className="seg">
                 {(['read', 'split', 'edit'] as Mode[]).map((m) => (
                   <button key={m} className={mode === m ? 'on' : ''} onClick={() => setMode(m)}>
-                    {m === 'read' ? 'Чтение' : m === 'split' ? 'Пополам' : 'Правка'}
+                    {m === 'read' ? т('Чтение') : m === 'split' ? т('Пополам') : т('Правка')}
                   </button>
                 ))}
               </div>
-              <button className="icon-btn" title="Удалить заметку" onClick={() => setDel(true)}>
+              <button className="icon-btn" title={т('Удалить заметку')} onClick={() => setDel(true)}>
                 <Icon name="trash" size={16} />
               </button>
             </div>
@@ -165,7 +165,7 @@ export default function Notes({ note }: { note?: string }) {
                     value={body}
                     onChange={(e) => change(e.target.value)}
                     spellCheck={false}
-                    placeholder={'# Заголовок\n\nТекст, [[ссылка на заметку]], #тег\n\n```kashel\ntype: sum\nkind: expense\nperiod: 1m\n```'}
+                    placeholder={т('# Заголовок\n\nТекст, [[ссылка на заметку]], #тег\n\n```kashel\ntype: sum\nkind: expense\nperiod: 1m\n```')}
                   />
                 </div>
               )}
@@ -177,7 +177,7 @@ export default function Notes({ note }: { note?: string }) {
                     <div className="card" style={{ marginTop: 32 }}>
                       {outgoing.length > 0 && (
                         <>
-                          <div className="card-title"><Icon name="link" size={13} /> Ссылки отсюда</div>
+                          <div className="card-title"><Icon name="link" size={13} /> {т(' Ссылки отсюда')}</div>
                           <div className="row wrap" style={{ gap: 6, marginBottom: 12 }}>
                             {outgoing.map((l) => (
                               <span key={l} className="chip" onClick={() => void followLink(l)}>{l}</span>
@@ -187,7 +187,7 @@ export default function Notes({ note }: { note?: string }) {
                       )}
                       {backlinks.length > 0 && (
                         <>
-                          <div className="card-title"><Icon name="arrowRight" size={13} /> Ссылаются сюда</div>
+                          <div className="card-title"><Icon name="arrowRight" size={13} /> {т(' Ссылаются сюда')}</div>
                           {backlinks.map((b) => (
                             <div key={b.name} className="tx-row" onClick={() => void open(b.name)}>
                               <Icon name="note" size={15} />
@@ -201,7 +201,7 @@ export default function Notes({ note }: { note?: string }) {
                       )}
                       {tags.length > 0 && (
                         <>
-                          <div className="card-title" style={{ marginTop: 12 }}><Icon name="tag" size={13} /> Теги</div>
+                          <div className="card-title" style={{ marginTop: 12 }}><Icon name="tag" size={13} /> {т(' Теги')}</div>
                           <div className="row wrap" style={{ gap: 6 }}>
                             {tags.map((t) => (
                               <span key={t} className="chip">#{t}</span>
@@ -220,8 +220,8 @@ export default function Notes({ note }: { note?: string }) {
 
       {del && (
         <Confirm
-          title={`Удалить «${current}»?`}
-          text="Файл заметки будет удалён из хранилища. Отменить это можно только через корзину или систему контроля версий."
+          title={т('Удалить «{0}»?', current)}
+          text={т('Файл заметки будет удалён из хранилища. Отменить это можно только через корзину или систему контроля версий.')}
           onConfirm={async () => {
             await deleteNote(current)
             const items = await reload()

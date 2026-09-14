@@ -2,7 +2,12 @@ import React, { useState } from 'react'
 import { Modal } from '../ui'
 import { Icon } from '../../lib/icons'
 import { CANVAS_COLORS, DEFAULT_QUICK_COLORS, colorName } from '../../lib/emoji'
+import { т } from '../../i18n'
 
+/**
+ * Полная палитра доски. Клик по кружку красит карточку, булавка держит цвет
+ * в быстром ряду — набор быстрых цветов свой у каждой доски.
+ */
 /**
  * Полная палитра доски. Клик по кружку красит карточку, булавка держит цвет
  * в быстром ряду — набор быстрых цветов свой у каждой доски.
@@ -34,19 +39,17 @@ export function ColorPalette({
   }
 
   return (
-    <Modal title="Цвет карточки" icon="palette" onClose={onClose}>
-      <div className="card-title">Быстрый доступ</div>
+    <Modal title={т('Цвет карточки')} icon="palette" onClose={onClose}>
+      <div className="card-title">{т('Быстрый доступ')}</div>
       <div className="faint small" style={{ marginBottom: 10, lineHeight: 1.5 }}>
-        Эти цвета показываются прямо в меню карточки. Булавка на кружке ниже
-        добавляет цвет в ряд или убирает из него.
-      </div>
+        {т('Эти цвета показываются прямо в меню карточки. Булавка на кружке ниже добавляет цвет в ряд или убирает из него.')}</div>
       <div className="row wrap" style={{ gap: 8, marginBottom: 20, minHeight: 30 }}>
         {quick.map((hex) => (
           <button
             key={hex}
             className="pal-quick"
             style={{ background: hex }}
-            title={`${colorName(hex)} — нажмите, чтобы покрасить`}
+            title={т('{0} — нажмите, чтобы покрасить', colorName(hex))}
             onClick={() => {
               onPick(hex)
               onClose()
@@ -55,12 +58,11 @@ export function ColorPalette({
         ))}
         {quick.length !== DEFAULT_QUICK_COLORS.length && (
           <button className="btn sm ghost" onClick={() => onQuickChange(DEFAULT_QUICK_COLORS)}>
-            Вернуть набор по умолчанию
-          </button>
+            {т('Вернуть набор по умолчанию')}</button>
         )}
       </div>
 
-      <div className="card-title">Все цвета</div>
+      <div className="card-title">{т('Все цвета')}</div>
       <div className="pal-grid">
         {CANVAS_COLORS.map((c) => (
           <div key={c.key} className={'pal-cell' + (value === c.hex ? ' on' : '')}>
@@ -75,7 +77,7 @@ export function ColorPalette({
             />
             <button
               className={'pal-pin' + (pinned(c.hex) ? ' on' : '')}
-              title={pinned(c.hex) ? 'Убрать из быстрого доступа' : 'В быстрый доступ'}
+              title={pinned(c.hex) ? т('Убрать из быстрого доступа') : т('В быстрый доступ')}
               onClick={() => togglePin(c.hex)}
             >
               <Icon name={pinned(c.hex) ? 'check' : 'plus'} size={11} />
@@ -85,7 +87,7 @@ export function ColorPalette({
         ))}
       </div>
 
-      <div className="card-title" style={{ marginTop: 20 }}>Свой цвет</div>
+      <div className="card-title" style={{ marginTop: 20 }}>{т('Свой цвет')}</div>
       <div className="row" style={{ gap: 10 }}>
         <input
           type="color"
@@ -106,11 +108,9 @@ export function ColorPalette({
             onClose()
           }}
         >
-          Покрасить
-        </button>
+          {т('Покрасить')}</button>
         <button className="btn ghost" onClick={() => onQuickChange([...quick.filter((c) => c !== custom), custom])}>
-          <Icon name="plus" size={14} /> В быстрый доступ
-        </button>
+          <Icon name="plus" size={14} /> {т(' В быстрый доступ')}</button>
       </div>
     </Modal>
   )

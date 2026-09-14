@@ -6,6 +6,7 @@ import { Icon } from '../lib/icons'
 import { listCanvases, listNotes, writeCanvas, writeNote } from '../state/vault'
 import { useToast } from './ui'
 import { THEMES, counterpart } from '../lib/themes'
+import { т } from '../i18n'
 
 interface Cmd {
   id: string
@@ -16,6 +17,7 @@ interface Cmd {
   run(): void
 }
 
+/** Ctrl+P — единая точка входа во всё, что умеет программа. */
 /** Ctrl+P — единая точка входа во всё, что умеет программа. */
 export function CommandPalette({ onClose }: { onClose: () => void }) {
   const app = useApp()
@@ -35,7 +37,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
   const cmds = useMemo<Cmd[]>(() => {
     const nav: Cmd[] = (Object.keys(VIEW_META) as ViewId[]).map((v) => ({
       id: 'nav:' + v,
-      section: 'Разделы',
+      section: т('Разделы'),
       title: VIEW_META[v].title,
       icon: VIEW_META[v].icon,
       run: () => app.openTab(v),
@@ -43,88 +45,88 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
     const actions: Cmd[] = [
       {
-        id: 'act:new-tx', section: 'Действия', title: 'Новая операция', icon: 'plus', hint: 'Ctrl+N',
+        id: 'act:new-tx', section: т('Действия'), title: т('Новая операция'), icon: 'plus', hint: 'Ctrl+N',
         run: () => app.openQuickAdd(),
       },
       {
-        id: 'act:new-tx-full', section: 'Действия', title: 'Новая операция — подробная форма', icon: 'plus',
+        id: 'act:new-tx-full', section: т('Действия'), title: т('Новая операция — подробная форма'), icon: 'plus',
         run: () => app.editTransaction({}),
       },
       {
-        id: 'act:search', section: 'Действия', title: 'Поиск по всему', icon: 'search', hint: 'Ctrl+Shift+F',
+        id: 'act:search', section: т('Действия'), title: т('Поиск по всему'), icon: 'search', hint: 'Ctrl+Shift+F',
         run: () => app.openSearch(),
       },
       {
-        id: 'act:new-note', section: 'Действия', title: 'Новая заметка', icon: 'note',
+        id: 'act:new-note', section: т('Действия'), title: т('Новая заметка'), icon: 'note',
         run: async () => {
-          const name = `Заметка ${new Date().toLocaleDateString('ru-RU')}`
+          const name = т('Заметка {0}', new Date().toLocaleDateString('ru-RU'))
           await writeNote(name, `# ${name}\n\n`)
           app.openTab('notes', name)
         },
       },
       {
-        id: 'act:new-canvas', section: 'Действия', title: 'Новый канвас', icon: 'canvas',
+        id: 'act:new-canvas', section: т('Действия'), title: т('Новый канвас'), icon: 'canvas',
         run: async () => {
-          const name = `Канвас ${new Date().toLocaleDateString('ru-RU')}`
+          const name = т('Канвас {0}', new Date().toLocaleDateString('ru-RU'))
           await writeCanvas(name, { nodes: [], edges: [] })
           app.openTab('canvas', name)
         },
       },
       {
-        id: 'act:split', section: 'Действия', title: 'Разделить панель', icon: 'panel', hint: 'Ctrl+\\',
+        id: 'act:split', section: т('Действия'), title: т('Разделить панель'), icon: 'panel', hint: 'Ctrl+\\',
         run: app.splitPane,
       },
       {
-        id: 'act:theme', section: 'Действия', title: 'Светлая или тёмная', icon: 'sun',
+        id: 'act:theme', section: т('Действия'), title: т('Светлая или тёмная'), icon: 'sun',
         run: () => store.patchSettings({ theme: counterpart(store.data.settings.theme) }),
       },
       ...THEMES.map((t) => ({
         id: 'theme:' + t.id,
-        section: 'Оформление',
+        section: т('Оформление'),
         title: t.name,
         icon: 'palette',
         hint: t.mode === 'dark' ? 'тёмная' : 'светлая',
         run: () => store.patchSettings({ theme: t.id, accent: t.accent }),
       })),
       {
-        id: 'act:hide', section: 'Действия', title: store.data.settings.hideBalance ? 'Показать баланс' : 'Скрыть баланс',
+        id: 'act:hide', section: т('Действия'), title: store.data.settings.hideBalance ? т('Показать баланс') : т('Скрыть баланс'),
         icon: store.data.settings.hideBalance ? 'eye' : 'eyeOff',
         run: () => store.patchSettings({ hideBalance: !store.data.settings.hideBalance }),
       },
       {
-        id: 'act:save', section: 'Действия', title: 'Сохранить сейчас', icon: 'save', hint: 'Ctrl+S',
+        id: 'act:save', section: т('Действия'), title: т('Сохранить сейчас'), icon: 'save', hint: 'Ctrl+S',
         run: async () => {
           await store.saveNow()
-          toast('Хранилище сохранено')
+          toast(т('Хранилище сохранено'))
         },
       },
       {
-        id: 'act:vault', section: 'Действия', title: 'Открыть папку хранилища', icon: 'folder',
+        id: 'act:vault', section: т('Действия'), title: т('Открыть папку хранилища'), icon: 'folder',
         run: () => {
           void (window as any).kashel?.revealVault()
-          toast('Открываю папку хранилища')
+          toast(т('Открываю папку хранилища'))
         },
       },
     ]
 
     const files: Cmd[] = [
       ...notes.map((n) => ({
-        id: 'note:' + n, section: 'Заметки', title: n, icon: 'note',
+        id: 'note:' + n, section: т('Заметки'), title: n, icon: 'note',
         run: () => app.openTab('notes', n),
       })),
       ...canvases.map((n) => ({
-        id: 'canvas:' + n, section: 'Канвасы', title: n, icon: 'canvas',
+        id: 'canvas:' + n, section: т('Канвасы'), title: n, icon: 'canvas',
         run: () => app.openTab('canvas', n),
       })),
     ]
 
     const entities: Cmd[] = [
       ...store.data.accounts.filter((a) => !a.archived).map((a) => ({
-        id: 'acc:' + a.id, section: 'Счета', title: сЗначкомъ(a.icon, a.name), icon: 'wallet',
+        id: 'acc:' + a.id, section: т('Счета'), title: сЗначкомъ(a.icon, a.name), icon: 'wallet',
         run: () => app.openTab('accounts'),
       })),
       ...store.data.categories.filter((c) => !c.archived).map((c) => ({
-        id: 'cat:' + c.id, section: 'Категории', title: сЗначкомъ(c.icon, c.name), icon: 'tag',
+        id: 'cat:' + c.id, section: т('Категории'), title: сЗначкомъ(c.icon, c.name), icon: 'tag',
         run: () => app.openTab('transactions', 'cat:' + c.id, { title: c.name }),
       })),
     ]
@@ -172,7 +174,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         <input
           className="palette-input"
           autoFocus
-          placeholder="Команда, раздел, заметка, категория…"
+          placeholder={т('Команда, раздел, заметка, категория…')}
           value={q}
           onChange={(e) => setQ(e.target.value)}
           onKeyDown={(e) => {
@@ -216,7 +218,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
               })}
             </div>
           ))}
-          {!flat.length && <div className="empty">Ничего не нашлось</div>}
+          {!flat.length && <div className="empty">{т('Ничего не нашлось')}</div>}
         </div>
       </div>
     </div>

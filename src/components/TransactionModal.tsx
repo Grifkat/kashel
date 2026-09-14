@@ -9,11 +9,12 @@ import { Icon } from '../lib/icons'
 import { addDays, humanDate, today } from '../lib/date'
 import { formatAmountInput, groupDigits, money, toMinor, uid } from '../lib/format'
 import { readAttachmentBase64, saveAttachment, bridge } from '../state/vault'
+import { т, тр } from '../i18n'
 
 const KIND_LABEL: Record<TxKind, string> = {
-  expense: 'Расход',
-  income: 'Доход',
-  transfer: 'Перевод',
+  expense: т('Расход'),
+  income: т('Доход'),
+  transfer: т('Перевод'),
 }
 
 export function TransactionModal({
@@ -41,8 +42,10 @@ export function TransactionModal({
   const [attachments, setAttachments] = useState<string[]>(draft.attachments ?? [])
   const [showAll, setShowAll] = useState(false)
   /** Название новой статьи. null — окошко закрыто. */
+  /** Название новой статьи. null — окошко закрыто. */
   const [новая, setНовая] = useState<string | null>(null)
   const [confirmDel, setConfirmDel] = useState(false)
+  /** Какой чек сейчас смотрим. null — не смотрим. */
   /** Какой чек сейчас смотрим. null — не смотрим. */
   const [shot, setShot] = useState<string | null>(null)
 
@@ -53,15 +56,22 @@ export function TransactionModal({
    * созданные статьи не окажутся одного цвета, а разбираться с выбором в
    * момент ввода траты человеку незачем.
    */
+  /**
+   * Заводит статью и сразу ставит её в эту запись.
+   *
+   * Цвет берётся из общей палитры по числу уже заведённых — так две подряд
+   * созданные статьи не окажутся одного цвета, а разбираться с выбором в
+   * момент ввода траты человеку незачем.
+   */
   const создатьСтатью = () => {
     const имя = (новая ?? '').trim()
-    if (!имя) { toast('Напишите название'); return }
+    if (!имя) { toast(т('Напишите название')); return }
     const вид = kind === 'income' ? 'income' : 'expense'
     const было = data.categories.find((c) => c.kind === вид && c.name.toLowerCase() === имя.toLowerCase())
     if (было) {
       setCategoryId(было.id)
       setНовая(null)
-      toast(`Такая статья уже была — выбрал «${было.name}»`)
+      toast(т('Такая статья уже была — выбрал «{0}»', было.name))
       return
     }
     const id = uid('cat')
@@ -109,6 +119,11 @@ export function TransactionModal({
    * расходная категория не должна остаться висеть на доходной операции —
    * иначе доход утекает в расходную статистику.
    */
+  /**
+   * Категория живёт в своём направлении: при переключении вида выбранная
+   * расходная категория не должна остаться висеть на доходной операции —
+   * иначе доход утекает в расходную статистику.
+   */
   const switchKind = (next: TxKind) => {
     setKind(next)
     if (next === 'transfer') return
@@ -122,19 +137,19 @@ export function TransactionModal({
 
   const save = () => {
     if (!accountId) {
-      toast('Сначала создайте счёт — в разделе «Счета»')
+      toast(т('Сначала создайте счёт — в разделе «Счета»'))
       return
     }
     if (!amount) {
-      toast('Укажите сумму')
+      toast(т('Укажите сумму'))
       return
     }
     if (kind === 'transfer' && (!toAccountId || toAccountId === accountId)) {
-      toast('Выберите разные счёта для перевода')
+      toast(т('Выберите разные счёта для перевода'))
       return
     }
     if (!splitOk) {
-      toast(`Сумма долей ${money(splitSum)} не совпадает с ${money(amount)}`)
+      toast(т('Сумма долей {0} не совпадает с {1}', money(splitSum), money(amount)))
       return
     }
     // Последняя проверка перед записью: категория чужого направления не пройдёт.
@@ -155,7 +170,7 @@ export function TransactionModal({
     }
     if (isEdit) {
       updateTransaction({ ...(draft as Transaction), ...payload })
-      toast('Операция обновлена')
+      toast(т('Операция обновлена'))
     } else {
       addTransaction({ ...payload } as Omit<Transaction, 'id' | 'createdAt'>)
       toast(`${KIND_LABEL[kind]} ${money(amount)} записан`)
@@ -174,28 +189,25 @@ export function TransactionModal({
     <>
       <Modal
         wide
-        title={isEdit ? 'Операция' : 'Новая операция'}
+        title={isEdit ? т('Операция') : т('Новая операция')}
         icon="plus"
         onClose={onClose}
         footer={
           <>
             {isEdit && (
               <button className="btn danger" onClick={() => setConfirmDel(true)} style={{ marginRight: 'auto' }}>
-                <Icon name="trash" size={15} /> Удалить
-              </button>
+                <Icon name="trash" size={15} /> {т(' Удалить')}</button>
             )}
-            <button className="btn" onClick={onClose}>Отмена</button>
+            <button className="btn" onClick={onClose}>{т('Отмена')}</button>
             <button className="btn primary" onClick={save}>
-              {isEdit ? 'Сохранить' : 'Добавить'}
+              {isEdit ? т('Сохранить') : т('Добавить')}
             </button>
           </>
         }
       >
         {!data.accounts.length && (
           <div className="advice-card warn" style={{ marginBottom: 14, padding: '10px 12px' }}>
-            Нет ни одного счёта. Создайте его в разделе «Счета» — без счёта операции
-            некуда записывать.
-          </div>
+            {т('Нет ни одного счёта. Создайте его в разделе «Счета» — без счёта операции некуда записывать.')}</div>
         )}
         <div className="seg" style={{ marginBottom: 16 }}>
           {(['expense', 'income', 'transfer'] as TxKind[]).map((k) => (
@@ -208,7 +220,7 @@ export function TransactionModal({
         <div className="row" style={{ gap: 14, alignItems: 'flex-end', marginBottom: 16 }}>
           <div style={{ flex: 1 }}>
             <label className="field">
-              <span>Сумма</span>
+              <span>{т('Сумма')}</span>
               {/* Поле умеет складывать, поэтому разряды расставляем как в
                   свободной строке: знаки арифметики должны уцелеть. */}
               <GroupedInput
@@ -236,11 +248,11 @@ export function TransactionModal({
               />
             </label>
             {/[+\-*/]/.test(amountStr) && (
-              <div className="faint small" style={{ marginTop: 4 }}>Нажмите = чтобы посчитать</div>
+              <div className="faint small" style={{ marginTop: 4 }}>{т('Нажмите = чтобы посчитать')}</div>
             )}
           </div>
           <div style={{ width: 190 }}>
-            <Field label={kind === 'transfer' ? 'Со счёта' : 'Счёт'}>
+            <Field label={kind === 'transfer' ? т('Со счёта') : т('Счёт')}>
               <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                 {data.accounts.filter((a) => !a.archived).map((a) => (
                   <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
@@ -250,7 +262,7 @@ export function TransactionModal({
           </div>
           {kind === 'transfer' && (
             <div style={{ width: 190 }}>
-              <Field label="На счёт">
+              <Field label={т('На счёт')}>
                 <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
                   <option value="">—</option>
                   {data.accounts.filter((a) => !a.archived && a.id !== accountId).map((a) => (
@@ -264,7 +276,7 @@ export function TransactionModal({
 
         {kind !== 'transfer' && (
           <>
-            <div className="card-title">Категория</div>
+            <div className="card-title">{т('Категория')}</div>
             <div className="row wrap" style={{ gap: 8, marginBottom: 16 }}>
               {shown.map((c) => (
                 <button
@@ -295,7 +307,7 @@ export function TransactionModal({
                   <span className="avatar" style={{ background: 'var(--panel-2)' }}>
                     <Icon name={showAll ? 'up' : 'dots'} size={16} />
                   </span>
-                  <span style={{ fontSize: 11.5 }}>{showAll ? 'Скрыть' : 'Ещё'}</span>
+                  <span style={{ fontSize: 11.5 }}>{showAll ? т('Скрыть') : т('Ещё')}</span>
                 </button>
               )}
               {/* Новая статья заводится прямо отсюда и сразу встаёт в запись:
@@ -308,13 +320,13 @@ export function TransactionModal({
                 <span className="avatar" style={{ background: 'var(--panel-2)' }}>
                   <Icon name="plus" size={16} />
                 </span>
-                <span style={{ fontSize: 11.5 }}>Создать</span>
+                <span style={{ fontSize: 11.5 }}>{т('Создать')}</span>
               </button>
             </div>
           </>
         )}
 
-        <div className="card-title">Дата</div>
+        <div className="card-title">{т('Дата')}</div>
         <div className="row" style={{ gap: 8, marginBottom: 16 }}>
           {[
             { d: today(), l: 'сегодня' },
@@ -330,28 +342,27 @@ export function TransactionModal({
 
         <div className="grid c2">
           <div>
-            <div className="card-title">Теги</div>
+            <div className="card-title">{т('Теги')}</div>
             <TagInput tags={tags} onChange={setTags} suggestions={allTags} />
           </div>
           <div>
-            <div className="card-title">Комментарий</div>
-            <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Где, за что, зачем" />
+            <div className="card-title">{т('Комментарий')}</div>
+            <input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder={т('Где, за что, зачем')} />
             <div className="row" style={{ marginTop: 10, gap: 8 }}>
               <button className="btn sm" onClick={attach}>
-                <Icon name="upload" size={14} /> Фото чека
-              </button>
+                <Icon name="upload" size={14} /> {т(' Фото чека')}</button>
               {/* Раньше на фишке было ровно одно действие — удалить, и оно же
                   срабатывало на любое нажатие. Посмотреть чек было нельзя
                   вообще: единственный способ его открыть — полезть в папку
                   хранилища. Теперь нажатие показывает, а крестик убирает. */}
               {attachments.map((a) => (
                 <span key={a} className="chip on" style={{ gap: 6 }}>
-                  <span style={{ cursor: 'zoom-in' }} onClick={() => setShot(a)} title="Посмотреть чек">
+                  <span style={{ cursor: 'zoom-in' }} onClick={() => setShot(a)} title={т('Посмотреть чек')}>
                     {a.split('_').pop()}
                   </span>
                   <span
                     style={{ cursor: 'pointer', opacity: 0.7 }}
-                    title="Убрать из операции"
+                    title={т('Убрать из операции')}
                     onClick={() => setAttachments((l) => l.filter((x) => x !== a))}
                   >
                     <Icon name="x" size={11} />
@@ -365,7 +376,7 @@ export function TransactionModal({
         {kind === 'expense' && (
           <div style={{ marginTop: 18 }}>
             <div className="row" style={{ marginBottom: 8 }}>
-              <div className="card-title" style={{ margin: 0 }}>Разбить чек по категориям</div>
+              <div className="card-title" style={{ margin: 0 }}>{т('Разбить чек по категориям')}</div>
               <span className="spacer" />
               <button
                 className="btn sm"
@@ -373,8 +384,7 @@ export function TransactionModal({
                   setSplits((s) => [...s, { categoryId: categoryId ?? cats[0]?.id ?? '', amount: Math.max(0, amount - splitSum) }])
                 }
               >
-                <Icon name="split" size={14} /> Добавить долю
-              </button>
+                <Icon name="split" size={14} /> {т(' Добавить долю')}</button>
             </div>
             {splits.map((s, i) => (
               <div key={i} className="row" style={{ gap: 8, marginBottom: 7 }}>
@@ -394,7 +404,7 @@ export function TransactionModal({
                 />
                 <input
                   type="text"
-                  placeholder="комментарий"
+                  placeholder={т('комментарий')}
                   value={s.note ?? ''}
                   onChange={(e) => setSplits((l) => l.map((x, j) => (j === i ? { ...x, note: e.target.value } : x)))}
                 />
@@ -405,9 +415,7 @@ export function TransactionModal({
             ))}
             {splits.length > 0 && (
               <div className={'small ' + (splitOk ? 'faint' : 'neg')}>
-                Доли: {money(splitSum)} из {money(amount)}
-                {!splitOk && ` — расхождение ${money(Math.abs(amount - splitSum))}`}
-              </div>
+                {тр('Доли: {0} из {1}{2}', money(splitSum), money(amount), !splitOk && т(' — расхождение {0}', money(Math.abs(amount - splitSum))))}</div>
             )}
           </div>
         )}
@@ -415,37 +423,35 @@ export function TransactionModal({
 
       {новая !== null && (
         <Modal
-          title="Новая статья"
+          title={т('Новая статья')}
           icon="tag"
           onClose={() => setНовая(null)}
           footer={
             <>
-              <button className="btn" onClick={() => setНовая(null)}>Отмена</button>
-              <button className="btn primary" onClick={() => создатьСтатью()}>Создать и выбрать</button>
+              <button className="btn" onClick={() => setНовая(null)}>{т('Отмена')}</button>
+              <button className="btn primary" onClick={() => создатьСтатью()}>{т('Создать и выбрать')}</button>
             </>
           }
         >
-          <Field label="Название" hint="Появится в списке и сразу встанет в эту запись">
+          <Field label={т('Название')} hint={т('Появится в списке и сразу встанет в эту запись')}>
             <input
               type="text"
               autoFocus
               value={новая}
-              placeholder={kind === 'income' ? 'Например, Подработка' : 'Например, Аптека'}
+              placeholder={kind === 'income' ? т('Например, Подработка') : т('Например, Аптека')}
               onChange={(e) => setНовая(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); создатьСтатью() } }}
             />
           </Field>
           <div className="faint small">
-            Статья заводится {kind === 'income' ? 'доходной' : 'расходной'} — по виду этой записи.
-            Значок и цвет можно поменять потом в разделе «Категории».
-          </div>
+            {тр('Статья заводится {0} — по виду этой записи. Значок и цвет можно поменять потом в разделе «Категории».', kind === 'income' ? 'доходной' : 'расходной')}</div>
         </Modal>
       )}
 
       {confirmDel && (
         <Confirm
-          title="Удалить операцию?"
-          text={`${KIND_LABEL[kind]} на ${money(amount)} от ${humanDate(date)} будет удалён без возможности отмены.`}
+          title={т('Удалить операцию?')}
+          text={т('{0} на {1} от {2} будет удалён без возможности отмены.', KIND_LABEL[kind], money(amount), humanDate(date))}
           onConfirm={() => {
             deleteTransaction((draft as Transaction).id)
             onClose()
@@ -465,6 +471,13 @@ export function TransactionModal({
  * только прочитав в data-url. Тип угадываем по расширению: png и webp не
  * покажутся, если объявить их jpeg.
  */
+/**
+ * Просмотр приложенного чека.
+ *
+ * Файл лежит в хранилище, а не в интернете, поэтому показать его можно
+ * только прочитав в data-url. Тип угадываем по расширению: png и webp не
+ * покажутся, если объявить их jpeg.
+ */
 function ShotViewer({ rel, onClose }: { rel: string; onClose: () => void }) {
   const [url, setUrl] = useState<string | null>(null)
   const [err, setErr] = useState('')
@@ -474,7 +487,7 @@ function ShotViewer({ rel, onClose }: { rel: string; onClose: () => void }) {
     void readAttachmentBase64(rel)
       .then((b64) => {
         if (!живо) return
-        if (!b64) { setErr('Файл не найден в хранилище — возможно, его удалили из папки.'); return }
+        if (!b64) { setErr(т('Файл не найден в хранилище — возможно, его удалили из папки.')); return }
         const ext = (rel.split('.').pop() || '').toLowerCase()
         const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : 'image/jpeg'
         setUrl('data:' + mime + ';base64,' + b64)
@@ -486,18 +499,18 @@ function ShotViewer({ rel, onClose }: { rel: string; onClose: () => void }) {
   return (
     <Modal
       wide
-      title="Чек"
+      title={т('Чек')}
       icon="upload"
       onClose={onClose}
-      footer={<button className="btn" onClick={onClose}>Закрыть</button>}
+      footer={<button className="btn" onClick={onClose}>{т('Закрыть')}</button>}
     >
       <div className="faint small" style={{ marginBottom: 10, wordBreak: 'break-all' }}>{rel}</div>
       {err && <div className="advice-card warn" style={{ padding: '10px 12px' }}>{err}</div>}
-      {!err && !url && <div className="faint">Открываю…</div>}
+      {!err && !url && <div className="faint">{т('Открываю…')}</div>}
       {url && (
         <img
           src={url}
-          alt="Чек"
+          alt={т('Чек')}
           style={{ maxWidth: '100%', maxHeight: '70vh', display: 'block', margin: '0 auto', borderRadius: 10 }}
         />
       )}

@@ -12,13 +12,14 @@ import { Avatar, Confirm, ColorPicker, Field, IconPicker, Modal, MoneyInput, Tog
 import { Spark } from '../components/charts'
 import { проектный } from '../engine/project'
 import type { Account, AccountType } from '../lib/types'
+import { т, тр } from '../i18n'
 
 const TYPES: { k: AccountType; t: string; hint: string }[] = [
-  { k: 'card', t: 'Карта', hint: 'Безналичный счёт для повседневных трат' },
-  { k: 'cash', t: 'Наличные', hint: 'Кошелёк, конверт, наличка в столе' },
-  { k: 'savings', t: 'Накопительный', hint: 'Копилка под цель, вклад' },
-  { k: 'credit', t: 'Кредит или рассрочка', hint: 'Обязательство с графиком платежей' },
-  { k: 'debt', t: 'Долг', hint: 'Кто-то должен вам или вы должны' },
+  { k: 'card', t: т('Карта'), hint: т('Безналичный счёт для повседневных трат') },
+  { k: 'cash', t: т('Наличные'), hint: т('Кошелёк, конверт, наличка в столе') },
+  { k: 'savings', t: т('Накопительный'), hint: т('Копилка под цель, вклад') },
+  { k: 'credit', t: т('Кредит или рассрочка'), hint: т('Обязательство с графиком платежей') },
+  { k: 'debt', t: т('Долг'), hint: т('Кто-то должен вам или вы должны') },
 ]
 
 export default function Accounts() {
@@ -55,7 +56,7 @@ export default function Accounts() {
             <div className="strong">{a.name}</div>
             <div className="faint small">
               {TYPES.find((t) => t.k === a.type)?.t}
-              {проектный(a) && <> · <b>проект</b></>}
+              {проектный(a) && <> · <b>{т('проект')}</b></>}
             </div>
           </div>
           <button className="icon-btn" onClick={() => setEdit(a)}>
@@ -69,12 +70,11 @@ export default function Accounts() {
             </div>
             {a.type === 'credit' && a.credit && (
               <div className="faint small">
-                платёж {money(a.credit.monthlyPayment)} · {a.credit.ratePct}% годовых
-              </div>
+                {тр('платёж {0} · {1}% годовых', money(a.credit.monthlyPayment), a.credit.ratePct)}</div>
             )}
             {a.type === 'debt' && a.debt && (
               <div className="faint small">
-                {a.debt.direction === 'i_owe' ? 'вы должны' : 'должны вам'} · {a.debt.counterparty}
+                {a.debt.direction === 'i_owe' ? т('вы должны') : т('должны вам')} · {a.debt.counterparty}
               </div>
             )}
           </div>
@@ -82,7 +82,7 @@ export default function Accounts() {
           <Spark values={spark.get(a.id) ?? []} color={a.color} width={100} height={32} />
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <button className="btn sm ghost" onClick={() => app.openTab('transactions')}>Операции</button>
+          <button className="btn sm ghost" onClick={() => app.openTab('transactions')}>{т('Операции')}</button>
           <span className="spacer" />
           <button className="btn sm danger" onClick={() => setDel(a)}>
             <Icon name="trash" size={13} />
@@ -96,12 +96,11 @@ export default function Accounts() {
     <div className="view">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Счета</h1>
+          <h1 className="view-title">{т('Счета')}</h1>
           <div className="view-sub">
-            Активы {money(bal.assets)} · обязательства {money(bal.liabilities)} · чистый капитал{' '}
-            <span className={bal.net >= 0 ? 'pos' : 'neg'}>{money(bal.net)}</span>
+            {тр('Активы {0} · обязательства {1} · чистый капитал{2}', money(bal.assets), money(bal.liabilities), ' ')}<span className={bal.net >= 0 ? 'pos' : 'neg'}>{money(bal.net)}</span>
             {projects.length > 0 && (
-              <> · под проектами {money(проектныеДеньги)} <span className="faint">(не ваши)</span></>
+              <> {тр(' · под проектами {0} ', money(проектныеДеньги))}<span className="faint">{т('(не ваши)')}</span></>
             )}
           </div>
         </div>
@@ -111,26 +110,24 @@ export default function Accounts() {
             setEdit({ id: uid('a'), name: '', type: 'card', icon: 'credit-card', color: '#4cc46a', initialBalance: 0 })
           }
         >
-          <Icon name="plus" size={15} /> Создать счёт
-        </button>
+          <Icon name="plus" size={15} /> {т(' Создать счёт')}</button>
       </div>
 
-      <div className="card-title">Активы</div>
+      <div className="card-title">{т('Активы')}</div>
       <div className="grid c3" style={{ marginBottom: 22 }}>{assets.map(card)}</div>
 
       {liabilities.length > 0 && (
         <>
-          <div className="card-title">Обязательства</div>
+          <div className="card-title">{т('Обязательства')}</div>
           <div className="grid c3" style={{ marginBottom: 22 }}>{liabilities.map(card)}</div>
         </>
       )}
 
       {projects.length > 0 && (
         <>
-          <div className="card-title">Проекты</div>
+          <div className="card-title">{т('Проекты')}</div>
           <div className="faint small" style={{ marginBottom: 10 }}>
-            Деньги лежат у вас, но не ваши: в доход, чистый капитал, прогноз и награды не входят.
-          </div>
+            {т('Деньги лежат у вас, но не ваши: в доход, чистый капитал, прогноз и награды не входят.')}</div>
           <div className="grid c3">{projects.map(card)}</div>
         </>
       )}
@@ -138,8 +135,8 @@ export default function Accounts() {
       {edit && <AccountModal value={edit} onClose={() => setEdit(null)} onSave={(a) => { upsertAccount(a); setEdit(null) }} />}
       {del && (
         <Confirm
-          title={`Удалить счёт «${del.name}»?`}
-          text="Операции по этому счёту останутся в истории, но повиснут без привязки. Обычно правильнее оставить счёт и просто перестать им пользоваться."
+          title={т('Удалить счёт «{0}»?', del.name)}
+          text={т('Операции по этому счёту останутся в истории, но повиснут без привязки. Обычно правильнее оставить счёт и просто перестать им пользоваться.')}
           onConfirm={() => deleteAccount(del.id)}
           onClose={() => setDel(null)}
         />
@@ -168,39 +165,38 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
   return (
     <>
       <Modal
-        title={value.name ? 'Счёт' : 'Новый счёт'}
+        title={value.name ? т('Счёт') : т('Новый счёт')}
         icon="wallet"
         onClose={onClose}
         footer={
           <>
-            <button className="btn" onClick={onClose}>Отмена</button>
+            <button className="btn" onClick={onClose}>{т('Отмена')}</button>
             <button
               className="btn primary"
               onClick={() => {
                 if (!a.name.trim()) {
-                  toast('Введите название счёта')
+                  toast(т('Введите название счёта'))
                   return
                 }
                 onSave(a)
               }}
             >
-              Сохранить
-            </button>
+              {т('Сохранить')}</button>
           </>
         }
       >
         <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-          <button className="icon-trigger" onClick={() => setPick(true)} title="Выбрать иконку и цвет">
+          <button className="icon-trigger" onClick={() => setPick(true)} title={т('Выбрать иконку и цвет')}>
             <Avatar icon={a.icon} color={a.color} size="lg" style={{ width: 54, height: 54 }} />
           </button>
           <div style={{ flex: 1 }}>
-            <Field label="Название">
+            <Field label={т('Название')}>
               <input type="text" autoFocus value={a.name} onChange={(e) => patch({ name: e.target.value })} />
             </Field>
           </div>
         </div>
 
-        <div className="card-title">Тип счёта</div>
+        <div className="card-title">{т('Тип счёта')}</div>
         <div className="row wrap" style={{ gap: 7, marginBottom: 6 }}>
           {TYPES.map((t) => (
             <span key={t.k} className={'chip' + (a.type === t.k ? ' on' : '')} onClick={() => setType(t.k)}>{t.t}</span>
@@ -208,28 +204,28 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
         </div>
         <div className="faint small" style={{ marginBottom: 14 }}>{TYPES.find((t) => t.k === a.type)?.hint}</div>
 
-        <Field label="Начальный остаток" hint="Сколько было на счёте до начала учёта">
+        <Field label={т('Начальный остаток')} hint={т('Сколько было на счёте до начала учёта')}>
           <MoneyInput value={a.initialBalance} onChange={(v) => patch({ initialBalance: v })} />
         </Field>
 
         {a.type === 'credit' && a.credit && (
           <div className="grid c2">
-            <Field label="Сумма кредита">
+            <Field label={т('Сумма кредита')}>
               <MoneyInput value={a.credit.principal} onChange={(v) => patch({ credit: { ...a.credit!, principal: v } })} />
             </Field>
-            <Field label="Ставка, % годовых">
+            <Field label={т('Ставка, % годовых')}>
               <input type="number" value={a.credit.ratePct} onChange={(e) => patch({ credit: { ...a.credit!, ratePct: Number(e.target.value) } })} />
             </Field>
-            <Field label="Ежемесячный платёж">
+            <Field label={т('Ежемесячный платёж')}>
               <MoneyInput value={a.credit.monthlyPayment} onChange={(v) => patch({ credit: { ...a.credit!, monthlyPayment: v } })} />
             </Field>
-            <Field label="Срок, месяцев">
+            <Field label={т('Срок, месяцев')}>
               <input type="number" value={a.credit.termMonths} onChange={(e) => patch({ credit: { ...a.credit!, termMonths: Number(e.target.value) } })} />
             </Field>
-            <Field label="Дата начала">
+            <Field label={т('Дата начала')}>
               <DateField value={a.credit.startDate} onChange={(v) => patch({ credit: { ...a.credit!, startDate: v } })} />
             </Field>
-            <Field label="День платежа">
+            <Field label={т('День платежа')}>
               <input type="number" min={1} max={31} value={a.credit.paymentDay} onChange={(e) => patch({ credit: { ...a.credit!, paymentDay: Number(e.target.value) } })} />
             </Field>
           </div>
@@ -237,38 +233,33 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
 
         {a.type === 'debt' && a.debt && (
           <div className="grid c2">
-            <Field label="Кто">
-              <input type="text" value={a.debt.counterparty} placeholder="Имя" onChange={(e) => patch({ debt: { ...a.debt!, counterparty: e.target.value } })} />
+            <Field label={т('Кто')}>
+              <input type="text" value={a.debt.counterparty} placeholder={т('Имя')} onChange={(e) => patch({ debt: { ...a.debt!, counterparty: e.target.value } })} />
             </Field>
-            <Field label="Направление">
+            <Field label={т('Направление')}>
               <select value={a.debt.direction} onChange={(e) => patch({ debt: { ...a.debt!, direction: e.target.value as 'i_owe' | 'owed_to_me' } })}>
-                <option value="i_owe">Я должен</option>
-                <option value="owed_to_me">Мне должны</option>
+                <option value="i_owe">{т('Я должен')}</option>
+                <option value="owed_to_me">{т('Мне должны')}</option>
               </select>
             </Field>
-            <Field label="Вернуть до">
+            <Field label={т('Вернуть до')}>
               <DateField allowEmpty value={a.debt.dueDate ?? ''} onChange={(v) => patch({ debt: { ...a.debt!, dueDate: v } })} />
             </Field>
           </div>
         )}
 
-        <div className="card-title">Цвет</div>
+        <div className="card-title">{т('Цвет')}</div>
         <ColorPicker value={a.color} onChange={(color) => patch({ color })} />
 
         <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', gap: 10 }}>
           <Toggle
             checked={!!a.project}
             onChange={(v) => patch({ project: v || undefined })}
-            label="Счёт под проект — деньги не мои"
+            label={т('Счёт под проект — деньги не мои')}
           />
           <div className="faint small" style={{ marginTop: -4 }}>
-            Аванс за работу, сбор на издание, бюджет кампании. Приходы и траты по такому счёту
-            не считаются вашим доходом и расходом, остаток не входит в чистый капитал, прогноз и
-            награды. Счёт остаётся видимым, и по нему считается своя сводка на главной. Перевод
-            между проектным и личным счётом сохраняется — но доходом он не становится: свой
-            гонорар заведите отдельным приходом.
-          </div>
-          <Toggle checked={!!a.archived} onChange={(v) => patch({ archived: v })} label="В архиве (скрыт из списков)" />
+            {т('Аванс за работу, сбор на издание, бюджет кампании. Приходы и траты по такому счёту не считаются вашим доходом и расходом, остаток не входит в чистый капитал, прогноз и награды. Счёт остаётся видимым, и по нему считается своя сводка на главной. Перевод между проектным и личным счётом сохраняется — но доходом он не становится: свой гонорар заведите отдельным приходом.')}</div>
+          <Toggle checked={!!a.archived} onChange={(v) => patch({ archived: v })} label={т('В архиве (скрыт из списков)')} />
         </div>
       </Modal>
       {pick && (

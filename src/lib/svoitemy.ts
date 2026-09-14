@@ -13,6 +13,7 @@
  * Здесь только логика, без окна: её проверяет самопроверка.
  */
 import type { ThemeId } from './types'
+import { т } from '../i18n'
 
 export interface СвояТема {
   id: string
@@ -20,7 +21,9 @@ export interface СвояТема {
   base: ThemeId
   accent: string
   /** Каким режимом собрана — чтобы открыть конструктор там же. */
+  /** Каким режимом собрана — чтобы открыть конструктор там же. */
   режимъ: 'простой' | 'полный'
+  /** Только заданные переменные, без «--»: { bg: '#141416', radius: '12px' }. */
   /** Только заданные переменные, без «--»: { bg: '#141416', radius: '12px' }. */
   tokens: Record<string, string>
 }
@@ -35,43 +38,45 @@ export interface ТокенъТемы {
 }
 
 /** Всё, что можно менять в полном режиме, — по группам, как в окне. */
+/** Всё, что можно менять в полном режиме, — по группам, как в окне. */
 export const ТОКЕНЫ: ТокенъТемы[] = [
-  { id: 'bg', name: 'Фон окна', group: 'Поверхности', вид: 'color' },
-  { id: 'bg-alt', name: 'Боковые панели', group: 'Поверхности', вид: 'color' },
-  { id: 'panel', name: 'Карточки', group: 'Поверхности', вид: 'color' },
-  { id: 'panel-2', name: 'Вторые панели', group: 'Поверхности', вид: 'color' },
-  { id: 'hover', name: 'Наведение', group: 'Поверхности', вид: 'color' },
-  { id: 'border', name: 'Рамки', group: 'Поверхности', вид: 'color' },
-  { id: 'border-soft', name: 'Тонкие рамки', group: 'Поверхности', вид: 'color' },
+  { id: 'bg', name: т('Фон окна'), group: т('Поверхности'), вид: 'color' },
+  { id: 'bg-alt', name: т('Боковые панели'), group: т('Поверхности'), вид: 'color' },
+  { id: 'panel', name: т('Карточки'), group: т('Поверхности'), вид: 'color' },
+  { id: 'panel-2', name: т('Вторые панели'), group: т('Поверхности'), вид: 'color' },
+  { id: 'hover', name: т('Наведение'), group: т('Поверхности'), вид: 'color' },
+  { id: 'border', name: т('Рамки'), group: т('Поверхности'), вид: 'color' },
+  { id: 'border-soft', name: т('Тонкие рамки'), group: т('Поверхности'), вид: 'color' },
 
-  { id: 'text', name: 'Текст', group: 'Текст', вид: 'color' },
-  { id: 'text-strong', name: 'Заголовки и суммы', group: 'Текст', вид: 'color' },
-  { id: 'muted', name: 'Приглушённый', group: 'Текст', вид: 'color' },
-  { id: 'faint', name: 'Еле видный', group: 'Текст', вид: 'color' },
-  { id: 'accent-ink', name: 'Акцентные буквы', group: 'Текст', вид: 'color' },
-  { id: 'accent-text', name: 'Буквы на акценте', group: 'Текст', вид: 'color' },
+  { id: 'text', name: т('Текст'), group: т('Текст'), вид: 'color' },
+  { id: 'text-strong', name: т('Заголовки и суммы'), group: т('Текст'), вид: 'color' },
+  { id: 'muted', name: т('Приглушённый'), group: т('Текст'), вид: 'color' },
+  { id: 'faint', name: т('Еле видный'), group: т('Текст'), вид: 'color' },
+  { id: 'accent-ink', name: т('Акцентные буквы'), group: т('Текст'), вид: 'color' },
+  { id: 'accent-text', name: т('Буквы на акценте'), group: т('Текст'), вид: 'color' },
 
-  { id: 'good', name: 'Хорошо / приход', group: 'Сигналы', вид: 'color' },
-  { id: 'warn', name: 'Внимание', group: 'Сигналы', вид: 'color' },
-  { id: 'alert', name: 'Беда / расход', group: 'Сигналы', вид: 'color' },
-  { id: 'info', name: 'Сведения', group: 'Сигналы', вид: 'color' },
+  { id: 'good', name: т('Хорошо / приход'), group: т('Сигналы'), вид: 'color' },
+  { id: 'warn', name: т('Внимание'), group: т('Сигналы'), вид: 'color' },
+  { id: 'alert', name: т('Беда / расход'), group: т('Сигналы'), вид: 'color' },
+  { id: 'info', name: т('Сведения'), group: т('Сигналы'), вид: 'color' },
 
-  { id: 'radius', name: 'Скругление', group: 'Форма', вид: 'px' },
-  { id: 'radius-lg', name: 'Скругление карточек', group: 'Форма', вид: 'px' },
-  { id: 'card-pad-y', name: 'Поля карточки сверху', group: 'Форма', вид: 'px' },
-  { id: 'card-pad-x', name: 'Поля карточки сбоку', group: 'Форма', вид: 'px' },
-  { id: 'btn-weight', name: 'Жирность кнопок', group: 'Форма', вид: 'weight' },
-  { id: 'title-spacing', name: 'Разрядка заголовков', group: 'Форма', вид: 'em' },
+  { id: 'radius', name: т('Скругление'), group: т('Форма'), вид: 'px' },
+  { id: 'radius-lg', name: т('Скругление карточек'), group: т('Форма'), вид: 'px' },
+  { id: 'card-pad-y', name: т('Поля карточки сверху'), group: т('Форма'), вид: 'px' },
+  { id: 'card-pad-x', name: т('Поля карточки сбоку'), group: т('Форма'), вид: 'px' },
+  { id: 'btn-weight', name: т('Жирность кнопок'), group: т('Форма'), вид: 'weight' },
+  { id: 'title-spacing', name: т('Разрядка заголовков'), group: т('Форма'), вид: 'em' },
 
-  { id: 'shadow', name: 'Тень', group: 'Эффекты', вид: 'text' },
-  { id: 'bg-image', name: 'Подсветка фона', group: 'Эффекты', вид: 'text' },
-  { id: 'panel-blur', name: 'Размытие панелей', group: 'Эффекты', вид: 'text' },
+  { id: 'shadow', name: т('Тень'), group: т('Эффекты'), вид: 'text' },
+  { id: 'bg-image', name: т('Подсветка фона'), group: т('Эффекты'), вид: 'text' },
+  { id: 'panel-blur', name: т('Размытие панелей'), group: т('Эффекты'), вид: 'text' },
 ]
 
-export const ИДЫ_ТОКЕНОВЪ = ТОКЕНЫ.map((т) => т.id)
+export const ИДЫ_ТОКЕНОВЪ = ТОКЕНЫ.map((тм) => тм.id)
 
 // --------------------------------------------------------------- цвета
 
+/** #rgb / #rrggbb → [r, g, b]; всё прочее — null. */
 /** #rgb / #rrggbb → [r, g, b]; всё прочее — null. */
 export function разобратьHex(ц: string): [number, number, number] | null {
   const м = ц.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i)
@@ -84,6 +89,7 @@ export const вHex = ([r, g, b]: number[]): string =>
   '#' + [r, g, b].map((x) => Math.max(0, Math.min(255, Math.round(x))).toString(16).padStart(2, '0')).join('')
 
 /** Смесь двух цветов: t = 0 — первый, 1 — второй. */
+/** Смесь двух цветов: t = 0 — первый, 1 — второй. */
 export function смѣсь(a: string, b: string, t: number): string {
   const x = разобратьHex(a)
   const y = разобратьHex(b)
@@ -91,6 +97,7 @@ export function смѣсь(a: string, b: string, t: number): string {
   return вHex(x.map((v, i) => v + (y[i] - v) * t))
 }
 
+/** Относительная яркость по WCAG. */
 /** Относительная яркость по WCAG. */
 export function яркость(ц: string): number {
   const rgb = разобратьHex(ц)
@@ -102,6 +109,7 @@ export function яркость(ц: string): number {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b
 }
 
+/** Контраст двух цветов по WCAG: 1 — одинаковые, 21 — чёрное на белом. */
 /** Контраст двух цветов по WCAG: 1 — одинаковые, 21 — чёрное на белом. */
 export function контрастъ(a: string, b: string): number {
   const x = яркость(a)
@@ -121,6 +129,18 @@ export interface ПростыяНастройки {
   radius: number
 }
 
+/**
+ * Простой режим → переменные темы.
+ *
+ * Промежуточные цвета — это смеси трёх заданных: рамка на 14% ближе к тексту,
+ * чем панель, приглушённый текст — на 42% ближе к фону и так далее. Доли
+ * подобраны по встроенным темам, чтобы своя тема не выглядела самодельной.
+ *
+ * Акцентные буквы выбираются по контрасту: если акцент на панели читается
+ * хуже 3:1 (жёлтый по белому — 1.4), буквами идёт текст заголовков, а акцент
+ * остаётся заливкой. Так программа сама не даст собрать тему, где активный
+ * пункт меню не прочесть.
+ */
 /**
  * Простой режим → переменные темы.
  *
@@ -166,6 +186,7 @@ export function вывестиТокены(п: ПростыяНастройки)
   }
 }
 
+/** Обратно: из полного набора — пять полей простого режима. */
 /** Обратно: из полного набора — пять полей простого режима. */
 export function простыяИзъТокеновъ(tokens: Record<string, string>, accent: string): ПростыяНастройки {
   return {
@@ -216,17 +237,23 @@ export function значеніеДопустимо(вид: ВидъТокена,
 }
 
 /** Только допустимые и известные переменные — остальное молча отбрасывается. */
+/** Только допустимые и известные переменные — остальное молча отбрасывается. */
 export function очиститьТокены(tokens: Record<string, unknown>): Record<string, string> {
   const итогъ: Record<string, string> = {}
-  for (const т of ТОКЕНЫ) {
-    const v = tokens[т.id]
-    if (typeof v === 'string' && значеніеДопустимо(т.вид, v)) итогъ[т.id] = v.trim()
+  for (const тм of ТОКЕНЫ) {
+    const v = tokens[тм.id]
+    if (typeof v === 'string' && значеніеДопустимо(тм.вид, v)) итогъ[тм.id] = v.trim()
   }
   return итогъ
 }
 
 // ---------------------------------------------------------- применение
 
+/**
+ * Кладёт переменные своей темы на элемент. Сначала снимает все прежние —
+ * иначе при переключении с одной своей темы на другую на экране остались
+ * бы переменные первой, которых во второй нет.
+ */
 /**
  * Кладёт переменные своей темы на элемент. Сначала снимает все прежние —
  * иначе при переключении с одной своей темы на другую на экране остались
@@ -244,14 +271,19 @@ export function применитьТокены(el: HTMLElement, tokens: Record<s
 
 export const РАСШИРЕНІЕ_ТЕМЫ = 'kashel-tema.json'
 
-export function файлТемы(т: СвояТема): string {
+export function файлТемы(тм: СвояТема): string {
   return JSON.stringify(
-    { kashel: 'tema', version: 1, name: т.name, base: т.base, accent: т.accent, режимъ: т.режимъ, tokens: т.tokens },
+    { kashel: 'tema', version: 1, name: тм.name, base: тм.base, accent: тм.accent, режимъ: тм.режимъ, tokens: тм.tokens },
     null,
     2,
   )
 }
 
+/**
+ * Разбор файла темы, пришедшего снаружи.
+ * Всё непонятное отбрасывается, а не падает: одна кривая строка не должна
+ * мешать взять остальную тему.
+ */
 /**
  * Разбор файла темы, пришедшего снаружи.
  * Всё непонятное отбрасывается, а не падает: одна кривая строка не должна
@@ -266,12 +298,12 @@ export function разобратьФайлТемы(
   try {
     r = JSON.parse(текстъ.replace(/^﻿/, ''))
   } catch {
-    return { ok: false, error: 'Файл не читается как тема — это не JSON.' }
+    return { ok: false, error: т('Файл не читается как тема — это не JSON.') }
   }
-  if (!r || r.kashel !== 'tema') return { ok: false, error: 'Это не файл темы Кошеля.' }
+  if (!r || r.kashel !== 'tema') return { ok: false, error: т('Это не файл темы Кошеля.') }
   const base = typeof r.base === 'string' && known(r.base) ? (r.base as ThemeId) : 'obsidian'
   const accent = typeof r.accent === 'string' && значеніеДопустимо('color', r.accent) ? r.accent : '#4cc46a'
-  const name = typeof r.name === 'string' && r.name.trim() ? r.name.trim().slice(0, 40) : 'Своя тема'
+  const name = typeof r.name === 'string' && r.name.trim() ? r.name.trim().slice(0, 40) : т('Своя тема')
   const tokens = очиститьТокены((r.tokens as Record<string, unknown>) ?? {})
   return {
     ok: true,

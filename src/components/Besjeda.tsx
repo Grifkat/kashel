@@ -4,6 +4,7 @@ import { Icon } from '../lib/icons'
 import { НАСТАВЛЕНІЕ, полнаяВыгрузка, сводкаДляМодели, type Сводка } from '../engine/svodka'
 import { listNotes, readNote } from '../state/vault'
 import { модели, ollamaЖива, спросить, type Модель, type Реплика } from '../state/ollama'
+import { т, тр } from '../i18n'
 
 /*
  * Разговор с нейросетью, которая работает на этой же машине.
@@ -49,7 +50,7 @@ import { модели, ollamaЖива, спросить, type Модель, type
  */
 const ПОРОГЪ = 20_000
 
-const ГДѢ_МОДЕЛЬ = 'kashel:нейросеть:модель'
+const ГДѢ_МОДЕЛЬ = т('kashel:нейросеть:модель')
 
 type Состоянье =
   | { в: 'ищемъ' }
@@ -61,10 +62,11 @@ interface Строка {
   кто: 'человѣкъ' | 'машина'
   текстъ: string
   /** К этому вопросу прикладывались данные. */
+  /** К этому вопросу прикладывались данные. */
   сданныя?: 'итоги' | 'всё'
 }
 
-const гигабайты = (b: number) => (b / 1024 / 1024 / 1024).toFixed(1) + ' ГБ'
+const гигабайты = (b: number) => (b / 1024 / 1024 / 1024).toFixed(1) + т(' ГБ')
 
 export function Besjeda() {
   const { data } = useStore()
@@ -143,7 +145,7 @@ export function Besjeda() {
     const текстъ = вопросъ.trim()
     if (!текстъ || идётъ) return
     if (сДанными && !выгрузка) {
-      setБѣда('Данные ещё собираются — подождите секунду.')
+      setБѣда(т('Данные ещё собираются — подождите секунду.'))
       return
     }
     setБѣда('')
@@ -157,7 +159,7 @@ export function Besjeda() {
      * начинают опираться на цифры, которых при них не было.
      */
     if (приложили) {
-      исторія.push({ role: 'system', content: 'Данные пользователя:\n\n' + выгрузка!.текстъ })
+      исторія.push({ role: 'system', content: т('Данные пользователя:\n\n') + выгрузка!.текстъ })
     }
     for (const с of строки) {
       исторія.push({ role: с.кто === 'человѣкъ' ? 'user' : 'assistant', content: с.текстъ })
@@ -190,8 +192,8 @@ export function Besjeda() {
   if (сост.в === 'ищемъ') {
     return (
       <div className="card besjeda">
-        <div className="card-title"><Icon name="bulb" size={14} /> Разбор нейросетью</div>
-        <div className="faint small">Смотрю, запущена ли Ollama…</div>
+        <div className="card-title"><Icon name="bulb" size={14} /> {т(' Разбор нейросетью')}</div>
+        <div className="faint small">{т('Смотрю, запущена ли Ollama…')}</div>
       </div>
     )
   }
@@ -199,24 +201,19 @@ export function Besjeda() {
   if (сост.в === 'нѣтъOllama' || сост.в === 'нѣтъМоделей') {
     return (
       <div className="card besjeda">
-        <div className="card-title"><Icon name="bulb" size={14} /> Разбор нейросетью</div>
+        <div className="card-title"><Icon name="bulb" size={14} /> {т(' Разбор нейросетью')}</div>
         <div className="faint small" style={{ lineHeight: 1.65 }}>
           {сост.в === 'нѣтъOllama' ? (
             <>
-              Ollama не отвечает. Она держит модель на вашей машине и должна быть запущена —
-              найдите её значок в трее или запустите из меню «Пуск». Если она не установлена,
-              возьмите с <code>ollama.com</code>.
+              {т('Ollama не отвечает. Она держит модель на вашей машине и должна быть запущена — найдите её значок в трее или запустите из меню «Пуск». Если она не установлена, возьмите с ')}<code>ollama.com</code>.
             </>
           ) : (
             <>
-              Ollama работает, но ни одной модели не скачано. Выполните в терминале{' '}
-              <code>ollama pull qwen3.5:9b</code> — около шести гигабайт.
-            </>
+              {тр('Ollama работает, но ни одной модели не скачано. Выполните в терминале{0}', ' ')}<code>ollama pull qwen3.5:9b</code> {т(' — около шести гигабайт.')}</>
           )}
         </div>
         <button className="btn sm" style={{ marginTop: 12 }} onClick={() => void оглядѣться()}>
-          Проверить снова
-        </button>
+          {т('Проверить снова')}</button>
       </div>
     )
   }
@@ -225,8 +222,7 @@ export function Besjeda() {
     <div className="card besjeda">
       <div className="row" style={{ marginBottom: 10 }}>
         <div className="card-title" style={{ margin: 0 }}>
-          <Icon name="bulb" size={14} /> Разбор нейросетью
-        </div>
+          <Icon name="bulb" size={14} /> {т(' Разбор нейросетью')}</div>
         <span className="spacer" />
         <select value={модель} onChange={(e) => выбрать(e.target.value)} disabled={идётъ}>
           {списокъ.map((м) => (
@@ -236,9 +232,7 @@ export function Besjeda() {
       </div>
 
       <div className="faint small" style={{ marginBottom: 12, lineHeight: 1.6 }}>
-        Модель работает на вашем компьютере, в сеть ничего не уходит. Ваши записи она
-        видит только когда вы приложите их галочкой ниже — сама по себе она их не берёт.
-      </div>
+        {т('Модель работает на вашем компьютере, в сеть ничего не уходит. Ваши записи она видит только когда вы приложите их галочкой ниже — сама по себе она их не берёт.')}</div>
 
       {строки.length > 0 && (
         <div className="besjeda-лента">
@@ -247,7 +241,7 @@ export function Besjeda() {
               {с.кто === 'человѣкъ' && с.сданныя && (
                 <div className="besjeda-помѣта">
                   <Icon name="check" size={11} />{' '}
-                  {с.сданныя === 'всё' ? 'со всеми вашими записями' : 'с вашими итогами'}
+                  {с.сданныя === 'всё' ? т('со всеми вашими записями') : т('с вашими итогами')}
                 </div>
               )}
               <div className="besjeda-текстъ">{с.текстъ || '…'}</div>
@@ -263,7 +257,7 @@ export function Besjeda() {
         <textarea
           rows={2}
           value={вопросъ}
-          placeholder="Спросите о своих деньгах: куда уходит больше всего, что урезать, хватит ли на цель"
+          placeholder={т('Спросите о своих деньгах: куда уходит больше всего, что урезать, хватит ли на цель')}
           onChange={(e) => setВопросъ(e.target.value)}
           onKeyDown={(e) => {
             if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); void спроситьМодель() }
@@ -272,44 +266,41 @@ export function Besjeda() {
         <div className="row wrap" style={{ gap: 10, marginTop: 8, alignItems: 'center' }}>
           <label className="besjeda-галка">
             <input type="checkbox" checked={сДанными} onChange={(e) => setСДанными(e.target.checked)} />
-            <span>Приложить мои данные</span>
+            <span>{т('Приложить мои данные')}</span>
           </label>
           {сДанными && (
             <>
               <span
                 className={'chip' + (видъДанныхъ === 'итоги' ? ' on' : '')}
                 onClick={() => setВидъДанныхъ('итоги')}
-                title="Остатки и суммы по статьям. Быстро и точно на любом объёме"
+                title={т('Остатки и суммы по статьям. Быстро и точно на любом объёме')}
               >
-                итоги
-              </span>
+                {т('итоги')}</span>
               <span
                 className={'chip' + (видъДанныхъ === 'всё' ? ' on' : '')}
                 onClick={() => setВидъДанныхъ('всё')}
-                title="Каждая операция с комментарием, заметки, задачи. Для вопросов о частностях"
+                title={т('Каждая операция с комментарием, заметки, задачи. Для вопросов о частностях')}
               >
-                всё целиком
-              </span>
+                {т('всё целиком')}</span>
               {выгрузка && (
-                <span className="faint small">{(выгрузка.знаковъ / 1000).toFixed(1)} тыс. знаков</span>
+                <span className="faint small">{тр('{0} тыс. знаков', (выгрузка.знаковъ / 1000).toFixed(1))}</span>
               )}
             </>
           )}
-          {считаемъ && <span className="faint small">собираю…</span>}
+          {считаемъ && <span className="faint small">{т('собираю…')}</span>}
           <button className="btn sm ghost" onClick={() => setВидноСводку((v) => !v)}>
-            {видноСводку ? 'Скрыть' : 'Посмотреть, что уйдёт'}
+            {видноСводку ? т('Скрыть') : т('Посмотреть, что уйдёт')}
           </button>
           <span className="spacer" />
           {идётъ ? (
-            <button className="btn sm" onClick={() => отмѣна.current?.abort()}>Остановить</button>
+            <button className="btn sm" onClick={() => отмѣна.current?.abort()}>{т('Остановить')}</button>
           ) : (
             <button
               className="btn sm primary"
               onClick={() => void спроситьМодель()}
               disabled={!вопросъ.trim() || (сДанными && !выгрузка)}
             >
-              Спросить
-            </button>
+              {т('Спросить')}</button>
           )}
         </div>
 
@@ -320,21 +311,15 @@ export function Besjeda() {
           */}
         {сДанными && видъДанныхъ === 'всё' && !!выгрузка && выгрузка.знаковъ > ПОРОГЪ && (
           <div className="besjeda-остереженіе">
-            Записей набралось много, и на таком объёме небольшая модель считает
-            суммы плохо: проверено — три главные статьи расходов она назвала
-            неверно, хотя верные числа лежали у неё же в тексте. Для вопросов
-            «сколько» и «что крупнее» переключитесь на итоги. Всё целиком
-            надёжно там, где спрашивают о частностях: об отдельной покупке,
-            комментарии, заметке.
-          </div>
+            {т('Записей набралось много, и на таком объёме небольшая модель считает суммы плохо: проверено — три главные статьи расходов она назвала неверно, хотя верные числа лежали у неё же в тексте. Для вопросов «сколько» и «что крупнее» переключитесь на итоги. Всё целиком надёжно там, где спрашивают о частностях: об отдельной покупке, комментарии, заметке.')}</div>
         )}
 
         {видноСводку && (
           <>
             <div className="faint small" style={{ marginTop: 10 }}>
               {выгрузка
-                ? `Ровно это уйдёт к модели, если галочка стоит: ${выгрузка.строкъ} строк, ${выгрузка.знаковъ} знаков.`
-                : 'Собираю выгрузку…'}
+                ? т('Ровно это уйдёт к модели, если галочка стоит: {0} строк, {1} знаков.', выгрузка.строкъ, выгрузка.знаковъ)
+                : т('Собираю выгрузку…')}
             </div>
             {выгрузка && <pre className="besjeda-сводка">{выгрузка.текстъ}</pre>}
           </>

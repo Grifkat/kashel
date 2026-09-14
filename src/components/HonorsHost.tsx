@@ -4,6 +4,7 @@ import { useToast } from './ui'
 import { playTone } from '../lib/sound'
 import { freshAwards } from '../engine/honors'
 import { today } from '../lib/date'
+import { т } from '../i18n'
 
 /*
  * Пожалованіе наградъ.
@@ -43,7 +44,7 @@ export function HonorsHost() {
       return
     }
     playTone('bell')
-    for (const a of свѣжія.slice(0, 3)) toast(`Пожаловано: ${a.title} — ${a.about}`)
+    for (const a of свѣжія.slice(0, 3)) toast(т('Пожаловано: {0} — {1}', a.title, a.about))
   }, [data, ready, patchHonors, toast])
 
   return null

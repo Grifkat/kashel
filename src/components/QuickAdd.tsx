@@ -7,7 +7,9 @@ import { addMonths, relDate, today } from '../lib/date'
 import { groupDigits, money } from '../lib/format'
 import { Icon } from '../lib/icons'
 import type { Transaction, TxKind } from '../lib/types'
+import { т, тр } from '../i18n'
 
+/** Однострочный ввод: «кофе 250 кафе вчера #работа @наличные». */
 /** Однострочный ввод: «кофе 250 кафе вчера #работа @наличные». */
 export function QuickAdd({
   initial,
@@ -17,6 +19,7 @@ export function QuickAdd({
 }: {
   initial: string
   kind?: TxKind
+  /** Дата открытого периода. Пусто — значит сегодня. */
   /** Дата открытого периода. Пусто — значит сегодня. */
   date?: string
   onClose: () => void
@@ -58,6 +61,11 @@ export function QuickAdd({
    * последние три месяца. Частота считается по операциям, а не по алфавиту —
    * иначе список не экономит ни одного нажатия.
    */
+  /**
+   * Что показывать плитками: сначала закреплённые, потом просто частые за
+   * последние три месяца. Частота считается по операциям, а не по алфавиту —
+   * иначе список не экономит ни одного нажатия.
+   */
   const tiles = useMemo(() => {
     if (kind === 'transfer') return []
     const wanted = kind === 'income' ? 'income' : 'expense'
@@ -83,11 +91,11 @@ export function QuickAdd({
 
   const submit = () => {
     if (!defaultAccount) {
-      toast('Сначала создайте счёт — в разделе «Счета»')
+      toast(т('Сначала создайте счёт — в разделе «Счета»'))
       return
     }
     if (!ok) {
-      toast('Не хватает суммы — напишите число в строке')
+      toast(т('Не хватает суммы — напишите число в строке'))
       return
     }
     addTransaction({
@@ -99,20 +107,20 @@ export function QuickAdd({
       tags: draft.tags,
       note: draft.note || undefined,
     } as Omit<Transaction, 'id' | 'createdAt'>)
-    toast(`${kind === 'income' ? 'Доход' : kind === 'transfer' ? 'Перевод' : 'Расход'} ${money(draft.amount)} записан`)
+    toast(`${kind === 'income' ? т('Доход') : kind === 'transfer' ? т('Перевод') : т('Расход')} ${money(draft.amount)} записан`)
     onClose()
   }
 
   const examples = [
-    'кофе 250 кафе',
-    'продукты 2340 вчера',
-    '+45000 навар проект #работа',
-    'такси 480 @наличные 12.08',
+    т('кофе 250 кафе'),
+    т('продукты 2340 вчера'),
+    т('+45000 навар проект #работа'),
+    т('такси 480 @наличные 12.08'),
   ]
 
   return (
     <Modal
-      title="Быстрый ввод"
+      title={т('Быстрый ввод')}
       icon="plus"
       onClose={onClose}
       footer={
@@ -132,18 +140,16 @@ export function QuickAdd({
               })
             }}
           >
-            Подробно…
-          </button>
+            {т('Подробно…')}</button>
           <button className="btn primary" onClick={submit} disabled={!ok}>
-            Записать <kbd style={{ marginLeft: 4 }}>Enter</kbd>
+            {т('Записать ')}<kbd style={{ marginLeft: 4 }}>Enter</kbd>
           </button>
         </>
       }
     >
       {!defaultAccount && (
         <div className="advice-card warn" style={{ marginBottom: 12, padding: '10px 12px' }}>
-          Пока нет ни одного счёта, записывать операции некуда.{' '}
-          <button
+          {тр('Пока нет ни одного счёта, записывать операции некуда.{0}', ' ')}<button
             className="btn sm"
             style={{ marginLeft: 6 }}
             onClick={() => {
@@ -151,14 +157,13 @@ export function QuickAdd({
               app.openTab('accounts')
             }}
           >
-            Создать счёт
-          </button>
+            {т('Создать счёт')}</button>
         </div>
       )}
       <div className="seg" style={{ marginBottom: 12 }}>
         {(['expense', 'income', 'transfer'] as TxKind[]).map((k) => (
           <button key={k} className={kind === k ? 'on' : ''} onClick={() => setPicked(k)}>
-            {k === 'expense' ? 'Расход' : k === 'income' ? 'Доход' : 'Перевод'}
+            {k === 'expense' ? т('Расход') : k === 'income' ? т('Доход') : т('Перевод')}
           </button>
         ))}
       </div>
@@ -166,7 +171,7 @@ export function QuickAdd({
         type="text"
         autoFocus
         value={text}
-        placeholder="кофе 250 кафе вчера #работа"
+        placeholder={т('кофе 250 кафе вчера #работа')}
         format={groupDigits}
         onChangeText={setText}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
@@ -187,7 +192,7 @@ export function QuickAdd({
               {allCats && (
                 <button
                   className={'qa-pin' + (isPinned(c.id) ? ' on' : '')}
-                  title={isPinned(c.id) ? 'Убрать из частых' : 'Закрепить в частых'}
+                  title={isPinned(c.id) ? т('Убрать из частых') : т('Закрепить в частых')}
                   onClick={() => togglePin(c.id)}
                 >
                   <Icon name={isPinned(c.id) ? 'check' : 'plus'} size={11} />
@@ -197,11 +202,11 @@ export function QuickAdd({
           ))}
           {kind !== 'transfer' && (
             <div className="qa-tile">
-              <button className="qa-tile-btn" onClick={() => setAllCats((v) => !v)} title={allCats ? 'Свернуть' : 'Показать все и закрепить нужные'}>
+              <button className="qa-tile-btn" onClick={() => setAllCats((v) => !v)} title={allCats ? т('Свернуть') : т('Показать все и закрепить нужные')}>
                 <span className="avatar" style={{ background: 'var(--panel-2)', color: 'var(--muted)' }}>
                   <Icon name={allCats ? 'up' : 'dots'} size={15} />
                 </span>
-                <span className="qa-tile-name">{allCats ? 'Свернуть' : 'Ещё'}</span>
+                <span className="qa-tile-name">{allCats ? т('Свернуть') : т('Ещё')}</span>
               </button>
             </div>
           )}
@@ -209,8 +214,7 @@ export function QuickAdd({
       )}
       {allCats && (
         <div className="faint small" style={{ marginTop: -4, marginBottom: 10 }}>
-          Кружок с плюсом закрепляет категорию в частых, с галочкой — убирает.
-        </div>
+          {т('Кружок с плюсом закрепляет категорию в частых, с галочкой — убирает.')}</div>
       )}
       <div className="row" style={{ marginTop: 10, gap: 8, minHeight: 22 }}>
         <Icon name={ok ? 'check' : 'warn'} size={15} style={{ color: ok ? 'var(--good)' : 'var(--faint)' }} />
@@ -224,20 +228,18 @@ export function QuickAdd({
                 data.accounts,
               )
             : date
-              ? 'Запись уйдёт на ' + relDate(date) + ' — пишите как удобно'
-              : 'Пишите как удобно — сумма, категория, дата и теги разберутся сами'}
+              ? т('Запись уйдёт на ') + relDate(date) + т(' — пишите как удобно')
+              : т('Пишите как удобно — сумма, категория, дата и теги разберутся сами')}
         </span>
       </div>
-      <div className="card-title" style={{ marginTop: 20 }}>Примеры</div>
+      <div className="card-title" style={{ marginTop: 20 }}>{т('Примеры')}</div>
       <div className="row wrap" style={{ gap: 6 }}>
         {examples.map((e) => (
           <span key={e} className="chip" onClick={() => setText(groupDigits(e))}>{e}</span>
         ))}
       </div>
       <div className="faint small" style={{ marginTop: 14, lineHeight: 1.6 }}>
-        <b>#тег</b> — метка · <b>@счёт</b> — откуда деньги · <b>вчера / 12.08</b> — дата ·
-        <b> + в начале</b> или слова «зарплата», «навар» — доход
-      </div>
+        <b>{т('#тег')}</b> {т(' — метка · ')}<b>{т('@счёт')}</b> {т(' — откуда деньги · ')}<b>{т('вчера / 12.08')}</b> {т(' — дата ·')}<b> {т(' + в начале')}</b> {т(' или слова «зарплата», «навар» — доход')}</div>
     </Modal>
   )
 }

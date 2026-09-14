@@ -8,7 +8,12 @@ import { этоСвойЗначокъ, useСвойЗначокъ } from '../../l
 import { QueryBlock } from '../QueryBlock'
 import { Spark } from '../charts'
 import type { CanvasNode, CardStyle, Money, TextFit, VaultData } from '../../lib/types'
+import { т } from '../../i18n'
 
+/**
+ * Значок в шапке карточки: из каталога, эмодзи или свой загруженный.
+ * Отдельным компонентом, потому что свой значок читается из хранилища хуком.
+ */
 /**
  * Значок в шапке карточки: из каталога, эмодзи или свой загруженный.
  * Отдельным компонентом, потому что свой значок читается из хранилища хуком.
@@ -25,9 +30,18 @@ function ЗначокъУзла({ icon }: { icon?: string }) {
 }
 
 /** Ширина текстовой карточки по умолчанию — точка отсчёта для режима «тянуть». */
+/** Ширина текстовой карточки по умолчанию — точка отсчёта для режима «тянуть». */
 const BASE_WIDTH = 280
 export const DEFAULT_FONT_SIZE = 13
 
+/**
+ * Текст, подстраивающийся под карточку.
+ * scale  — кегль пропорционален ширине карточки;
+ * shrink — уменьшается, пока содержимое не поместится по высоте;
+ * grow   — кегль постоянный, а нужную высоту сообщаем наружу.
+ * Замеры идут через DOM в layout-эффекте: держать подобранный размер в
+ * состоянии React означало бы бесконечный цикл перерисовок.
+ */
 /**
  * Текст, подстраивающийся под карточку.
  * scale  — кегль пропорционален ширине карточки;
@@ -124,6 +138,7 @@ function useПодгонка(
 }
 
 /** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */
+/** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */
 function ПолеПравки({
   node,
   fit,
@@ -158,17 +173,22 @@ function ПолеПравки({
         if ((e.relatedTarget as Element | null)?.closest?.('.text-toolbar')) return
         onEndEdit()
       }}
-      placeholder={'Текст, **жирный**, [[ссылка]], #тег\n\n```kashel\ntype: sum\nkind: expense\nperiod: 1m\n```'}
+      placeholder={т('Текст, **жирный**, [[ссылка]], #тег\n\n```kashel\ntype: sum\nkind: expense\nperiod: 1m\n```')}
     />
   )
 }
 
 export const CARD_STYLES: { id: CardStyle; name: string; about: string }[] = [
-  { id: 'rich', name: 'Полные', about: 'Цветная шапка с иконкой, крупная сумма, полоса выполнения' },
-  { id: 'minimal', name: 'Как в Obsidian', about: 'Скруглённый прямоугольник, тонкая цветная рамка' },
-  { id: 'flat', name: 'Плашки', about: 'Заливка цветом, крупная типографика, без рамки' },
+  { id: 'rich', name: т('Полные'), about: т('Цветная шапка с иконкой, крупная сумма, полоса выполнения') },
+  { id: 'minimal', name: т('Как в Obsidian'), about: т('Скруглённый прямоугольник, тонкая цветная рамка') },
+  { id: 'flat', name: т('Плашки'), about: т('Заливка цветом, крупная типографика, без рамки') },
 ]
 
+/**
+ * Всё, что нужно карточкам, считается один раз на доску.
+ * Иначе каждая карточка пробегала бы всю историю операций заново — и делала бы
+ * это на каждом кадре перетаскивания.
+ */
 /**
  * Всё, что нужно карточкам, считается один раз на доску.
  * Иначе каждая карточка пробегала бы всю историю операций заново — и делала бы
@@ -216,7 +236,7 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
   switch (node.type) {
     case 'account': {
       const a = data.accounts.find((x) => x.id === node.ref)
-      if (!a) return { title: 'Счёт удалён', missing: true }
+      if (!a) return { title: т('Счёт удалён'), missing: true }
       const value = a.type === 'credit' ? -(ctx.creditLeft.get(a.id) ?? 0) : ctx.balance.get(a.id) ?? 0
       return {
         title: a.name,
@@ -233,7 +253,7 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
     }
     case 'category': {
       const c = data.categories.find((x) => x.id === node.ref)
-      if (!c) return { title: 'Категория удалена', missing: true }
+      if (!c) return { title: т('Категория удалена'), missing: true }
       const amount = (c.kind === 'income' ? ctx.income : ctx.expense).get(c.id) ?? 0
       return {
         title: c.name,
@@ -245,7 +265,7 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
     }
     case 'goal': {
       const g = data.goals.find((x) => x.id === node.ref)
-      if (!g) return { title: 'Цель удалена', missing: true }
+      if (!g) return { title: т('Цель удалена'), missing: true }
       const saved = g.accountId ? ctx.balance.get(g.accountId) ?? 0 : g.saved
       return {
         title: g.name,
@@ -257,21 +277,21 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
     }
     case 'scenario': {
       const s = data.scenarios.find((x) => x.id === node.ref)
-      if (!s) return { title: 'Сценарий удалён', missing: true }
+      if (!s) return { title: т('Сценарий удалён'), missing: true }
       const parts = [
-        s.incomeFactor !== 1 ? `доход ×${s.incomeFactor.toFixed(2)}` : '',
-        s.adjusts.length ? `правок: ${s.adjusts.length}` : '',
-        s.events.length ? `событий: ${s.events.length}` : '',
+        s.incomeFactor !== 1 ? т('доход ×{0}', s.incomeFactor.toFixed(2)) : '',
+        s.adjusts.length ? т('правок: {0}', s.adjusts.length) : '',
+        s.events.length ? т('событий: {0}', s.events.length) : '',
       ].filter(Boolean)
-      return { title: s.name, icon: '📊', sub: parts.join(' · ') || 'без правок' }
+      return { title: s.name, icon: '📊', sub: parts.join(' · ') || т('без правок') }
     }
     case 'note': {
       const body = node.file ? ctx.noteBody.get(node.file) : undefined
       return {
-        title: node.file || 'Заметка',
+        title: node.file || т('Заметка'),
         icon: '📝',
         body: body ?? '',
-        sub: body == null ? 'заметка не найдена' : undefined,
+        sub: body == null ? т('заметка не найдена') : undefined,
       }
     }
     default:
@@ -279,6 +299,7 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
   }
 }
 
+/** Содержимое карточки. Оформление задаёт style, данные — nodeData. */
 /** Содержимое карточки. Оформление задаёт style, данные — nodeData. */
 export function NodeBody({
   node,
@@ -346,7 +367,7 @@ export function NodeBody({
       )
     }
     if (!node.text?.trim()) {
-      return <div className="cnode-scroll faint small">Двойной клик — редактировать</div>
+      return <div className="cnode-scroll faint small">{т('Двойной клик — редактировать')}</div>
     }
     return (
       <FittedText node={node} fit={fit} fontSize={fontSize} onGrow={onGrow}>
@@ -355,7 +376,7 @@ export function NodeBody({
     )
   }
 
-  if (!info) return <div className="faint small">Пустой узел</div>
+  if (!info) return <div className="faint small">{т('Пустой узел')}</div>
   if (info.missing) return <div className="cnode-scroll faint small">{info.title}</div>
 
   // Заметка показывает своё содержимое, как в Obsidian.
@@ -367,7 +388,7 @@ export function NodeBody({
           <span className="cnode-name">{info.title}</span>
         </div>
         <div className="cnode-scroll cnode-md">
-          {info.body?.trim() ? markdown(info.body) : <span className="faint small">{info.sub ?? 'пустая заметка'}</span>}
+          {info.body?.trim() ? markdown(info.body) : <span className="faint small">{info.sub ?? т('пустая заметка')}</span>}
         </div>
       </>
     )

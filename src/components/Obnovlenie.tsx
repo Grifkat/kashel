@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react'
 import { Icon } from '../lib/icons'
 import { bridge, type Находка } from '../state/vault'
 import { useToast } from './ui'
+import { т, тр } from '../i18n'
 
 /*
  * Обновление программы.
@@ -24,7 +25,7 @@ type Состояніе =
   | { вид: 'готово'; текстъ: string }
   | { вид: 'бѣда'; текстъ: string }
 
-const мегабайты = (b: number) => (b / 1024 / 1024).toFixed(1) + ' МБ'
+const мегабайты = (b: number) => (b / 1024 / 1024).toFixed(1) + т(' МБ')
 
 /*
  * Просьба из меню «Вид»: проверить обновление.
@@ -101,7 +102,7 @@ export function Obnovlenie() {
     try {
       const итогъ = await bridge.updateInstall!(н)
       setС({ вид: 'готово', текстъ: итогъ.действіе })
-      toast('Обновление скачано')
+      toast(т('Обновление скачано'))
     } catch (e) {
       setС({ вид: 'бѣда', текстъ: (e as Error).message })
     }
@@ -111,34 +112,32 @@ export function Obnovlenie() {
     <div className="card" style={{ marginTop: 16 }}>
       <div className="row" style={{ marginBottom: 10 }}>
         <div className="card-title" style={{ margin: 0 }}>
-          <Icon name="download" size={14} /> Обновление
-        </div>
+          <Icon name="download" size={14} /> {т(' Обновление')}</div>
         <span className="spacer" />
-        {версія && <span className="faint small">у вас версия {версія}</span>}
+        {версія && <span className="faint small">{тр('у вас версия {0}', версія)}</span>}
         <button
           className="btn sm"
           style={{ marginLeft: 10 }}
           onClick={() => void проверить()}
           disabled={с.вид === 'смотрю' || с.вид === 'качаю'}
         >
-          {с.вид === 'смотрю' ? 'Смотрю…' : 'Проверить обновление'}
+          {с.вид === 'смотрю' ? т('Смотрю…') : т('Проверить обновление')}
         </button>
       </div>
 
       {с.вид === 'свѣжая' && (
-        <div className="small pos">У вас последняя версия.</div>
+        <div className="small pos">{т('У вас последняя версия.')}</div>
       )}
 
       {с.вид === 'есть' && (
         <div>
-          <div className="strong">Есть версия {с.н.version}{с.н.date && <span className="faint small"> · от {с.н.date}</span>}</div>
+          <div className="strong">{тр('Есть версия {0}{1}', с.н.version, с.н.date && <span className="faint small"> {тр(' · от {0}', с.н.date)}</span>)}</div>
           {с.н.notes && (
             <div className="faint small" style={{ marginTop: 6, lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>{с.н.notes}</div>
           )}
           <div className="row wrap" style={{ gap: 8, marginTop: 10, alignItems: 'center' }}>
             <button className="btn sm primary" onClick={() => void поставить(с.н)}>
-              <Icon name="download" size={13} /> Скачать и установить
-            </button>
+              <Icon name="download" size={13} /> {т(' Скачать и установить')}</button>
             <span className="faint small">{мегабайты(с.н.size)}</span>
           </div>
         </div>
@@ -146,30 +145,32 @@ export function Obnovlenie() {
 
       {с.вид === 'качаю' && (
         <div>
-          <div className="small">Скачиваю версию {с.н.version}…</div>
-          <div className="kredit-bar" title="Ход скачивания">
+          <div className="small">{тр('Скачиваю версию {0}…', с.н.version)}</div>
+          <div className="kredit-bar" title={т('Ход скачивания')}>
             <span style={{ width: `${Math.round((с.было / Math.max(1, с.всего)) * 100)}%` }} />
           </div>
-          <div className="faint small">{мегабайты(с.было)} из {мегабайты(с.всего)}</div>
+          <div className="faint small">{тр('{0} из {1}', мегабайты(с.было), мегабайты(с.всего))}</div>
         </div>
       )}
 
       {с.вид === 'готово' && <div className="small pos">{с.текстъ}</div>}
 
       {с.вид === 'бѣда' && (
-        <div className="small neg">Не вышло: {с.текстъ}</div>
+        <div className="small neg">{тр('Не вышло: {0}', с.текстъ)}</div>
       )}
 
       <div className="faint small" style={{ marginTop: 12, lineHeight: 1.6 }}>
-        Программа раз в сутки тихо смотрит, нет ли новой версии, и ничего не скачивает
-        без вашего согласия. Объявление об обновлении подписано ключом, который есть
-        только у автора программы: подменённый файл не установится, даже если взломают
-        сам сайт. Скачанное дополнительно сверяется по размеру и контрольной сумме.
-      </div>
+        {т('Программа раз в сутки тихо смотрит, нет ли новой версии, и ничего не скачивает без вашего согласия. Объявление об обновлении подписано ключом, который есть только у автора программы: подменённый файл не установится, даже если взломают сам сайт. Скачанное дополнительно сверяется по размеру и контрольной сумме.')}</div>
     </div>
   )
 }
 
+/**
+ * Есть ли непросмотренная находка — для пометки у «Настроек».
+ *
+ * Пометка, а не окно с вопросом: человѣкъ садился считать деньги, а не
+ * обновляться, и прерывать его ради этого незачем. Увидит, когда захочет.
+ */
 /**
  * Есть ли непросмотренная находка — для пометки у «Настроек».
  *

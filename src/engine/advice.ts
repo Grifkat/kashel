@@ -5,6 +5,7 @@ import { money, moneyShort, months as monthsWord, pct, plural, times } from '../
 import { balances, categoryMonthly, categoryTotals, creditRemaining, isAsset, mean, median, stdev, trendSlope } from './stats'
 import { historyKeys, occurrencesInMonth, type ForecastResult } from './forecast'
 import { личное } from './project'
+import { т } from '../i18n'
 
 export type AdviceKind = 'cut' | 'income' | 'budget' | 'risk' | 'debt' | 'goal'
 export type Severity = 'good' | 'info' | 'warn' | 'alert'
@@ -28,12 +29,12 @@ export interface Advice {
 }
 
 const KIND_TITLE: Record<AdviceKind, string> = {
-  cut: 'Сократить траты',
-  income: 'Увеличить доход',
-  budget: 'Распределение бюджета',
-  risk: 'Подушка и риски',
-  debt: 'Долги и кредиты',
-  goal: 'Цели',
+  cut: т('Сократить траты'),
+  income: т('Увеличить доход'),
+  budget: т('Распределение бюджета'),
+  risk: т('Подушка и риски'),
+  debt: т('Долги и кредиты'),
+  goal: т('Цели'),
 }
 
 export const adviceKindTitle = (k: AdviceKind) => KIND_TITLE[k]
@@ -113,6 +114,7 @@ export function buildAdvice(data: VaultData, fc: ForecastResult): Advice[] {
 // ---------------------------------------------------------------- правила
 
 /** Регулярные списания: сколько съедают и что из этого забыто. */
+/** Регулярные списания: сколько съедают и что из этого забыто. */
 function ruleSubscriptions(c: Ctx): Advice[] {
   const subs = c.data.recurring.filter(
     (r) => r.active && r.kind === 'expense' &&
@@ -127,7 +129,7 @@ function ruleSubscriptions(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
   const evidence = subs.map((r) => {
     const paid = c.data.transactions.filter((t) => t.recurringId === r.id && t.date >= since).length
-    return `${r.title} — ${money(r.amount)}/мес${paid >= 3 ? '' : ', списаний за 3 мес: ' + paid}`
+    return т('{0} — {1}/мес{2}', r.title, money(r.amount), paid >= 3 ? '' : т(', списаний за 3 мес: ') + paid)
   })
   const suspicious = subs.filter((r) => diffMonths(r.startDate, today()) >= 6)
   const impact = Math.round(monthly * 0.4)
@@ -136,20 +138,21 @@ function ruleSubscriptions(c: Ctx): Advice[] {
     id: 'subs',
     kind: 'cut',
     severity: monthly > c.avgExpense * 0.04 ? 'warn' : 'info',
-    title: `Подписки съедают ${money(monthly)} в месяц`,
+    title: т('Подписки съедают {0} в месяц', money(monthly)),
     body:
-      `За год это ${money(monthly * 12)}. Подписок активно: ${subs.length}. ` +
+      т('За год это {0}. Подписок активно: {1}. ', money(monthly * 12), subs.length) +
       (suspicious.length
-        ? `Из них ${suspicious.length} тянутся дольше полугода — как правило, половину таких перестают использовать через 2–3 месяца после подключения. `
+        ? т('Из них {0} тянутся дольше полугода — как правило, половину таких перестают использовать через 2–3 месяца после подключения. ', suspicious.length)
         : '') +
-      `Пройдитесь по списку и отключите то, чем не пользовались последний месяц. Оценка эффекта — отказ от 40% списка.`,
+      т('Пройдитесь по списку и отключите то, чем не пользовались последний месяц. Оценка эффекта — отказ от 40% списка.'),
     evidence,
     impactMonthly: impact,
     effort: 'низкое',
-    action: { label: 'Сценарий: минус половина подписок', type: 'scenario', payload: { categoryName: 'Подписки', factor: 0.5 } },
+    action: { label: т('Сценарий: минус половина подписок'), type: 'scenario', payload: { categoryName: т('Подписки'), factor: 0.5 } },
   }]
 }
 
+/** Категории, которые в этом месяце идут заметно выше собственной нормы. */
 /** Категории, которые в этом месяце идут заметно выше собственной нормы. */
 function ruleCategoryDrift(c: Ctx): Advice[] {
   const out: Advice[] = []
@@ -171,24 +174,25 @@ function ruleCategoryDrift(c: Ctx): Advice[] {
       id: 'drift_' + cat.id,
       kind: 'cut',
       severity: over / norm > 0.6 ? 'warn' : 'info',
-      title: `${сЗначкомъ(cat.icon, cat.name)}: идёт на ${pct((over / norm) * 100)} выше обычного`,
+      title: т('{0}: идёт на {1} выше обычного', сЗначкомъ(cat.icon, cat.name), pct((over / norm) * 100)),
       body:
-        `Потрачено ${money(t.amount)} за ${Math.round(c.monthProgress * 100)}% месяца. ` +
-        `При таком темпе выйдет ${money(projected)} против обычных ${money(norm)} — ` +
-        `это ${money(over)} сверху. Достаточно вернуться к своей же норме, отдельных усилий не требуется.`,
+        т('Потрачено {0} за {1}% месяца. ', money(t.amount), Math.round(c.monthProgress * 100)) +
+        т('При таком темпе выйдет {0} против обычных {1} — ', money(projected), money(norm)) +
+        т('это {0} сверху. Достаточно вернуться к своей же норме, отдельных усилий не требуется.', money(over)),
       evidence: [
-        `Медиана за ${c.keys.length} мес: ${money(norm)}`,
-        `Операций в этом месяце: ${t.count}`,
-        `Максимум за историю: ${money(Math.max(...hist))}`,
+        т('Медиана за {0} мес: {1}', c.keys.length, money(norm)),
+        т('Операций в этом месяце: {0}', t.count),
+        т('Максимум за историю: {0}', money(Math.max(...hist))),
       ],
       impactMonthly: over,
       effort: 'низкое',
-      action: { label: `Вернуть ${cat.name} к норме`, type: 'scenario', payload: { categoryId: cat.id, factor: norm / projected } },
+      action: { label: т('Вернуть {0} к норме', cat.name), type: 'scenario', payload: { categoryId: cat.id, factor: norm / projected } },
     })
   }
   return out.slice(0, 3)
 }
 
+/** «Кофейный эффект»: много мелких операций, которые в сумме дают крупную статью. */
 /** «Кофейный эффект»: много мелких операций, которые в сумме дают крупную статью. */
 function ruleSmallLeaks(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -215,24 +219,25 @@ function ruleSmallLeaks(c: Ctx): Advice[] {
       id: 'leak_' + id,
       kind: 'cut',
       severity: 'info',
-      title: `${сЗначкомъ(cat.icon, cat.name)}: ${Math.round(perMonth)} мелких покупок в месяц`,
+      title: т('{0}: {1} мелких покупок в месяц', сЗначкомъ(cat.icon, cat.name), Math.round(perMonth)),
       body:
-        `Средний чек ${money(Math.round(avg))}, в сумме ${money(monthly)} в месяц и ${money(monthly * 12)} в год. ` +
-        `По одной трате это незаметно — заметно становится в годовом масштабе. ` +
-        `Урезать вдвое обычно проще, чем отказаться совсем: оставьте ${Math.round(perMonth / 2)} ${plural(Math.round(perMonth / 2), 'покупку', 'покупки', 'покупок')} в месяц.`,
+        т('Средний чек {0}, в сумме {1} в месяц и {2} в год. ', money(Math.round(avg)), money(monthly), money(monthly * 12)) +
+        т('По одной трате это незаметно — заметно становится в годовом масштабе. ') +
+        т('Урезать вдвое обычно проще, чем отказаться совсем: оставьте {0} {1} в месяц.', Math.round(perMonth / 2), plural(Math.round(perMonth / 2), 'покупку', 'покупки', 'покупок')),
       evidence: [
-        `Операций за 3 месяца: ${amounts.length}`,
-        `Самая крупная: ${money(Math.max(...amounts))}`,
-        `Минус половина = ${money(Math.round(monthly / 2))} в месяц`,
+        т('Операций за 3 месяца: {0}', amounts.length),
+        т('Самая крупная: {0}', money(Math.max(...amounts))),
+        т('Минус половина = {0} в месяц', money(Math.round(monthly / 2))),
       ],
       impactMonthly: Math.round(monthly / 2),
       effort: 'среднее',
-      action: { label: 'Сценарий: минус 50%', type: 'scenario', payload: { categoryId: id, factor: 0.5 } },
+      action: { label: т('Сценарий: минус 50%'), type: 'scenario', payload: { categoryId: id, factor: 0.5 } },
     })
   }
   return out.sort((a, b) => b.impactMonthly - a.impactMonthly).slice(0, 3)
 }
 
+/** Разовые выбросы: операция сильно больше типичной для своей категории. */
 /** Разовые выбросы: операция сильно больше типичной для своей категории. */
 function ruleAnomalies(c: Ctx): Advice[] {
   const since = addMonths(today(), -2)
@@ -256,20 +261,21 @@ function ruleAnomalies(c: Ctx): Advice[] {
     id: 'anomalies',
     kind: 'cut',
     severity: 'info',
-    title: `${top.length} ${plural(top.length, 'нетипично крупная трата', 'нетипично крупные траты', 'нетипично крупных трат')} за 2 месяца`,
+    title: т('{0} {1} за 2 месяца', top.length, plural(top.length, 'нетипично крупная трата', 'нетипично крупные траты', 'нетипично крупных трат')),
     body:
-      `Суммарно ${money(sum)}. Это не обязательно ошибка — но такие операции стоит один раз пересмотреть: ` +
-      `часть из них разовые и не должна попадать в расчёт «обычного месяца», а часть означает, что появилась новая регулярная статья.`,
+      т('Суммарно {0}. Это не обязательно ошибка — но такие операции стоит один раз пересмотреть: ', money(sum)) +
+      т('часть из них разовые и не должна попадать в расчёт «обычного месяца», а часть означает, что появилась новая регулярная статья.'),
     evidence: top.map(
       (f) =>
-        `${f.t.date.slice(8)}.${f.t.date.slice(5, 7)} ${c.catById.get(f.t.categoryId!)?.name}: ${money(f.t.amount)} при обычных ${money(f.norm)}${f.t.note ? ' — ' + f.t.note : ''}`,
+        т('{0}.{1} {2}: {3} при обычных {4}{5}', f.t.date.slice(8), f.t.date.slice(5, 7), c.catById.get(f.t.categoryId!)?.name, money(f.t.amount), money(f.norm), f.t.note ? ' — ' + f.t.note : ''),
     ),
     impactMonthly: 0,
     effort: 'низкое',
-    action: { label: 'Открыть операции', type: 'goto', payload: { view: 'transactions' } },
+    action: { label: т('Открыть операции'), type: 'goto', payload: { view: 'transactions' } },
   }]
 }
 
+/** Категории с заданным лимитом, который будет превышен. */
 /** Категории с заданным лимитом, который будет превышен. */
 function rulePlanOverrun(c: Ctx): Advice[] {
   const curTx = c.data.transactions.filter((t) => monthKey(t.date) === c.curKey)
@@ -289,20 +295,21 @@ function rulePlanOverrun(c: Ctx): Advice[] {
     id: 'plan_overrun',
     kind: 'budget',
     severity: overSum > c.avgExpense * 0.05 ? 'warn' : 'info',
-    title: `Лимиты будут превышены в ${bad.length} ${plural(bad.length, 'категории', 'категориях', 'категориях')}`,
+    title: т('Лимиты будут превышены в {0} {1}', bad.length, plural(bad.length, 'категории', 'категориях', 'категориях')),
     body:
-      `Суммарный перерасход к концу месяца — ${money(overSum)}. ` +
-      `Либо лимит нереалистичен и его надо поднять, либо темп трат надо снизить: ` +
-      `на оставшуюся часть месяца в этих категориях доступно ${money(Math.max(0, bad.reduce((s, b) => s + Math.max(0, b.plan - b.spent), 0)))}.`,
+      т('Суммарный перерасход к концу месяца — {0}. ', money(overSum)) +
+      т('Либо лимит нереалистичен и его надо поднять, либо темп трат надо снизить: ') +
+      т('на оставшуюся часть месяца в этих категориях доступно {0}.', money(Math.max(0, bad.reduce((s, b) => s + Math.max(0, b.plan - b.spent), 0)))),
     evidence: bad
       .slice(0, 6)
-      .map((b) => `${b.cat.icon} ${b.cat.name}: ${money(b.spent)} из ${money(b.plan)} → прогноз ${money(b.projected)}`),
+      .map((b) => т('{0} {1}: {2} из {3} → прогноз {4}', b.cat.icon, b.cat.name, money(b.spent), money(b.plan), money(b.projected))),
     impactMonthly: overSum,
     effort: 'среднее',
-    action: { label: 'Открыть бюджет', type: 'goto', payload: { view: 'budget' } },
+    action: { label: т('Открыть бюджет'), type: 'goto', payload: { view: 'budget' } },
   }]
 }
 
+/** Крупные категории без лимита — бюджет неуправляем. */
 /** Крупные категории без лимита — бюджет неуправляем. */
 function ruleMissingPlans(c: Ctx): Advice[] {
   const totals = categoryTotals(
@@ -319,24 +326,25 @@ function ruleMissingPlans(c: Ctx): Advice[] {
     id: 'missing_plans',
     kind: 'budget',
     severity: 'info',
-    title: `${missing.length} крупных категорий живут без лимита`,
+    title: т('{0} крупных категорий живут без лимита', missing.length),
     body:
-      `Пока у категории нет плановой суммы, перерасход в ней невозможно заметить вовремя — он виден только постфактум. ` +
-      `Разумная отправная точка — медиана за последние месяцы, округлённая вверх. Кошель может проставить такие лимиты сам.`,
+      т('Пока у категории нет плановой суммы, перерасход в ней невозможно заметить вовремя — он виден только постфактум. ') +
+      т('Разумная отправная точка — медиана за последние месяцы, округлённая вверх. Кошель может проставить такие лимиты сам.'),
     evidence: missing.map((x) => {
       const hist = categoryMonthly(c.data.transactions, x.t.categoryId, c.keys).filter((v) => v > 0)
-      return `${x.cat!.icon} ${x.cat!.name}: ${money(Math.round(x.t.amount / 3))}/мес → предложить лимит ${money(Math.ceil(median(hist) / 50000) * 50000)}`
+      return т('{0} {1}: {2}/мес → предложить лимит {3}', x.cat!.icon, x.cat!.name, money(Math.round(x.t.amount / 3)), money(Math.ceil(median(hist) / 50000) * 50000))
     }),
     impactMonthly: 0,
     effort: 'низкое',
     action: {
-      label: 'Проставить лимиты по медиане',
+      label: т('Проставить лимиты по медиане'),
       type: 'plan',
       payload: { categoryIds: missing.map((x) => x.t.categoryId) },
     },
   }]
 }
 
+/** Норма сбережений против цели из профиля. */
 /** Норма сбережений против цели из профиля. */
 function ruleSavingsRate(c: Ctx): Advice[] {
   if (!c.avgIncome) return []
@@ -349,15 +357,15 @@ function ruleSavingsRate(c: Ctx): Advice[] {
       id: 'savings_ok',
       kind: 'budget',
       severity: 'good',
-      title: `Норма сбережений ${pct(rate, 1)} — выше цели`,
+      title: т('Норма сбережений {0} — выше цели', pct(rate, 1)),
       body:
-        `Из ${money(c.avgIncome)} среднего дохода остаётся ${money(c.fc.avgNet)} в месяц. ` +
-        `Цель профиля — ${pct(target)}. Излишек имеет смысл не держать на текущем счёте, а распределять по целям: ` +
-        `иначе он растворяется в тратах в течение двух-трёх месяцев.`,
-      evidence: [`Средний доход: ${money(c.avgIncome)}`, `Средний расход: ${money(c.avgExpense)}`],
+        т('Из {0} среднего дохода остаётся {1} в месяц. ', money(c.avgIncome), money(c.fc.avgNet)) +
+        т('Цель профиля — {0}. Излишек имеет смысл не держать на текущем счёте, а распределять по целям: ', pct(target)) +
+        т('иначе он растворяется в тратах в течение двух-трёх месяцев.'),
+      evidence: [т('Средний доход: {0}', money(c.avgIncome)), т('Средний расход: {0}', money(c.avgExpense))],
       impactMonthly: 0,
       effort: 'низкое',
-      action: { label: 'Открыть цели', type: 'goto', payload: { view: 'goals' } },
+      action: { label: т('Открыть цели'), type: 'goto', payload: { view: 'goals' } },
     }]
   }
 
@@ -367,20 +375,20 @@ function ruleSavingsRate(c: Ctx): Advice[] {
     severity: rate < 0 ? 'alert' : rate < target / 2 ? 'warn' : 'info',
     title:
       rate < 0
-        ? `Расходы обгоняют доходы: норма сбережений ${pct(rate, 1)}`
-        : `Норма сбережений ${pct(rate, 1)} против цели ${pct(target)}`,
+        ? т('Расходы обгоняют доходы: норма сбережений {0}', pct(rate, 1))
+        : т('Норма сбережений {0} против цели {1}', pct(rate, 1), pct(target)),
     body:
-      `Средний доход ${money(c.avgIncome)}, средний расход ${money(c.avgExpense)}, остаётся ${money(c.fc.avgNet)} в месяц. ` +
-      `Чтобы выйти на цель, нужно найти ${money(gap)} в месяц — это ${pct((gap / c.avgExpense) * 100, 1)} текущих расходов. ` +
-      `Проще всего взять их из необязательных категорий, а не резать всё подряд на равный процент.`,
+      т('Средний доход {0}, средний расход {1}, остаётся {2} в месяц. ', money(c.avgIncome), money(c.avgExpense), money(c.fc.avgNet)) +
+      т('Чтобы выйти на цель, нужно найти {0} в месяц — это {1} текущих расходов. ', money(gap), pct((gap / c.avgExpense) * 100, 1)) +
+      т('Проще всего взять их из необязательных категорий, а не резать всё подряд на равный процент.'),
     evidence: [
-      `Нужно в месяц: ${money(gap)}`,
-      `За год это ${money(gap * 12)}`,
-      `Расходы «хочу»: ${money(bucketSum(c, 'wants'))} в месяц`,
+      т('Нужно в месяц: {0}', money(gap)),
+      т('За год это {0}', money(gap * 12)),
+      т('Расходы «хочу»: {0} в месяц', money(bucketSum(c, 'wants'))),
     ],
     impactMonthly: gap,
     effort: 'среднее',
-    action: { label: 'Собрать сценарий экономии', type: 'scenario', payload: { auto: 'save', target: gap } },
+    action: { label: т('Собрать сценарий экономии'), type: 'scenario', payload: { auto: 'save', target: gap } },
   }]
 }
 
@@ -394,6 +402,7 @@ function bucketSum(c: Ctx, bucket: 'needs' | 'wants' | 'savings'): Money {
 }
 
 /** Подушка безопасности в месяцах расходов. */
+/** Подушка безопасности в месяцах расходов. */
 function ruleEmergencyFund(c: Ctx): Advice[] {
   if (!c.avgExpense) return []
   const target = c.data.settings.profile.emergencyMonths
@@ -406,9 +415,9 @@ function ruleEmergencyFund(c: Ctx): Advice[] {
       id: 'fund_ok',
       kind: 'risk',
       severity: 'good',
-      title: `Подушка закрывает ${cover.toFixed(1).replace('.', ',')} ${plural(Math.round(cover), 'месяц', 'месяца', 'месяцев')} расходов`,
-      body: `Цель профиля — ${monthsWord(target)}. Запас есть; излишек сверх ${monthsWord(target + 1)} логично переложить под процент, иначе инфляция ${pct(c.data.settings.profile.inflationPct)} съедает его молча.`,
-      evidence: [`Активы: ${money(c.assets)}`, `Средний расход: ${money(c.avgExpense)}`],
+      title: т('Подушка закрывает {0} {1} расходов', cover.toFixed(1).replace('.', ','), plural(Math.round(cover), 'месяц', 'месяца', 'месяцев')),
+      body: т('Цель профиля — {0}. Запас есть; излишек сверх {1} логично переложить под процент, иначе инфляция {2} съедает его молча.', monthsWord(target), monthsWord(target + 1), pct(c.data.settings.profile.inflationPct)),
+      evidence: [т('Активы: {0}', money(c.assets)), т('Средний расход: {0}', money(c.avgExpense))],
       impactMonthly: 0,
       effort: 'низкое',
     }]
@@ -418,24 +427,25 @@ function ruleEmergencyFund(c: Ctx): Advice[] {
     id: 'fund',
     kind: 'risk',
     severity: cover < 1 ? 'alert' : cover < target / 2 ? 'warn' : 'info',
-    title: `Подушки хватит на ${cover.toFixed(1).replace('.', ',')} ${plural(Math.round(cover) || 1, 'месяц', 'месяца', 'месяцев')}`,
+    title: т('Подушки хватит на {0} {1}', cover.toFixed(1).replace('.', ','), plural(Math.round(cover) || 1, 'месяц', 'месяца', 'месяцев')),
     body:
-      `При среднем расходе ${money(c.avgExpense)} до цели в ${monthsWord(target)} не хватает ${money(need)}. ` +
+      т('При среднем расходе {0} до цели в {1} не хватает {2}. ', money(c.avgExpense), monthsWord(target), money(need)) +
       (perMonth
-        ? `При нынешнем свободном остатке ${money(c.fc.avgNet)} в месяц цель закрывается за ${monthsWord(perMonth)}. `
-        : `Свободных денег сейчас нет — сначала нужно вывести месяц в плюс. `) +
-      `Держать подушку лучше отдельно от текущего счёта, иначе она тратится незаметно.`,
+        ? т('При нынешнем свободном остатке {0} в месяц цель закрывается за {1}. ', money(c.fc.avgNet), monthsWord(perMonth))
+        : т('Свободных денег сейчас нет — сначала нужно вывести месяц в плюс. ')) +
+      т('Держать подушку лучше отдельно от текущего счёта, иначе она тратится незаметно.'),
     evidence: [
-      `Активы: ${money(c.assets)}`,
-      `Цель: ${money(Math.round(target * c.avgExpense))}`,
-      `Не хватает: ${money(need)}`,
+      т('Активы: {0}', money(c.assets)),
+      т('Цель: {0}', money(Math.round(target * c.avgExpense))),
+      т('Не хватает: {0}', money(need)),
     ],
     impactMonthly: 0,
     effort: 'среднее',
-    action: { label: 'Открыть цели', type: 'goto', payload: { view: 'goals' } },
+    action: { label: т('Открыть цели'), type: 'goto', payload: { view: 'goals' } },
   }]
 }
 
+/** Вероятность ухода в минус по симуляциям. */
 /** Вероятность ухода в минус по симуляциям. */
 function ruleNegativeRisk(c: Ctx): Advice[] {
   const risk = c.fc.riskNegative
@@ -448,25 +458,26 @@ function ruleNegativeRisk(c: Ctx): Advice[] {
     severity: risk > 0.35 || when ? 'alert' : 'warn',
     title:
       when
-        ? `Прогноз уходит в минус: ${when}`
-        : `Риск уйти в минус за год — ${pct(risk * 100)}`,
+        ? т('Прогноз уходит в минус: {0}', when)
+        : т('Риск уйти в минус за год — {0}', pct(risk * 100)),
     body:
-      `Из ${c.data.settings.monteCarloRuns} симуляций ${Math.round(risk * 100)}% заканчиваются отрицательным остатком хотя бы в одном месяце. ` +
+      т('Из {0} симуляций {1}% заканчиваются отрицательным остатком хотя бы в одном месяце. ', c.data.settings.monteCarloRuns, Math.round(risk * 100)) +
       (when
-        ? `Медианный сценарий пробивает ноль в ${when.toLowerCase()}. `
-        : `Медианный сценарий держится в плюсе, но запас невелик. `) +
-      `Это считается по вашей же истории: разброс берётся из фактических отклонений месяц к месяцу, а не из абстрактных процентов.`,
+        ? т('Медианный сценарий пробивает ноль в {0}. ', when.toLowerCase())
+        : т('Медианный сценарий держится в плюсе, но запас невелик. ')) +
+      т('Это считается по вашей же истории: разброс берётся из фактических отклонений месяц к месяцу, а не из абстрактных процентов.'),
     evidence: [
-      `Остаток сейчас: ${money(c.fc.startBalance)}`,
-      `Средний результат месяца: ${money(c.fc.avgNet, { sign: true })}`,
-      c.fc.months.length ? `Через год (медиана): ${money(c.fc.months[c.fc.months.length - 1].p50)}` : '',
+      т('Остаток сейчас: {0}', money(c.fc.startBalance)),
+      т('Средний результат месяца: {0}', money(c.fc.avgNet, { sign: true })),
+      c.fc.months.length ? т('Через год (медиана): {0}', money(c.fc.months[c.fc.months.length - 1].p50)) : '',
     ].filter(Boolean),
     impactMonthly: 0,
     effort: 'высокое',
-    action: { label: 'Открыть прогноз', type: 'goto', payload: { view: 'forecast' } },
+    action: { label: т('Открыть прогноз'), type: 'goto', payload: { view: 'forecast' } },
   }]
 }
 
+/** Правило 50/30/20 как ориентир, а не догма. */
 /** Правило 50/30/20 как ориентир, а не догма. */
 function ruleBuckets(c: Ctx): Advice[] {
   const needs = bucketSum(c, 'needs')
@@ -486,24 +497,25 @@ function ruleBuckets(c: Ctx): Advice[] {
     id: 'buckets',
     kind: 'budget',
     severity: shares.wants > 40 || shares.savings < 10 ? 'warn' : 'info',
-    title: `Раскладка 50/30/20: сейчас ${Math.round(shares.needs)}/${Math.round(shares.wants)}/${Math.round(shares.savings)}`,
+    title: т('Раскладка 50/30/20: сейчас {0}/{1}/{2}', Math.round(shares.needs), Math.round(shares.wants), Math.round(shares.savings)),
     body:
-      `«Надо» — ${money(needs)}, «хочу» — ${money(wants)}, остаётся ${money(savings)}. ` +
+      т('«Надо» — {0}, «хочу» — {1}, остаётся {2}. ', money(needs), money(wants), money(savings)) +
       (wantsOver > 0
-        ? `Необязательные траты превышают ориентир на ${money(wantsOver)} в месяц. Перенос этой суммы в накопления даёт ${money(wantsOver * 12)} за год. `
-        : `Необязательные траты в пределах ориентира. `) +
-      `Пропорция условна: при доходе выше среднего доля «надо» естественно ниже, и это нормально.`,
+        ? т('Необязательные траты превышают ориентир на {0} в месяц. Перенос этой суммы в накопления даёт {1} за год. ', money(wantsOver), money(wantsOver * 12))
+        : т('Необязательные траты в пределах ориентира. ')) +
+      т('Пропорция условна: при доходе выше среднего доля «надо» естественно ниже, и это нормально.'),
     evidence: [
-      `Надо: ${money(needs)} (${pct(shares.needs)})`,
-      `Хочу: ${money(wants)} (${pct(shares.wants)})`,
-      `Остаётся: ${money(savings)} (${pct(shares.savings)})`,
+      т('Надо: {0} ({1})', money(needs), pct(shares.needs)),
+      т('Хочу: {0} ({1})', money(wants), pct(shares.wants)),
+      т('Остаётся: {0} ({1})', money(savings), pct(shares.savings)),
     ],
     impactMonthly: Math.max(0, wantsOver),
     effort: 'среднее',
-    action: { label: 'Открыть бюджет', type: 'goto', payload: { view: 'budget' } },
+    action: { label: т('Открыть бюджет'), type: 'goto', payload: { view: 'budget' } },
   }]
 }
 
+/** Насколько доход зависит от одного источника. */
 /** Насколько доход зависит от одного источника. */
 function ruleIncomeConcentration(c: Ctx): Advice[] {
   const since = addMonths(today(), -6)
@@ -523,21 +535,22 @@ function ruleIncomeConcentration(c: Ctx): Advice[] {
     id: 'income_conc',
     kind: 'income',
     severity: share > 0.8 ? 'warn' : 'info',
-    title: `${pct(share * 100)} дохода даёт один источник — ${cat.name}`,
+    title: т('{0} дохода даёт один источник — {1}', pct(share * 100), cat.name),
     body:
-      `За полгода «${cat.name}» принёс ${money(top.amount)} из ${money(sum)}. ` +
-      `Если этот канал остановится, доход упадёт на ${money(lostMonthly)} в месяц, а запаса хватит на ${coverMonths.toFixed(1).replace('.', ',')} ${plural(Math.round(coverMonths) || 1, 'месяц', 'месяца', 'месяцев')}. ` +
-      `Второй источник не обязан быть большим: даже 20–25% дохода из другого канала снимают основную часть риска. ` +
-      `Практический ориентир — довести второй канал до ${money(Math.round(sum / 6 * 0.25))} в месяц.`,
+      т('За полгода «{0}» принёс {1} из {2}. ', cat.name, money(top.amount), money(sum)) +
+      т('Если этот канал остановится, доход упадёт на {0} в месяц, а запаса хватит на {1} {2}. ', money(lostMonthly), coverMonths.toFixed(1).replace('.', ','), plural(Math.round(coverMonths) || 1, 'месяц', 'месяца', 'месяцев')) +
+      т('Второй источник не обязан быть большим: даже 20–25% дохода из другого канала снимают основную часть риска. ') +
+      т('Практический ориентир — довести второй канал до {0} в месяц.', money(Math.round(sum / 6 * 0.25))),
     evidence: totals
       .slice(0, 4)
-      .map((t) => `${c.catById.get(t.categoryId)?.name ?? '—'}: ${money(Math.round(t.amount / 6))}/мес (${pct((t.amount / sum) * 100)})`),
+      .map((t) => т('{0}: {1}/мес ({2})', c.catById.get(t.categoryId)?.name ?? '—', money(Math.round(t.amount / 6)), pct((t.amount / sum) * 100))),
     impactMonthly: 0,
     effort: 'высокое',
-    action: { label: 'Сценарий: рост дохода на 20%', type: 'scenario', payload: { incomeFactor: 1.2 } },
+    action: { label: т('Сценарий: рост дохода на 20%'), type: 'scenario', payload: { incomeFactor: 1.2 } },
   }]
 }
 
+/** Насколько доход рваный — от этого зависит нужный размер буфера. */
 /** Насколько доход рваный — от этого зависит нужный размер буфера. */
 function ruleIncomeVolatility(c: Ctx): Advice[] {
   const series = c.fc.history.filter((h) => h.key < c.curKey).map((h) => h.income)
@@ -555,24 +568,25 @@ function ruleIncomeVolatility(c: Ctx): Advice[] {
     id: 'income_vol',
     kind: 'risk',
     severity: cv > 0.5 ? 'warn' : 'info',
-    title: `Доход скачет: разброс ${pct(cv * 100)} от среднего`,
+    title: т('Доход скачет: разброс {0} от среднего', pct(cv * 100)),
     body:
-      `Средний месяц — ${money(Math.round(m))}, худший за историю — ${money(worst)}. ` +
-      `Для нестабильного дохода обычный совет «откладывать фиксированную сумму» работает плохо: ` +
-      `надёжнее откладывать процент от каждого поступления и держать отдельный буфер на слабый месяц. ` +
+      т('Средний месяц — {0}, худший за историю — {1}. ', money(Math.round(m)), money(worst)) +
+      т('Для нестабильного дохода обычный совет «откладывать фиксированную сумму» работает плохо: ') +
+      т('надёжнее откладывать процент от каждого поступления и держать отдельный буфер на слабый месяц. ') +
       (buffer > 0
-        ? `Буфер, закрывающий провал до среднего расхода, — ${money(buffer)}.`
-        : `Даже худший месяц покрывал расходы — буфер уже фактически есть.`),
+        ? т('Буфер, закрывающий провал до среднего расхода, — {0}.', money(buffer))
+        : т('Даже худший месяц покрывал расходы — буфер уже фактически есть.')),
     evidence: [
-      `Среднее: ${money(Math.round(m))}`,
-      `Стандартное отклонение: ${money(Math.round(sd))}`,
-      `Минимум: ${money(worst)}, максимум: ${money(Math.max(...series))}`,
+      т('Среднее: {0}', money(Math.round(m))),
+      т('Стандартное отклонение: {0}', money(Math.round(sd))),
+      т('Минимум: {0}, максимум: {1}', money(worst), money(Math.max(...series))),
     ],
     impactMonthly: 0,
     effort: 'среднее',
   }]
 }
 
+/** Растёт ли доход быстрее инфляции. */
 /** Растёт ли доход быстрее инфляции. */
 function ruleIncomeTrend(c: Ctx): Advice[] {
   const series = c.fc.history.filter((h) => h.key < c.curKey).map((h) => h.income)
@@ -593,11 +607,11 @@ function ruleIncomeTrend(c: Ctx): Advice[] {
       id: 'income_trend_ok',
       kind: 'income',
       severity: 'good',
-      title: `Доход растёт на ${pct(yearlyPct, 1)} в год — быстрее инфляции`,
+      title: т('Доход растёт на {0} в год — быстрее инфляции', pct(yearlyPct, 1)),
       body:
-        `Тренд по последним ${monthsWord(series.length)} даёт +${money(Math.round(slope))} к месячному доходу каждый месяц. ` +
-        `С поправкой на инфляцию ${pct(infl)} реальный рост — ${pct(real, 1)}. Главное теперь, чтобы расходы не росли тем же темпом.`,
-      evidence: [`Первый месяц: ${money(series[0])}`, `Последний: ${money(series[series.length - 1])}`],
+        т('Тренд по последним {0} даёт +{1} к месячному доходу каждый месяц. ', monthsWord(series.length), money(Math.round(slope))) +
+        т('С поправкой на инфляцию {0} реальный рост — {1}. Главное теперь, чтобы расходы не росли тем же темпом.', pct(infl), pct(real, 1)),
+      evidence: [т('Первый месяц: {0}', money(series[0])), т('Последний: {0}', money(series[series.length - 1]))],
       impactMonthly: 0,
       effort: 'низкое',
     }]
@@ -608,22 +622,23 @@ function ruleIncomeTrend(c: Ctx): Advice[] {
     id: 'income_trend',
     kind: 'income',
     severity: yearlyPct < -5 ? 'warn' : 'info',
-    title: `Доход отстаёт от инфляции на ${pct(Math.abs(real), 1)} в год`,
+    title: т('Доход отстаёт от инфляции на {0} в год', pct(Math.abs(real), 1)),
     body:
-      `Тренд дохода — ${pct(yearlyPct, 1)} в год при инфляции ${pct(infl)}. В реальных деньгах вы беднеете, даже если номинально всё стабильно. ` +
-      `Чтобы просто удержать уровень, доход должен прибавлять около ${money(needed)} в месяц ежемесячно. ` +
-      `Самый дешёвый по усилиям шаг — индексация цен постоянным заказчикам: рост чека на ${pct(infl)} обычно не приводит к потере клиентов, а даёт ${money(Math.round((m * infl) / 100))} в месяц.`,
+      т('Тренд дохода — {0} в год при инфляции {1}. В реальных деньгах вы беднеете, даже если номинально всё стабильно. ', pct(yearlyPct, 1), pct(infl)) +
+      т('Чтобы просто удержать уровень, доход должен прибавлять около {0} в месяц ежемесячно. ', money(needed)) +
+      т('Самый дешёвый по усилиям шаг — индексация цен постоянным заказчикам: рост чека на {0} обычно не приводит к потере клиентов, а даёт {1} в месяц.', pct(infl), money(Math.round((m * infl) / 100))),
     evidence: [
-      `Средний доход: ${money(Math.round(m))}`,
-      `Изменение: ${money(Math.round(slope), { sign: true })} в месяц`,
-      `Эффект индексации на ${pct(infl)}: ${money(Math.round((m * infl) / 100))}/мес`,
+      т('Средний доход: {0}', money(Math.round(m))),
+      т('Изменение: {0} в месяц', money(Math.round(slope), { sign: true })),
+      т('Эффект индексации на {0}: {1}/мес', pct(infl), money(Math.round((m * infl) / 100))),
     ],
     impactMonthly: Math.round((m * infl) / 100),
     effort: 'среднее',
-    action: { label: `Сценарий: +${pct(infl)} к доходу`, type: 'scenario', payload: { incomeFactor: 1 + infl / 100 } },
+    action: { label: т('Сценарий: +{0} к доходу', pct(infl)), type: 'scenario', payload: { incomeFactor: 1 + infl / 100 } },
   }]
 }
 
+/** Деньги, которые лежат мёртвым грузом на текущем счёте. */
 /** Деньги, которые лежат мёртвым грузом на текущем счёте. */
 function ruleIdleCash(c: Ctx): Advice[] {
   if (!c.avgExpense) return []
@@ -637,21 +652,22 @@ function ruleIdleCash(c: Ctx): Advice[] {
     id: 'idle_cash',
     kind: 'income',
     severity: 'info',
-    title: `${money(idle)} лежит без дела на текущих счетах`,
+    title: т('{0} лежит без дела на текущих счетах', money(idle)),
     body:
-      `Полтора месяца расходов держать под рукой разумно, остальное — нет. ` +
-      `Под ${pct(rate)} годовых эти деньги приносили бы ${money(yearly)} в год или ${money(Math.round(yearly / 12))} в месяц — ` +
-      `без каких-либо усилий с вашей стороны. Инфляция ${pct(c.data.settings.profile.inflationPct)} при этом обесценивает лежащий остаток на ${money(Math.round((idle * c.data.settings.profile.inflationPct) / 100))} в год.`,
+      т('Полтора месяца расходов держать под рукой разумно, остальное — нет. ') +
+      т('Под {0} годовых эти деньги приносили бы {1} в год или {2} в месяц — ', pct(rate), money(yearly), money(Math.round(yearly / 12))) +
+      т('без каких-либо усилий с вашей стороны. Инфляция {0} при этом обесценивает лежащий остаток на {1} в год.', pct(c.data.settings.profile.inflationPct), money(Math.round((idle * c.data.settings.profile.inflationPct) / 100))),
     evidence: [
-      `На текущих счетах: ${money(c.liquid)}`,
-      `Оперативный запас (1,5 расхода): ${money(Math.round(c.avgExpense * 1.5))}`,
-      `Свободно: ${money(idle)}`,
+      т('На текущих счетах: {0}', money(c.liquid)),
+      т('Оперативный запас (1,5 расхода): {0}', money(Math.round(c.avgExpense * 1.5))),
+      т('Свободно: {0}', money(idle)),
     ],
     impactMonthly: Math.round(yearly / 12),
     effort: 'низкое',
   }]
 }
 
+/** Кредиты и долги: что гасить первым и что даёт досрочный платёж. */
 /** Кредиты и долги: что гасить первым и что даёт досрочный платёж. */
 function ruleDebts(c: Ctx): Advice[] {
   const out: Advice[] = []
@@ -673,23 +689,23 @@ function ruleDebts(c: Ctx): Advice[] {
       id: 'credit_' + acc.id,
       kind: 'debt',
       severity: cr.ratePct > depositRate ? 'warn' : 'info',
-      title: `${acc.name}: остаток ${money(left)} под ${pct(cr.ratePct, 1)}`,
+      title: т('{0}: остаток {1} под {2}', acc.name, money(left), pct(cr.ratePct, 1)),
       body:
-        `Платёж ${money(cr.monthlyPayment)} в месяц, осталось примерно ${monthsWord(monthsLeft)}, переплата вперёд — около ${money(interestLeft)}. ` +
+        т('Платёж {0} в месяц, осталось примерно {1}, переплата вперёд — около {2}. ', money(cr.monthlyPayment), monthsWord(monthsLeft), money(interestLeft)) +
         (cr.ratePct > depositRate
-          ? `Ставка выше доходности вклада (${pct(depositRate)}), поэтому свободные деньги выгоднее направлять сюда, а не на накопления: каждый рубль здесь «зарабатывает» ${pct(cr.ratePct, 1)} гарантированно. `
-          : `Ставка ниже доходности вклада (${pct(depositRate)}) — досрочно гасить невыгодно, деньги лучше работают на накоплениях. `) +
+          ? т('Ставка выше доходности вклада ({0}), поэтому свободные деньги выгоднее направлять сюда, а не на накопления: каждый рубль здесь «зарабатывает» {1} гарантированно. ', pct(depositRate), pct(cr.ratePct, 1))
+          : т('Ставка ниже доходности вклада ({0}) — досрочно гасить невыгодно, деньги лучше работают на накоплениях. ', pct(depositRate))) +
         (extra > 0
-          ? `Досрочный платёж ${money(extra)} в месяц сокращает срок до ${monthsWord(savedMonths)} и экономит около ${money(savedInterest)}.`
-          : `Свободных денег на досрочное погашение сейчас нет.`),
+          ? т('Досрочный платёж {0} в месяц сокращает срок до {1} и экономит около {2}.', money(extra), monthsWord(savedMonths), money(savedInterest))
+          : т('Свободных денег на досрочное погашение сейчас нет.')),
       evidence: [
-        `Тело кредита: ${money(cr.principal)}`,
-        `Выплачено: ${money(cr.principal - left)}`,
-        `Платёж: ${money(cr.monthlyPayment)} до ${cr.paymentDay} числа`,
+        т('Тело кредита: {0}', money(cr.principal)),
+        т('Выплачено: {0}', money(cr.principal - left)),
+        т('Платёж: {0} до {1} числа', money(cr.monthlyPayment), cr.paymentDay),
       ],
       impactMonthly: cr.ratePct > depositRate ? Math.round((left * (cr.ratePct - depositRate)) / 100 / 12) : 0,
       effort: 'среднее',
-      action: { label: 'Открыть долги', type: 'goto', payload: { view: 'debts' } },
+      action: { label: т('Открыть долги'), type: 'goto', payload: { view: 'debts' } },
     })
   }
 
@@ -706,27 +722,28 @@ function ruleDebts(c: Ctx): Advice[] {
       severity: overdue > 0 ? 'alert' : overdue > -30 ? 'warn' : 'info',
       title:
         d.direction === 'i_owe'
-          ? `Долг ${d.counterparty}: ${money(amount)}`
-          : `${d.counterparty} должен вам ${money(amount)}`,
+          ? т('Долг {0}: {1}', d.counterparty, money(amount))
+          : т('{0} должен вам {1}', d.counterparty, money(amount)),
       body:
         (d.dueDate
           ? overdue > 0
-            ? `Срок прошёл ${Math.abs(overdue)} ${plural(Math.abs(overdue), 'день', 'дня', 'дней')} назад. `
-            : `Срок — ${d.dueDate}, осталось ${Math.abs(overdue)} ${plural(Math.abs(overdue), 'день', 'дня', 'дней')}. `
-          : 'Срок не задан — такие долги обычно и повисают. ') +
+            ? т('Срок прошёл {0} {1} назад. ', Math.abs(overdue), plural(Math.abs(overdue), 'день', 'дня', 'дней'))
+            : т('Срок — {0}, осталось {1} {2}. ', d.dueDate, Math.abs(overdue), plural(Math.abs(overdue), 'день', 'дня', 'дней'))
+          : т('Срок не задан — такие долги обычно и повисают. ')) +
         (d.direction === 'i_owe'
-          ? `Беспроцентный долг человеку стоит гасить не первым по деньгам, но первым по срокам: репутационная цена просрочки выше процентной.`
-          : `Деньги, которые вам должны, не участвуют в обороте и не приносят процент. При ставке вклада ${pct(c.data.settings.profile.depositRatePct)} это ${money(Math.round((amount * c.data.settings.profile.depositRatePct) / 100 / 12))} упущенной выгоды в месяц.`),
-      evidence: [`Сумма: ${money(amount)}`, d.dueDate ? `Срок: ${d.dueDate}` : 'Срок не задан'],
+          ? т('Беспроцентный долг человеку стоит гасить не первым по деньгам, но первым по срокам: репутационная цена просрочки выше процентной.')
+          : т('Деньги, которые вам должны, не участвуют в обороте и не приносят процент. При ставке вклада {0} это {1} упущенной выгоды в месяц.', pct(c.data.settings.profile.depositRatePct), money(Math.round((amount * c.data.settings.profile.depositRatePct) / 100 / 12)))),
+      evidence: [т('Сумма: {0}', money(amount)), d.dueDate ? т('Срок: {0}', d.dueDate) : т('Срок не задан')],
       impactMonthly: 0,
       effort: 'низкое',
-      action: { label: 'Открыть долги', type: 'goto', payload: { view: 'debts' } },
+      action: { label: т('Открыть долги'), type: 'goto', payload: { view: 'debts' } },
     })
   }
 
   return out
 }
 
+/** Достижимость целей при текущем свободном остатке. */
 /** Достижимость целей при текущем свободном остатке. */
 function ruleGoals(c: Ctx): Advice[] {
   const bal = balances(c.data.accounts, c.data.transactions)
@@ -750,24 +767,25 @@ function ruleGoals(c: Ctx): Advice[] {
     kind: 'goal',
     severity: feasible ? 'good' : free <= 0 ? 'alert' : 'warn',
     title: feasible
-      ? `Цели укладываются в свободные деньги`
-      : `Цели требуют ${money(totalNeed)} в месяц, свободно ${money(Math.max(0, free))}`,
+      ? т('Цели укладываются в свободные деньги')
+      : т('Цели требуют {0} в месяц, свободно {1}', money(totalNeed), money(Math.max(0, free))),
     body:
       (feasible
-        ? `Суммарно цели требуют ${money(totalNeed)} в месяц при свободных ${money(free)}. Запас — ${money(free - totalNeed)}. `
-        : `Не хватает ${money(totalNeed - Math.max(0, free))} в месяц. Одновременно двигать все цели не выйдет — придётся либо сдвинуть сроки, либо расставить приоритеты. `) +
-      `Практика: цель с ближайшим сроком закрывается первой, остальные ставятся на паузу — так закрывается хотя бы одна, а не все понемногу.`,
+        ? т('Суммарно цели требуют {0} в месяц при свободных {1}. Запас — {2}. ', money(totalNeed), money(free), money(free - totalNeed))
+        : т('Не хватает {0} в месяц. Одновременно двигать все цели не выйдет — придётся либо сдвинуть сроки, либо расставить приоритеты. ', money(totalNeed - Math.max(0, free)))) +
+      т('Практика: цель с ближайшим сроком закрывается первой, остальные ставятся на паузу — так закрывается хотя бы одна, а не все понемногу.'),
     evidence: rows.map(
       (r) =>
-        `${r.g.icon} ${r.g.name}: ${money(r.saved)} из ${money(r.g.targetAmount)}` +
-        (r.need ? ` → ${money(r.need)}/мес на ${monthsWord(r.monthsLeft!)}` : ' (без срока)'),
+        т('{0} {1}: {2} из {3}', r.g.icon, r.g.name, money(r.saved), money(r.g.targetAmount)) +
+        (r.need ? т(' → {0}/мес на {1}', money(r.need), monthsWord(r.monthsLeft!)) : т(' (без срока)')),
     ),
     impactMonthly: 0,
     effort: 'среднее',
-    action: { label: 'Открыть цели', type: 'goto', payload: { view: 'goals' } },
+    action: { label: т('Открыть цели'), type: 'goto', payload: { view: 'goals' } },
   }]
 }
 
+/** Хватит ли остатка до зарплаты при текущем темпе. */
 /** Хватит ли остатка до зарплаты при текущем темпе. */
 function rulePaydayGap(c: Ctx): Advice[] {
   const payday = c.data.settings.profile.payday
@@ -787,24 +805,25 @@ function rulePaydayGap(c: Ctx): Advice[] {
     severity: c.liquid < need ? 'alert' : 'warn',
     title:
       c.liquid < need
-        ? `До зарплаты ${daysLeft} ${plural(daysLeft, 'день', 'дня', 'дней')}, денег хватит на ${Math.floor(c.liquid / Math.max(1, dailyBurn))}`
-        : `Запас до зарплаты в обрез`,
+        ? т('До зарплаты {0} {1}, денег хватит на {2}', daysLeft, plural(daysLeft, 'день', 'дня', 'дней'), Math.floor(c.liquid / Math.max(1, dailyBurn)))
+        : т('Запас до зарплаты в обрез'),
     body:
-      `На текущих счетах ${money(c.liquid)}, привычный темп трат — ${money(dailyBurn)} в день. ` +
-      `До ${payday} числа нужно ${money(need)}. ` +
+      т('На текущих счетах {0}, привычный темп трат — {1} в день. ', money(c.liquid), money(dailyBurn)) +
+      т('До {0} числа нужно {1}. ', payday, money(need)) +
       (c.liquid < need
-        ? `Не хватает ${money(need - c.liquid)}: имеет смысл заранее решить, откуда они возьмутся, а не в последние два дня.`
-        : `Запас есть, но небольшой — крупные покупки лучше отложить на после зарплаты.`),
+        ? т('Не хватает {0}: имеет смысл заранее решить, откуда они возьмутся, а не в последние два дня.', money(need - c.liquid))
+        : т('Запас есть, но небольшой — крупные покупки лучше отложить на после зарплаты.')),
     evidence: [
-      `Остаток: ${money(c.liquid)}`,
-      `Темп трат: ${money(dailyBurn)} в день`,
-      `Дней до ${payday} числа: ${daysLeft}`,
+      т('Остаток: {0}', money(c.liquid)),
+      т('Темп трат: {0} в день', money(dailyBurn)),
+      т('Дней до {0} числа: {1}', payday, daysLeft),
     ],
     impactMonthly: 0,
     effort: 'низкое',
   }]
 }
 
+/** Какая доля расходов зафиксирована — это про гибкость, а не про сумму. */
 /** Какая доля расходов зафиксирована — это про гибкость, а не про сумму. */
 function ruleFixedShare(c: Ctx): Advice[] {
   const fixed = c.data.recurring
@@ -818,22 +837,23 @@ function ruleFixedShare(c: Ctx): Advice[] {
     id: 'fixed_share',
     kind: 'budget',
     severity: share > 65 ? 'warn' : 'info',
-    title: `${pct(share)} расходов зафиксировано обязательствами`,
+    title: т('{0} расходов зафиксировано обязательствами', pct(share)),
     body:
-      `${money(fixed)} из ${money(c.avgExpense)} уходит по регулярным платежам. ` +
-      `Чем выше эта доля, тем меньше можно ужаться в плохой месяц: сокращать придётся не «лишнее», а обязательное, что почти всегда означает штрафы и просрочки. ` +
-      `Здоровый ориентир — не больше половины расходов.`,
+      т('{0} из {1} уходит по регулярным платежам. ', money(fixed), money(c.avgExpense)) +
+      т('Чем выше эта доля, тем меньше можно ужаться в плохой месяц: сокращать придётся не «лишнее», а обязательное, что почти всегда означает штрафы и просрочки. ') +
+      т('Здоровый ориентир — не больше половины расходов.'),
     evidence: c.data.recurring
       .filter((r) => r.active && r.kind === 'expense')
       .sort((a, b) => b.amount - a.amount)
       .slice(0, 5)
-      .map((r) => `${r.title}: ${money(r.amount)}/мес`),
+      .map((r) => т('{0}: {1}/мес', r.title, money(r.amount))),
     impactMonthly: 0,
     effort: 'высокое',
-    action: { label: 'Открыть регулярные', type: 'goto', payload: { view: 'recurring' } },
+    action: { label: т('Открыть регулярные'), type: 'goto', payload: { view: 'recurring' } },
   }]
 }
 
+/** Операции без категории портят всю аналитику. */
 /** Операции без категории портят всю аналитику. */
 function ruleUncategorized(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -846,17 +866,18 @@ function ruleUncategorized(c: Ctx): Advice[] {
     id: 'uncat',
     kind: 'budget',
     severity: 'info',
-    title: `${bad.length} ${plural(bad.length, 'операция', 'операции', 'операций')} без категории на ${money(sum)}`,
+    title: т('{0} {1} без категории на {2}', bad.length, plural(bad.length, 'операция', 'операции', 'операций'), money(sum)),
     body:
-      `Это ${pct((bad.length / recent.length) * 100)} операций за три месяца. Пока они не разобраны, ` +
-      `и прогноз, и советы считают по неполной картине — любые выводы про «где течёт» будут смещены.`,
-    evidence: [`Сумма без категории: ${money(sum)}`, `В среднем: ${money(Math.round(sum / 3))}/мес`],
+      т('Это {0} операций за три месяца. Пока они не разобраны, ', pct((bad.length / recent.length) * 100)) +
+      т('и прогноз, и советы считают по неполной картине — любые выводы про «где течёт» будут смещены.'),
+    evidence: [т('Сумма без категории: {0}', money(sum)), т('В среднем: {0}/мес', money(Math.round(sum / 3)))],
     impactMonthly: 0,
     effort: 'низкое',
-    action: { label: 'Показать их', type: 'goto', payload: { view: 'transactions', filter: 'uncategorized' } },
+    action: { label: т('Показать их'), type: 'goto', payload: { view: 'transactions', filter: 'uncategorized' } },
   }]
 }
 
+/** Выходные против будней — типичная точка утечки. */
 /** Выходные против будней — типичная точка утечки. */
 function ruleWeekendSpending(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -889,15 +910,15 @@ function ruleWeekendSpending(c: Ctx): Advice[] {
     id: 'weekend',
     kind: 'cut',
     severity: 'info',
-    title: `В выходные вы тратите в ${(perWend / perWday).toFixed(1).replace('.', ',')} раза больше`,
+    title: т('В выходные вы тратите в {0} раза больше', (perWend / perWday).toFixed(1).replace('.', ',')),
     body:
-      `В будний день на необязательные категории уходит ${money(Math.round(perWday))}, в выходной — ${money(Math.round(perWend))}. ` +
-      `Разница за месяц — примерно ${money(monthlyDiff)}. Это не повод сидеть дома: обычно достаточно заранее решить сумму на выходные, ` +
-      `потому что перерасход здесь берётся из «раз уж вышли», а не из конкретной крупной траты.`,
+      т('В будний день на необязательные категории уходит {0}, в выходной — {1}. ', money(Math.round(perWday)), money(Math.round(perWend))) +
+      т('Разница за месяц — примерно {0}. Это не повод сидеть дома: обычно достаточно заранее решить сумму на выходные, ', money(monthlyDiff)) +
+      т('потому что перерасход здесь берётся из «раз уж вышли», а не из конкретной крупной траты.'),
     evidence: [
-      `Выходные: ${money(weekend)} за 3 месяца`,
-      `Будни: ${money(weekday)} за 3 месяца`,
-      `Половина разницы = ${money(Math.round(monthlyDiff / 2))}/мес`,
+      т('Выходные: {0} за 3 месяца', money(weekend)),
+      т('Будни: {0} за 3 месяца', money(weekday)),
+      т('Половина разницы = {0}/мес', money(Math.round(monthlyDiff / 2))),
     ],
     impactMonthly: Math.round(monthlyDiff / 2),
     effort: 'среднее',
@@ -905,6 +926,11 @@ function ruleWeekendSpending(c: Ctx): Advice[] {
 }
 
 
+/**
+ * Дни подряд с тратами. Сумма за месяц может быть в норме, а привычка
+ * тратить каждый день — уже сложившейся: именно она мешает случайной
+ * экономии, потому что кошелёк не закрывается ни на день.
+ */
 /**
  * Дни подряд с тратами. Сумма за месяц может быть в норме, а привычка
  * тратить каждый день — уже сложившейся: именно она мешает случайной
@@ -958,23 +984,28 @@ function ruleSpendingStreak(c: Ctx): Advice[] {
     id: 'streak',
     kind: 'cut',
     severity: best >= 21 || freePerMonth < 3 ? 'warn' : 'info',
-    title: `Самая длинная серия — ${best} ${plural(best, 'день', 'дня', 'дней')} подряд с тратами`,
+    title: т('Самая длинная серия — {0} {1} подряд с тратами', best, plural(best, 'день', 'дня', 'дней')),
     body:
-      `За три месяца набралось ${free} ${plural(free, 'день', 'дня', 'дней')} без единой траты — это ` +
-      `${freePerMonth.toFixed(1).replace('.', ',')} в месяц. ` +
-      `Ежедневные покупки почти всегда мелкие и почти никогда не запоминаются, поэтому в отчёте их не видно, ` +
-      `а в сумме они и есть разница между «нормальным» и «дорогим» месяцем. ` +
-      `Приём простой: назначить два дня в неделю, когда деньги не тратятся вообще — не ограничивая суммы в остальные.`,
+      т('За три месяца набралось {0} {1} без единой траты — это ', free, plural(free, 'день', 'дня', 'дней')) +
+      т('{0} в месяц. ', freePerMonth.toFixed(1).replace('.', ',')) +
+      т('Ежедневные покупки почти всегда мелкие и почти никогда не запоминаются, поэтому в отчёте их не видно, ') +
+      т('а в сумме они и есть разница между «нормальным» и «дорогим» месяцем. ') +
+      т('Приём простой: назначить два дня в неделю, когда деньги не тратятся вообще — не ограничивая суммы в остальные.'),
     evidence: [
-      `Серия закончилась ${bestEnd ? humanDate(bestEnd, true) : '—'}`,
-      `Дней с тратами: ${days.size} из ${span}`,
-      `Медиана необязательных трат в такой день: ${money(Math.round(perDay))}`,
+      т('Серия закончилась {0}', bestEnd ? humanDate(bestEnd, true) : '—'),
+      т('Дней с тратами: {0} из {1}', days.size, span),
+      т('Медиана необязательных трат в такой день: {0}', money(Math.round(perDay))),
     ],
     impactMonthly: impact,
     effort: 'среднее',
   }]
 }
 
+/**
+ * Сезонный пик впереди. Сезонность уже посчитана движком прогноза по году
+ * истории — здесь она превращается в предупреждение заранее, а не в объяснение
+ * задним числом.
+ */
 /**
  * Сезонный пик впереди. Сезонность уже посчитана движком прогноза по году
  * истории — здесь она превращается в предупреждение заранее, а не в объяснение
@@ -999,7 +1030,7 @@ function ruleSeasonalPeak(c: Ctx): Advice[] {
     if (add < 30000) continue
     extra += add
     const cat = c.catById.get(b.categoryId)
-    peaks.push({ name: cat?.name ?? 'Без категории', icon: cat?.icon ?? '❓', extra: add, k })
+    peaks.push({ name: cat?.name ?? т('Без категории'), icon: cat?.icon ?? '❓', extra: add, k })
   }
   if (extra < 300000 || !peaks.length) return []
   peaks.sort((a, b) => b.extra - a.extra)
@@ -1009,20 +1040,25 @@ function ruleSeasonalPeak(c: Ctx): Advice[] {
     id: 'season',
     kind: 'budget',
     severity: share > 15 ? 'warn' : 'info',
-    title: `${monthTitle(nextKey)} у вас обычно дороже на ${money(extra)}`,
+    title: т('{0} у вас обычно дороже на {1}', monthTitle(nextKey), money(extra)),
     body:
-      `По истории за ${c.keys.length} ${plural(c.keys.length, 'месяц', 'месяца', 'месяцев')} этот месяц выходит примерно ` +
-      `на ${pct(share)} тяжелее обычного. Это не повод сокращать траты — это повод отложить ${money(extra)} заранее, ` +
-      `пока месяц не начался: сезонные пики опасны не размером, а тем, что приходят в тот момент, когда деньги уже распределены.`,
+      т('По истории за {0} {1} этот месяц выходит примерно ', c.keys.length, plural(c.keys.length, 'месяц', 'месяца', 'месяцев')) +
+      т('на {0} тяжелее обычного. Это не повод сокращать траты — это повод отложить {1} заранее, ', pct(share), money(extra)) +
+      т('пока месяц не начался: сезонные пики опасны не размером, а тем, что приходят в тот момент, когда деньги уже распределены.'),
     evidence: peaks.slice(0, 4).map(
       (x) => `${сЗначкомъ(x.icon, x.name)}: +${money(x.extra)} (×${x.k.toFixed(2).replace('.', ',')})`,
     ),
     impactMonthly: 0,
     effort: 'низкое',
-    action: { label: 'Посмотреть прогноз', type: 'goto', payload: { view: 'forecast' } },
+    action: { label: т('Посмотреть прогноз'), type: 'goto', payload: { view: 'forecast' } },
   }]
 }
 
+/**
+ * Крупная разовая трата, которая была в этом же месяце год назад. Страховка,
+ * шины, продление домена: такие вещи не попадают в регулярные платежи, потому
+ * что случаются раз в год, — и каждый раз оказываются неожиданностью.
+ */
 /**
  * Крупная разовая трата, которая была в этом же месяце год назад. Страховка,
  * шины, продление домена: такие вещи не попадают в регулярные платежи, потому
@@ -1071,21 +1107,28 @@ function ruleLastYearRepeat(c: Ctx): Advice[] {
     kind: 'budget',
     severity: sum > c.avgExpense * 0.25 ? 'warn' : 'info',
     title: top.length > 1
-      ? `Год назад в это время было ${top.length} ${plural(top.length, 'крупная трата', 'крупные траты', 'крупных трат')} на ${money(sum)}`
-      : `Год назад в это время была крупная трата на ${money(sum)}`,
+      ? т('Год назад в это время было {0} {1} на {2}', top.length, plural(top.length, 'крупная трата', 'крупные траты', 'крупных трат'), money(sum))
+      : т('Год назад в это время была крупная трата на {0}', money(sum)),
     body:
-      `Такие расходы приходят раз в год и потому не попадают ни в регулярные платежи, ни в привычную норму месяца. ` +
-      `Если они повторятся, лучше знать об этом заранее: ${money(sum)} — это ${pct(c.avgExpense > 0 ? (sum / c.avgExpense) * 100 : 0)} обычного месяца. ` +
-      `Что не повторится — просто пропустите.`,
+      т('Такие расходы приходят раз в год и потому не попадают ни в регулярные платежи, ни в привычную норму месяца. ') +
+      т('Если они повторятся, лучше знать об этом заранее: {0} — это {1} обычного месяца. ', money(sum), pct(c.avgExpense > 0 ? (sum / c.avgExpense) * 100 : 0)) +
+      т('Что не повторится — просто пропустите.'),
     evidence: top.map((f) => {
       const cat = c.catById.get(f.t.categoryId || '')
-      return `${cat?.icon ?? '❓'} ${f.t.note || cat?.name || 'без категории'} — ${money(f.t.amount)}, ${humanDate(f.t.date, true)}`
+      return `${cat?.icon ?? '❓'} ${f.t.note || cat?.name || т('без категории')} — ${money(f.t.amount)}, ${humanDate(f.t.date, true)}`
     }),
     impactMonthly: 0,
     effort: 'низкое',
   }]
 }
 
+/**
+ * Почему категория подорожала: цена или объём.
+ *
+ * Рост суммы раскладывается точно: count₂·avg₂ − count₁·avg₁ =
+ * (avg₂ − avg₁)·count₂ + (count₂ − count₁)·avg₁. Первое слагаемое — цена,
+ * второе — количество покупок. Управляемо, как правило, только второе.
+ */
 /**
  * Почему категория подорожала: цена или объём.
  *
@@ -1130,30 +1173,31 @@ function rulePriceVsVolume(c: Ctx): Advice[] {
       kind: 'cut',
       severity: growth / v.oldSum > 0.5 ? 'warn' : 'info',
       title: priceLed
-        ? `${сЗначкомъ(cat.icon, cat.name)} подорожала: чек вырос на ${pct(((avgNew - avgOld) / avgOld) * 100)}`
-        : `${сЗначкомъ(cat.icon, cat.name)}: покупок стало больше на ${pct(((v.newN - v.oldN) / v.oldN) * 100)}`,
+        ? т('{0} подорожала: чек вырос на {1}', сЗначкомъ(cat.icon, cat.name), pct(((avgNew - avgOld) / avgOld) * 100))
+        : т('{0}: покупок стало больше на {1}', сЗначкомъ(cat.icon, cat.name), pct(((v.newN - v.oldN) / v.oldN) * 100)),
       body:
-        `За последние три месяца ушло ${money(v.newSum)} против ${money(v.oldSum)} тремя месяцами раньше — ` +
-        `рост ${money(growth)}. Из него ${money(Math.abs(priceEffect))} дала цена и ${money(Math.abs(volumeEffect))} — количество покупок. ` +
+        т('За последние три месяца ушло {0} против {1} тремя месяцами раньше — ', money(v.newSum), money(v.oldSum)) +
+        т('рост {0}. Из него {1} дала цена и {2} — количество покупок. ', money(growth), money(Math.abs(priceEffect)), money(Math.abs(volumeEffect))) +
         (priceLed
-          ? `Дорожает сама покупка, а не аппетит: урезать здесь нечего, но можно менять места и формат — цена в этой категории у вас растёт быстрее, чем вы этого хотите.`
-          : `Цена почти не изменилась, изменилась частота: вернуть прежний ритм покупок — самый прямой способ вернуть и сумму.`),
+          ? т('Дорожает сама покупка, а не аппетит: урезать здесь нечего, но можно менять места и формат — цена в этой категории у вас растёт быстрее, чем вы этого хотите.')
+          : т('Цена почти не изменилась, изменилась частота: вернуть прежний ритм покупок — самый прямой способ вернуть и сумму.')),
       evidence: [
-        `Средний чек: ${money(Math.round(avgOld))} → ${money(Math.round(avgNew))}`,
-        `Покупок за 3 месяца: ${v.oldN} → ${v.newN}`,
-        `Вклад цены ${money(priceEffect)}, вклад количества ${money(volumeEffect)}`,
+        т('Средний чек: {0} → {1}', money(Math.round(avgOld)), money(Math.round(avgNew))),
+        т('Покупок за 3 месяца: {0} → {1}', v.oldN, v.newN),
+        т('Вклад цены {0}, вклад количества {1}', money(priceEffect), money(volumeEffect)),
       ],
       // Управляемая часть — только объём, и то не целиком.
       impactMonthly: volumeEffect > 0 ? Math.round(volumeEffect / 3) : 0,
       effort: priceLed ? 'высокое' : 'среднее',
       action: volumeEffect > 0
-        ? { label: `Вернуть прежний ритм ${cat.name}`, type: 'scenario', payload: { categoryId: id, factor: v.oldSum / v.newSum } }
+        ? { label: т('Вернуть прежний ритм {0}', cat.name), type: 'scenario', payload: { categoryId: id, factor: v.oldSum / v.newSum } }
         : undefined,
     })
   }
   return out.sort((a, b) => b.impactMonthly - a.impactMonthly).slice(0, 3)
 }
 
+/** Категория появилась недавно — и уже в верхней части расходов. */
 /** Категория появилась недавно — и уже в верхней части расходов. */
 function ruleNewcomerCategory(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -1179,25 +1223,26 @@ function ruleNewcomerCategory(c: Ctx): Advice[] {
       id: 'newcomer_' + cat.id,
       kind: 'budget',
       severity: 'info',
-      title: `${сЗначкомъ(cat.icon, cat.name)} появилась ${monthsWord(age)} назад и уже в топ-5 расходов`,
+      title: т('{0} появилась {1} назад и уже в топ-5 расходов', сЗначкомъ(cat.icon, cat.name), monthsWord(age)),
       body:
-        `С ${humanDate(first, true)} по этой категории прошло ${t.count} ${plural(t.count, 'операция', 'операции', 'операций')} на ${money(t.amount)}, ` +
-        `в среднем ${money(monthly)} в месяц — это ${pct(t.share * 100)} всех расходов за три месяца. ` +
-        `Новая статья ещё не стала привычкой, и сейчас самый дешёвый момент решить, нужна ли она в таком объёме. ` +
-        `Заодно стоит поставить ей лимит: старые категории у вас нормируются историей, а у этой истории пока нет.`,
+        т('С {0} по этой категории прошло {1} {2} на {3}, ', humanDate(first, true), t.count, plural(t.count, 'операция', 'операции', 'операций'), money(t.amount)) +
+        т('в среднем {0} в месяц — это {1} всех расходов за три месяца. ', money(monthly), pct(t.share * 100)) +
+        т('Новая статья ещё не стала привычкой, и сейчас самый дешёвый момент решить, нужна ли она в таком объёме. ') +
+        т('Заодно стоит поставить ей лимит: старые категории у вас нормируются историей, а у этой истории пока нет.'),
       evidence: [
-        `Первая операция: ${humanDate(first, true)}`,
-        `Средний чек: ${money(Math.round(t.amount / Math.max(1, t.count)))}`,
-        `В год такими темпами: ${money(monthly * 12)}`,
+        т('Первая операция: {0}', humanDate(first, true)),
+        т('Средний чек: {0}', money(Math.round(t.amount / Math.max(1, t.count)))),
+        т('В год такими темпами: {0}', money(monthly * 12)),
       ],
       impactMonthly: 0,
       effort: 'низкое',
-      action: { label: 'Поставить лимит', type: 'plan', payload: { categoryIds: [cat.id] } },
+      action: { label: т('Поставить лимит'), type: 'plan', payload: { categoryIds: [cat.id] } },
     })
   }
   return out.slice(0, 2)
 }
 
+/** Категория замолчала: раньше тратили, три месяца — ничего. */
 /** Категория замолчала: раньше тратили, три месяца — ничего. */
 function ruleFadedCategory(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -1220,26 +1265,27 @@ function ruleFadedCategory(c: Ctx): Advice[] {
       id: 'faded_' + cat.id,
       kind: 'budget',
       severity: 'info',
-      title: `${сЗначкомъ(cat.icon, cat.name)}: ${monthsWord(gap)} без единой траты`,
+      title: т('{0}: {1} без единой траты', сЗначкомъ(cat.icon, cat.name), monthsWord(gap)),
       body:
-        `Раньше сюда уходило около ${money(norm)} в месяц, последняя операция — ${humanDate(last, true)}. ` +
+        т('Раньше сюда уходило около {0} в месяц, последняя операция — {1}. ', money(norm), humanDate(last, true)) +
         (cat.plan
-          ? `При этом лимит ${money(cat.plan)} всё ещё занимает место в бюджете и портит раскладку: бюджет считает эти деньги занятыми. `
-          : `Освободившиеся ${money(norm)} в месяц никуда не делись — если они не переехали в другую категорию, значит просто растворились в общих тратах. `) +
-        `Либо категорию пора архивировать, либо траты по ней перестали попадать в учёт.`,
+          ? т('При этом лимит {0} всё ещё занимает место в бюджете и портит раскладку: бюджет считает эти деньги занятыми. ', money(cat.plan))
+          : т('Освободившиеся {0} в месяц никуда не делись — если они не переехали в другую категорию, значит просто растворились в общих тратах. ', money(norm))) +
+        т('Либо категорию пора архивировать, либо траты по ней перестали попадать в учёт.'),
       evidence: [
-        `Последняя операция: ${humanDate(last, true)}`,
-        `Обычно было: ${money(norm)}/мес`,
-        cat.plan ? `Лимит: ${money(cat.plan)}` : `Операций за всю историю: ${own.length}`,
+        т('Последняя операция: {0}', humanDate(last, true)),
+        т('Обычно было: {0}/мес', money(norm)),
+        cat.plan ? т('Лимит: {0}', money(cat.plan)) : т('Операций за всю историю: {0}', own.length),
       ],
       impactMonthly: 0,
       effort: 'низкое',
-      action: { label: 'Открыть категории', type: 'goto', payload: { view: 'categories' } },
+      action: { label: т('Открыть категории'), type: 'goto', payload: { view: 'categories' } },
     })
   }
   return out.sort((a, b) => a.title.localeCompare(b.title)).slice(0, 2)
 }
 
+/** Лидер по числу операций, а не по деньгам: куда уходит внимание. */
 /** Лидер по числу операций, а не по деньгам: куда уходит внимание. */
 function ruleFrequencyLeader(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -1270,23 +1316,24 @@ function ruleFrequencyLeader(c: Ctx): Advice[] {
     id: 'freq',
     kind: 'cut',
     severity: 'info',
-    title: `${сЗначкомъ(cat.icon, cat.name)}: ${top.n} ${plural(top.n, 'покупка', 'покупки', 'покупок')} за три месяца, а денег — ${pct(moneyShare * 100)}`,
+    title: т('{0}: {1} {2} за три месяца, а денег — {3}', сЗначкомъ(cat.icon, cat.name), top.n, plural(top.n, 'покупка', 'покупки', 'покупок'), pct(moneyShare * 100)),
     body:
-      `Это ${pct(countShare * 100)} всех ваших расходных операций и примерно ${perWeek.toFixed(1).replace('.', ',')} ${plural(Math.round(perWeek), 'покупка', 'покупки', 'покупок')} в неделю ` +
-      `по ${money(Math.round(top.sum / top.n))}. Деньги здесь небольшие, а вот решений — больше, чем в любой другой категории: ` +
-      `каждая такая покупка это ещё один повод достать карту. Обычно достаточно собрать их в один заход раз в неделю — ` +
-      `сумма меняется мало, а число мелких решений падает в разы.`,
+      т('Это {0} всех ваших расходных операций и примерно {1} {2} в неделю ', pct(countShare * 100), perWeek.toFixed(1).replace('.', ','), plural(Math.round(perWeek), 'покупка', 'покупки', 'покупок')) +
+      т('по {0}. Деньги здесь небольшие, а вот решений — больше, чем в любой другой категории: ', money(Math.round(top.sum / top.n))) +
+      т('каждая такая покупка это ещё один повод достать карту. Обычно достаточно собрать их в один заход раз в неделю — ') +
+      т('сумма меняется мало, а число мелких решений падает в разы.'),
     evidence: [
-      `Операций: ${top.n} из ${recent.length}`,
-      `Денег: ${money(top.sum)} из ${money(total)}`,
-      `Средний чек: ${money(Math.round(top.sum / top.n))}`,
+      т('Операций: {0} из {1}', top.n, recent.length),
+      т('Денег: {0} из {1}', money(top.sum), money(total)),
+      т('Средний чек: {0}', money(Math.round(top.sum / top.n))),
     ],
     impactMonthly: 0,
     effort: 'низкое',
-    action: { label: 'Показать операции', type: 'goto', payload: { view: 'transactions', filter: 'cat:' + id } },
+    action: { label: т('Показать операции'), type: 'goto', payload: { view: 'transactions', filter: 'cat:' + id } },
   }]
 }
 
+/** Подозрение на двойное списание: одинаковая сумма, категория и день. */
 /** Подозрение на двойное списание: одинаковая сумма, категория и день. */
 function ruleDuplicates(c: Ctx): Advice[] {
   const since = addMonths(today(), -3)
@@ -1312,17 +1359,17 @@ function ruleDuplicates(c: Ctx): Advice[] {
     id: 'dupes',
     kind: 'budget',
     severity: extra > c.avgExpense * 0.03 ? 'warn' : 'info',
-    title: `${dupes.length} ${plural(dupes.length, 'пара', 'пары', 'пар')} одинаковых трат на ${money(extra)}`,
+    title: т('{0} {1} одинаковых трат на {2}', dupes.length, plural(dupes.length, 'пара', 'пары', 'пар'), money(extra)),
     body:
-      `Совпали день, сумма, категория и комментарий. Так выглядит двойное списание банка, повторный импорт выписки ` +
-      `или дважды занесённая вручную операция. Иногда это правда — два одинаковых кофе бывают, — но проверить стоит: ` +
-      `лишние записи завышают и норму месяца, и прогноз, а банковский дубль ещё и возвращают по заявлению.`,
+      т('Совпали день, сумма, категория и комментарий. Так выглядит двойное списание банка, повторный импорт выписки ') +
+      т('или дважды занесённая вручную операция. Иногда это правда — два одинаковых кофе бывают, — но проверить стоит: ') +
+      т('лишние записи завышают и норму месяца, и прогноз, а банковский дубль ещё и возвращают по заявлению.'),
     evidence: dupes.slice(0, 4).map((g) => {
       const cat = c.catById.get(g[0].categoryId || '')
-      return `${humanDate(g[0].date, true)} · ${cat?.name ?? 'без категории'} · ${money(g[0].amount)} × ${g.length}`
+      return `${humanDate(g[0].date, true)} · ${cat?.name ?? т('без категории')} · ${money(g[0].amount)} × ${g.length}`
     }),
     impactMonthly: 0,
     effort: 'низкое',
-    action: { label: 'Открыть этот день', type: 'goto', payload: { view: 'transactions', filter: 'day:' + worst.date } },
+    action: { label: т('Открыть этот день'), type: 'goto', payload: { view: 'transactions', filter: 'day:' + worst.date } },
   }]
 }

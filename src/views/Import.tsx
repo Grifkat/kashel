@@ -12,6 +12,7 @@ import {
 } from '../engine/csv'
 import { Field, Tbl, useToast } from '../components/ui'
 import type { ImportRule } from '../lib/types'
+import { т, тр } from '../i18n'
 
 export default function ImportView() {
   const app = useApp()
@@ -28,7 +29,7 @@ export default function ImportView() {
   const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories])
 
   const pick = async () => {
-    const res = await bridge.openText([{ name: 'Выписка', extensions: ['csv', 'txt'] }])
+    const res = await bridge.openText([{ name: т('Выписка'), extensions: ['csv', 'txt'] }])
     if (!res) return
     const t = parseCsv(res.text)
     const m = guessColumns(t.header)
@@ -46,13 +47,13 @@ export default function ImportView() {
   const doImport = () => {
     const list = rows.filter((r) => r.include && (!skipDup || !r.duplicate))
     if (!list.length) {
-      toast('Нечего импортировать')
+      toast(т('Нечего импортировать'))
       return
     }
     const txs = rowsToTransactions(list, accountId)
     const months = [...new Set(txs.map((t) => t.date.slice(0, 7)))]
     setData((d) => ({ ...d, transactions: [...d.transactions, ...txs] }), months)
-    toast(`Импортировано операций: ${txs.length}`)
+    toast(т('Импортировано операций: {0}', txs.length))
     setRows([])
     setTable(null)
     setFile('')
@@ -69,30 +70,20 @@ export default function ImportView() {
     <div className="view wide">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Импорт выписки</h1>
+          <h1 className="view-title">{т('Импорт выписки')}</h1>
           <div className="view-sub">
-            Любой CSV: колонки сопоставляются вручную, категории проставляются по правилам,
-            повторы отлавливаются по дате, сумме и описанию
-          </div>
+            {т('Любой CSV: колонки сопоставляются вручную, категории проставляются по правилам, повторы отлавливаются по дате, сумме и описанию')}</div>
         </div>
         <button className="btn primary" onClick={pick}>
-          <Icon name="download" size={15} /> Выбрать файл
-        </button>
+          <Icon name="download" size={15} /> {т(' Выбрать файл')}</button>
       </div>
 
       {!table && (
         <div className="card">
           <div className="advice-body" style={{ lineHeight: 1.7 }}>
-            <b>Как это работает.</b> Выгрузите операции из банка в CSV и откройте файл здесь.
-            Кошель определит разделитель и кодировку (в том числе windows-1251, в которой приходит
-            большинство российских выписок), попробует угадать колонки с датой, суммой и описанием —
-            а вы поправите, если он ошибся.
+            <b>{т('Как это работает.')}</b> {т(' Выгрузите операции из банка в CSV и откройте файл здесь. Кошель определит разделитель и кодировку (в том числе windows-1251, в которой приходит большинство российских выписок), попробует угадать колонки с датой, суммой и описанием — а вы поправите, если он ошибся.')}<br />
             <br />
-            <br />
-            Дальше по правилам ниже операциям проставятся категории: правило — это просто кусок текста
-            из описания. Например, «пятёрочка» → Продукты. Что не распозналось, останется без категории
-            и будет ждать в разделе «Операции».
-          </div>
+            {т('Дальше по правилам ниже операциям проставятся категории: правило — это просто кусок текста из описания. Например, «пятёрочка» → Продукты. Что не распозналось, останется без категории и будет ждать в разделе «Операции».')}</div>
         </div>
       )}
 
@@ -103,39 +94,38 @@ export default function ImportView() {
               <Icon name="note" size={16} />
               <span className="strong">{file}</span>
               <span className="faint small">
-                {table.rows.length} строк · разделитель «{table.delimiter === '\t' ? 'таб' : table.delimiter}»
-              </span>
+                {тр('{0} строк · разделитель «{1}»', table.rows.length, table.delimiter === '\t' ? 'таб' : table.delimiter)}</span>
               <span className="spacer" />
-              <button className="btn sm ghost" onClick={() => { setTable(null); setRows([]) }}>Отменить</button>
+              <button className="btn sm ghost" onClick={() => { setTable(null); setRows([]) }}>{т('Отменить')}</button>
             </div>
 
             <div className="grid c4">
-              <Field label="Колонка с датой">
+              <Field label={т('Колонка с датой')}>
                 <select value={map.date} onChange={(e) => remap({ ...map, date: Number(e.target.value) })}>
                   {table.header.map((h, i) => (
                     <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Колонка с суммой">
+              <Field label={т('Колонка с суммой')}>
                 <select value={map.amount} onChange={(e) => remap({ ...map, amount: Number(e.target.value) })}>
                   {table.header.map((h, i) => (
                     <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Отдельная колонка прихода" hint="Если приход и расход разнесены">
+              <Field label={т('Отдельная колонка прихода')} hint={т('Если приход и расход разнесены')}>
                 <select
                   value={map.amountIn ?? ''}
                   onChange={(e) => remap({ ...map, amountIn: e.target.value === '' ? undefined : Number(e.target.value) })}
                 >
-                  <option value="">нет</option>
+                  <option value="">{т('нет')}</option>
                   {table.header.map((h, i) => (
                     <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
                   ))}
                 </select>
               </Field>
-              <Field label="Колонка с описанием">
+              <Field label={т('Колонка с описанием')}>
                 <select value={map.description} onChange={(e) => remap({ ...map, description: Number(e.target.value) })}>
                   {table.header.map((h, i) => (
                     <option key={i} value={i}>{h || `колонка ${i + 1}`}</option>
@@ -146,7 +136,7 @@ export default function ImportView() {
 
             <div className="row wrap" style={{ gap: 12, marginTop: 6 }}>
               <div style={{ width: 220 }}>
-                <Field label="Импортировать на счёт">
+                <Field label={т('Импортировать на счёт')}>
                   <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                     {data.accounts.filter((a) => !a.archived).map((a) => (
                       <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
@@ -155,36 +145,34 @@ export default function ImportView() {
                 </Field>
               </div>
               <button className={'chip' + (skipDup ? ' on' : '')} onClick={() => setSkipDup((v) => !v)}>
-                пропускать повторы ({dups})
-              </button>
+                {тр('пропускать повторы ({0})', dups)}</button>
             </div>
           </div>
 
           <div className="card" style={{ marginBottom: 14 }}>
             <div className="row">
               <div className="stat">
-                <span className="l">К импорту</span>
+                <span className="l">{т('К импорту')}</span>
                 <span className="v">{included.length}</span>
               </div>
               <span className="spacer" />
               <div className="stat">
-                <span className="l">Приход</span>
+                <span className="l">{т('Приход')}</span>
                 <span className="v amount in"><span className="sign">+</span>{money(sumIn)}</span>
               </div>
               <span className="spacer" />
               <div className="stat">
-                <span className="l">Расход</span>
+                <span className="l">{т('Расход')}</span>
                 <span className="v amount out"><span className="sign">−</span>{money(sumOut)}</span>
               </div>
               <span className="spacer" />
               <div className="stat">
-                <span className="l">Без категории</span>
+                <span className="l">{т('Без категории')}</span>
                 <span className="v">{uncategorized}</span>
               </div>
               <span className="spacer" />
               <button className="btn primary" onClick={doImport}>
-                <Icon name="check" size={15} /> Импортировать {included.length}
-              </button>
+                <Icon name="check" size={15} /> {тр(' Импортировать {0}', included.length)}</button>
             </div>
           </div>
 
@@ -193,10 +181,10 @@ export default function ImportView() {
               <thead>
                 <tr>
                   <th style={{ width: 34 }} />
-                  <th>Дата</th>
-                  <th>Описание</th>
-                  <th>Категория</th>
-                  <th className="r">Сумма</th>
+                  <th>{т('Дата')}</th>
+                  <th>{т('Описание')}</th>
+                  <th>{т('Категория')}</th>
+                  <th className="r">{т('Сумма')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -213,7 +201,7 @@ export default function ImportView() {
                     <td className="faint nowrap">{humanDate(r.date, true)}</td>
                     <td>
                       {r.description}
-                      {r.duplicate && <span className="badge warn" style={{ marginLeft: 8 }}>похоже на повтор</span>}
+                      {r.duplicate && <span className="badge warn" style={{ marginLeft: 8 }}>{т('похоже на повтор')}</span>}
                     </td>
                     <td>
                       <select
@@ -234,7 +222,7 @@ export default function ImportView() {
                 ))}
               </tbody>
             </Tbl>
-            {rows.length > 300 && <div className="faint small center" style={{ padding: 10 }}>Показаны первые 300 строк из {rows.length}</div>}
+            {rows.length > 300 && <div className="faint small center" style={{ padding: 10 }}>{тр('Показаны первые 300 строк из {0}', rows.length)}</div>}
           </div>
         </>
       )}
@@ -251,11 +239,9 @@ function RulesEditor() {
 
   return (
     <div className="card" style={{ marginTop: 16 }}>
-      <div className="card-title"><Icon name="filter" size={14} /> Правила автокатегоризации</div>
+      <div className="card-title"><Icon name="filter" size={14} /> {т(' Правила автокатегоризации')}</div>
       <div className="faint small" style={{ marginBottom: 12 }}>
-        Если описание операции содержит указанный текст, категория проставится сама.
-        Регистр не важен, проверка идёт по вхождению подстроки.
-      </div>
+        {т('Если описание операции содержит указанный текст, категория проставится сама. Регистр не важен, проверка идёт по вхождению подстроки.')}</div>
 
       {data.importRules.map((r) => (
         <div key={r.id} className="row" style={{ gap: 8, marginBottom: 6 }}>
@@ -284,14 +270,14 @@ function RulesEditor() {
       <div className="row" style={{ gap: 8, marginTop: 10 }}>
         <input
           type="text"
-          placeholder="текст в описании"
+          placeholder={т('текст в описании')}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
           style={{ width: 240 }}
         />
         <Icon name="arrowRight" size={14} />
         <select value={catId} onChange={(e) => setCatId(e.target.value)} style={{ width: 200 }}>
-          <option value="">выберите категорию</option>
+          <option value="">{т('выберите категорию')}</option>
           {data.categories.filter((c) => !c.archived).map((c) => (
             <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
           ))}
@@ -305,8 +291,7 @@ function RulesEditor() {
             setCatId('')
           }}
         >
-          <Icon name="plus" size={13} /> Добавить
-        </button>
+          <Icon name="plus" size={13} /> {т(' Добавить')}</button>
       </div>
     </div>
   )

@@ -10,8 +10,10 @@ import type { Money } from '../lib/types'
 import { DIGIT_SEP, formatAmountInput, money, pct, toMinor } from '../lib/format'
 import { ICON_GROUPS, isCatalogIcon } from '../lib/catalog'
 import { springOf, useAnimLevel } from './anim'
+import { т } from '../i18n'
 
 // ------------------------------------------------------------------ модалка
+/** Открытые окна по порядку открытия — чтобы Escape закрывал только верхнее. */
 /** Открытые окна по порядку открытия — чтобы Escape закрывал только верхнее. */
 const стопкаОконъ: number[] = []
 let счётчикъОконъ = 0
@@ -94,7 +96,7 @@ export function Modal({
         <div className="modal-head">
           {icon && <Icon name={icon} size={17} />}
           <span style={{ flex: 1 }}>{title}</span>
-          <button className="icon-btn" onClick={onClose} title="Закрыть (Esc)">
+          <button className="icon-btn" onClick={onClose} title={т('Закрыть (Esc)')}>
             <Icon name="x" size={16} />
           </button>
         </div>
@@ -114,6 +116,13 @@ export function Modal({
  * «хорошего» задаётся снаружи. Проценты от нуля не считаются: вместо
  * бессмысленной бесконечности показываем «впервые».
  */
+/**
+ * Насколько показатель изменился к прошлому периоду.
+ *
+ * Рост расхода и рост дохода — события разного знака, поэтому направление
+ * «хорошего» задаётся снаружи. Проценты от нуля не считаются: вместо
+ * бессмысленной бесконечности показываем «впервые».
+ */
 export function Delta({
   cur,
   prev,
@@ -124,18 +133,20 @@ export function Delta({
   cur: number
   prev: number
   /** В какую сторону изменение считается хорошим. */
+  /** В какую сторону изменение считается хорошим. */
   goodWhen?: 'up' | 'down'
+  /** Что показать в подсказке после суммы — например «июль, за те же 12 дней». */
   /** Что показать в подсказке после суммы — например «июль, за те же 12 дней». */
   note?: string
   hidden?: boolean
 }) {
   if (hidden) return null
   if (!prev && !cur) return null
-  const title = `Было ${money(prev)}${note ? ' · ' + note : ''}`
-  if (!prev) return <span className="delta new" title={title}>впервые</span>
+  const title = т('Было {0}{1}', money(prev), note ? ' · ' + note : '')
+  if (!prev) return <span className="delta new" title={title}>{т('впервые')}</span>
   const diff = cur - prev
   const ratio = diff / Math.abs(prev)
-  if (Math.abs(ratio) < 0.005) return <span className="delta flat" title={title}>без изменений</span>
+  if (Math.abs(ratio) < 0.005) return <span className="delta flat" title={title}>{т('без изменений')}</span>
   const up = diff > 0
   const good = (goodWhen === 'up') === up
   // Рост в разы процентами читать невозможно: 1400 % → «×15».
@@ -151,6 +162,15 @@ export function Delta({
 
 // ------------------------------------------------------- поля с разрядами
 
+/**
+ * Поле ввода, которое само расставляет разряды и следит за курсором.
+ *
+ * Курсор восстанавливаем по числу «значимых» символов — всех, кроме наших
+ * разделителей: считать одни цифры нельзя, потому что в строке быстрого ввода
+ * есть ещё и слова. Backspace и Delete на разделителе стирают соседнюю цифру:
+ * сам по себе разделитель тут же встал бы обратно, и клавиша выглядела бы
+ * сломанной.
+ */
 /**
  * Поле ввода, которое само расставляет разряды и следит за курсором.
  *
@@ -224,6 +244,11 @@ export function GroupedInput({
  * Строку держим отдельно от числа, иначе набранная запятая («12,») пропадала
  * бы сразу после ввода: 1200 копеек снова превращается в «12».
  */
+/**
+ * Денежное поле: снаружи — копейки, внутри — то, что человек печатает.
+ * Строку держим отдельно от числа, иначе набранная запятая («12,») пропадала
+ * бы сразу после ввода: 1200 копеек снова превращается в «12».
+ */
 export function MoneyInput({
   value,
   onChange,
@@ -260,6 +285,12 @@ export function MoneyInput({
 }
 
 // ---------------------------------------------------------------- таблица
+/**
+ * Таблица в карточке. Два div-а — не украшение: .tbl-box меряет доступную
+ * ширину, и уже от неё, а не от ширины окна, зависит, прятать ли колонки и
+ * включать ли боковую прокрутку. Прокрутка живёт на отдельном .tbl-scroll,
+ * потому что контейнер прокрутки отменяет липкую шапку.
+ */
 /**
  * Таблица в карточке. Два div-а — не украшение: .tbl-box меряет доступную
  * ширину, и уже от неё, а не от ширины окна, зависит, прятать ли колонки и
@@ -354,6 +385,11 @@ export function Toggle({
  * кружка: на тёмной заливке белым, на светлой — почти чёрным. Иначе жёлтая
  * категория превращается в белое пятно.
  */
+/**
+ * Насколько цвет тёмный. Нужно, чтобы решить, чем рисовать иконку внутри
+ * кружка: на тёмной заливке белым, на светлой — почти чёрным. Иначе жёлтая
+ * категория превращается в белое пятно.
+ */
 const luminance = (hex: string): number => {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim())
   if (!m) return 0.3
@@ -369,6 +405,11 @@ export const iconInk = (hex: string): string => (luminance(hex) > 0.45 ? '#14141
 
 const GLYPH_SIZE: Record<string, number> = { sm: 13, md: 17, lg: 23 }
 
+/**
+ * Кружок категории, счёта или цели: сплошная заливка выбранным цветом и
+ * иконка поверх. Старые записи хранят в поле icon эмодзи — их и рисуем
+ * текстом, чтобы ничего не пропало до того, как иконку сменят руками.
+ */
 /**
  * Кружок категории, счёта или цели: сплошная заливка выбранным цветом и
  * иконка поверх. Старые записи хранят в поле icon эмодзи — их и рисуем
@@ -404,6 +445,11 @@ export function Avatar({
   )
 }
 
+/**
+ * Каталог иконок. Цвет выбирается здесь же: иконка и цвет — одно решение,
+ * и смотреть на них порознь бессмысленно. Сверху живой пример того, что
+ * получится, поэтому выбирать можно не закрывая окно.
+ */
 /**
  * Каталог иконок. Цвет выбирается здесь же: иконка и цвет — одно решение,
  * и смотреть на них порознь бессмысленно. Сверху живой пример того, что
@@ -472,18 +518,18 @@ export function IconPicker({
   }
 
   return (
-    <Modal title="Каталог иконок" icon="palette" onClose={onClose}>
+    <Modal title={т('Каталог иконок')} icon="palette" onClose={onClose}>
       <div className="row" style={{ gap: 14, marginBottom: 14, alignItems: 'flex-start' }}>
         <Avatar icon={icon} color={col} size="lg" style={{ width: 54, height: 54 }} />
         <div style={{ flex: 1 }}>
-          <div className="card-title" style={{ marginBottom: 7 }}>Цвет</div>
+          <div className="card-title" style={{ marginBottom: 7 }}>{т('Цвет')}</div>
           <ColorPicker value={col} onChange={pickColor} />
         </div>
       </div>
 
       <input
         type="search"
-        placeholder="Поиск: кофе, такси, зал, свет…"
+        placeholder={т('Поиск: кофе, такси, зал, свет…')}
         value={q}
         onChange={(e) => setQ(e.target.value)}
         style={{ marginBottom: 14 }}
@@ -492,10 +538,10 @@ export function IconPicker({
 
       <div style={{ marginBottom: 16 }}>
         <div className="row" style={{ marginBottom: 7 }}>
-          <div className="card-title" style={{ margin: 0 }}>Свои</div>
+          <div className="card-title" style={{ margin: 0 }}>{т('Свои')}</div>
           <span className="spacer" />
           <button className="btn sm" disabled={грузимъ} onClick={() => поле.current?.click()}>
-            <Icon name="upload" size={13} /> {грузимъ ? 'Загружаю…' : 'Загрузить картинку'}
+            <Icon name="upload" size={13} /> {грузимъ ? т('Загружаю…') : т('Загрузить картинку')}
           </button>
           <input
             ref={поле}
@@ -514,7 +560,7 @@ export function IconPicker({
                 <button
                   key={з}
                   className={'icon-cell' + (on ? ' on' : '')}
-                  title="Свой значок"
+                  title={т('Свой значок')}
                   style={on ? { borderColor: col } : undefined}
                   onClick={() => {
                     onChange(з, col)
@@ -528,12 +574,11 @@ export function IconPicker({
           </div>
         ) : (
           <div className="faint small">
-            PNG, JPG, WebP, GIF или SVG. Картинка обрежется по центру в квадрат и ужмётся до 128 точек.
-          </div>
+            {т('PNG, JPG, WebP, GIF или SVG. Картинка обрежется по центру в квадрат и ужмётся до 128 точек.')}</div>
         )}
       </div>
 
-      {groups.length === 0 && <div className="empty">Ничего не нашлось — попробуйте другое слово</div>}
+      {groups.length === 0 && <div className="empty">{т('Ничего не нашлось — попробуйте другое слово')}</div>}
       {groups.map((g) => (
         <div key={g.title} style={{ marginBottom: 16 }}>
           <div className="card-title" style={{ marginBottom: 7 }}>{g.title}</div>
@@ -607,7 +652,7 @@ export function TagInput({ tags, onChange, suggestions = [] }: { tags: string[];
       </div>
       <input
         type="text"
-        placeholder="Добавить тег и Enter"
+        placeholder={т('Добавить тег и Enter')}
         value={draft}
         onChange={(e) => setDraft(e.target.value)}
         onKeyDown={(e) => {
@@ -647,6 +692,10 @@ export const useToast = () => useContext(ToastCtx)
  * Уведомления на sonner: стопка, свайп и, главное, кнопка действия прямо
  * в карточке — «Удалено 49 операций · Вернуть».
  */
+/**
+ * Уведомления на sonner: стопка, свайп и, главное, кнопка действия прямо
+ * в карточке — «Удалено 49 операций · Вернуть».
+ */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const push = useCallback<Push>((text, action) => {
     sonnerToast(text, action ? { action: { label: action.label, onClick: action.onClick } } : undefined)
@@ -678,7 +727,7 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
 export function Confirm({
   title,
   text,
-  confirmLabel = 'Удалить',
+  confirmLabel = т('Удалить'),
   onConfirm,
   onClose,
 }: {
@@ -695,7 +744,7 @@ export function Confirm({
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>Отмена</button>
+          <button className="btn" onClick={onClose}>{т('Отмена')}</button>
           <button
             className="btn primary"
             style={{ background: 'var(--alert)', borderColor: 'var(--alert)', color: '#fff' }}
@@ -714,6 +763,7 @@ export function Confirm({
   )
 }
 
+/** Инлайновое редактируемое поле — используется в канвасе и заголовках. */
 /** Инлайновое редактируемое поле — используется в канвасе и заголовках. */
 export function InlineEdit({
   value,
@@ -737,7 +787,7 @@ export function InlineEdit({
 
   if (!editing) {
     return (
-      <span className={className} onDoubleClick={() => setEditing(true)} title="Двойной клик — переименовать">
+      <span className={className} onDoubleClick={() => setEditing(true)} title={т('Двойной клик — переименовать')}>
         {value || <span className="faint">{placeholder}</span>}
       </span>
     )

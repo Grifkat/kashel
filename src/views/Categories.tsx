@@ -11,11 +11,12 @@ import { Avatar, Confirm, Field, IconPicker, Modal, ColorPicker, MoneyInput, use
 import { Spark } from '../components/charts'
 import type { Bucket, Category } from '../lib/types'
 import { личное } from '../engine/project'
+import { т, тр } from '../i18n'
 
 const BUCKETS: { k: Bucket; t: string; hint: string }[] = [
-  { k: 'needs', t: 'Надо', hint: 'обязательные траты: жильё, еда, транспорт' },
-  { k: 'wants', t: 'Хочу', hint: 'необязательные: кафе, развлечения, доставка' },
-  { k: 'savings', t: 'Вклад в будущее', hint: 'накопления, обучение, здоровье-профилактика' },
+  { k: 'needs', t: т('Надо'), hint: т('обязательные траты: жильё, еда, транспорт') },
+  { k: 'wants', t: т('Хочу'), hint: т('необязательные: кафе, развлечения, доставка') },
+  { k: 'savings', t: т('Вклад в будущее'), hint: т('накопления, обучение, здоровье-профилактика') },
 ]
 
 export default function Categories() {
@@ -41,13 +42,13 @@ export default function Categories() {
     <div className="view">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Категории</h1>
-          <div className="view-sub">Иконка, цвет, месячный лимит и роль в правиле 50/30/20</div>
+          <h1 className="view-title">{т('Категории')}</h1>
+          <div className="view-sub">{т('Иконка, цвет, месячный лимит и роль в правиле 50/30/20')}</div>
         </div>
         <div className="row">
           <div className="seg">
-            <button className={kind === 'expense' ? 'on' : ''} onClick={() => setKind('expense')}>Расходы</button>
-            <button className={kind === 'income' ? 'on' : ''} onClick={() => setKind('income')}>Доходы</button>
+            <button className={kind === 'expense' ? 'on' : ''} onClick={() => setKind('expense')}>{т('Расходы')}</button>
+            <button className={kind === 'income' ? 'on' : ''} onClick={() => setKind('income')}>{т('Доходы')}</button>
           </div>
           <button
             className="btn primary"
@@ -55,8 +56,7 @@ export default function Categories() {
               setEdit({ id: uid('c'), name: '', kind, icon: '⭐', color: '#4cc46a', bucket: kind === 'expense' ? 'wants' : undefined })
             }
           >
-            <Icon name="plus" size={15} /> Создать
-          </button>
+            <Icon name="plus" size={15} /> {т(' Создать')}</button>
         </div>
       </div>
 
@@ -75,15 +75,15 @@ export default function Categories() {
                   <div className="row" style={{ gap: 7 }}>
                     <span className="strong">{c.name}</span>
                     {c.bucket && <span className="badge">{BUCKETS.find((b) => b.k === c.bucket)?.t}</span>}
-                    {c.capital && <span className="badge">с капитала</span>}
+                    {c.capital && <span className="badge">{т('с капитала')}</span>}
                   </div>
                   <div className="faint small">
-                    {avg ? `${money(avg)} в месяц в среднем` : 'нет операций за 3 месяца'}
-                    {c.plan ? ` · лимит ${money(c.plan)}` : ''}
+                    {avg ? т('{0} в месяц в среднем', money(avg)) : т('нет операций за 3 месяца')}
+                    {c.plan ? т(' · лимит {0}', money(c.plan)) : ''}
                   </div>
                 </div>
                 <Spark values={hist} color={c.color} />
-                <button className="icon-btn" onClick={() => setEdit(c)} title="Изменить">
+                <button className="icon-btn" onClick={() => setEdit(c)} title={т('Изменить')}>
                   <Icon name="edit" size={15} />
                 </button>
               </div>
@@ -100,8 +100,8 @@ export default function Categories() {
                   </div>
                   <div className={'small ' + (overPlan ? 'neg' : 'faint')} style={{ marginTop: 4 }}>
                     {overPlan
-                      ? `в среднем на ${money(avg - c.plan)} выше лимита`
-                      : `запас ${money(c.plan - avg)} к лимиту`}
+                      ? т('в среднем на {0} выше лимита', money(avg - c.plan))
+                      : т('запас {0} к лимиту', money(c.plan - avg))}
                   </div>
                 </div>
               ) : (
@@ -111,11 +111,10 @@ export default function Categories() {
                     style={{ marginTop: 8 }}
                     onClick={() => {
                       upsertCategory({ ...c, plan: Math.ceil(norm / 50000) * 50000 })
-                      toast(`Лимит для «${c.name}» — ${money(Math.ceil(norm / 50000) * 50000)}`)
+                      toast(т('Лимит для «{0}» — {1}', c.name, money(Math.ceil(norm / 50000) * 50000)))
                     }}
                   >
-                    <Icon name="scale" size={13} /> Поставить лимит по медиане ({money(Math.ceil(norm / 50000) * 50000)})
-                  </button>
+                    <Icon name="scale" size={13} /> {тр(' Поставить лимит по медиане ({0})', money(Math.ceil(norm / 50000) * 50000))}</button>
                 )
               )}
               <div className="row" style={{ marginTop: 8, gap: 6 }}>
@@ -123,8 +122,7 @@ export default function Categories() {
                   className="btn sm ghost"
                   onClick={() => app.openTab('transactions', 'cat:' + c.id, { title: c.name })}
                 >
-                  Операции{t ? ` (${t.count})` : ''}
-                </button>
+                  {тр('Операции{0}', t ? ` (${t.count})` : '')}</button>
                 <span className="spacer" />
                 <button className="btn sm danger" onClick={() => setDel(c)}>
                   <Icon name="trash" size={13} />
@@ -141,7 +139,7 @@ export default function Categories() {
           onClose={() => setEdit(null)}
           onSave={(c) => {
             if (!c.name.trim()) {
-              toast('Введите название категории')
+              toast(т('Введите название категории'))
               return
             }
             upsertCategory(c)
@@ -152,8 +150,8 @@ export default function Categories() {
 
       {del && (
         <Confirm
-          title={`Удалить «${del.name}»?`}
-          text="Операции этой категории останутся, но потеряют привязку. Если нужно сохранить историю — лучше пометить категорию архивной."
+          title={т('Удалить «{0}»?', del.name)}
+          text={т('Операции этой категории останутся, но потеряют привязку. Если нужно сохранить историю — лучше пометить категорию архивной.')}
           onConfirm={() => deleteCategory(del.id)}
           onClose={() => setDel(null)}
         />
@@ -178,43 +176,43 @@ function CategoryModal({
   return (
     <>
       <Modal
-        title={value.name ? 'Категория' : 'Создание категории'}
+        title={value.name ? т('Категория') : т('Создание категории')}
         icon="tag"
         onClose={onClose}
         footer={
           <>
-            <button className="btn" onClick={onClose}>Отмена</button>
-            <button className="btn primary" onClick={() => onSave(c)}>Сохранить</button>
+            <button className="btn" onClick={onClose}>{т('Отмена')}</button>
+            <button className="btn primary" onClick={() => onSave(c)}>{т('Сохранить')}</button>
           </>
         }
       >
         <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-          <button className="icon-trigger" onClick={() => setPick(true)} title="Выбрать иконку и цвет">
+          <button className="icon-trigger" onClick={() => setPick(true)} title={т('Выбрать иконку и цвет')}>
             <Avatar icon={c.icon} color={c.color} size="lg" style={{ width: 54, height: 54 }} />
           </button>
           <div style={{ flex: 1 }}>
-            <Field label="Название категории">
+            <Field label={т('Название категории')}>
               <input type="text" autoFocus value={c.name} onChange={(e) => patch({ name: e.target.value })} />
             </Field>
           </div>
         </div>
 
         <div className="seg" style={{ marginBottom: 14 }}>
-          <button className={c.kind === 'expense' ? 'on' : ''} onClick={() => patch({ kind: 'expense' })}>Расходы</button>
-          <button className={c.kind === 'income' ? 'on' : ''} onClick={() => patch({ kind: 'income' })}>Доходы</button>
+          <button className={c.kind === 'expense' ? 'on' : ''} onClick={() => patch({ kind: 'expense' })}>{т('Расходы')}</button>
+          <button className={c.kind === 'income' ? 'on' : ''} onClick={() => patch({ kind: 'income' })}>{т('Доходы')}</button>
         </div>
 
         {c.kind === 'expense' && (
           <>
-            <Field label="Планирую тратить в месяц" hint="Оставьте пустым, если лимит не нужен">
+            <Field label={т('Планирую тратить в месяц')} hint={т('Оставьте пустым, если лимит не нужен')}>
               <MoneyInput
                 value={c.plan || undefined}
-                placeholder="не задано"
+                placeholder={т('не задано')}
                 onChange={(v, empty) => patch({ plan: empty ? undefined : v })}
               />
             </Field>
 
-            <div className="card-title">Роль в бюджете</div>
+            <div className="card-title">{т('Роль в бюджете')}</div>
             <div className="row wrap" style={{ gap: 7, marginBottom: 6 }}>
               {BUCKETS.map((b) => (
                 <span
@@ -235,7 +233,7 @@ function CategoryModal({
 
         {c.kind === 'income' && (
           <>
-            <div className="card-title">Откуда доход</div>
+            <div className="card-title">{т('Откуда доход')}</div>
             <label className="row" style={{ gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
               <input
                 type="checkbox"
@@ -244,19 +242,15 @@ function CategoryModal({
                 style={{ marginTop: 3 }}
               />
               <span>
-                <span>Доход с капитала, а не с труда</span>
+                <span>{т('Доход с капитала, а не с труда')}</span>
                 <span className="d faint small">
-                  {' '}
-                  Дивиденды, купоны, аренда, проценты по вкладу. Отличить это от заработка
-                  сама программа не может: в операции видно только сумму, счёт и статью.
-                  Отметка ставится один раз и распространяется на всю историю по статье.
-                </span>
+                  {тр('{0}Дивиденды, купоны, аренда, проценты по вкладу. Отличить это от заработка сама программа не может: в операции видно только сумму, счёт и статью. Отметка ставится один раз и распространяется на всю историю по статье.', ' ')}</span>
               </span>
             </label>
           </>
         )}
 
-        <div className="card-title">Цвет</div>
+        <div className="card-title">{т('Цвет')}</div>
         <ColorPicker value={c.color} onChange={(color) => patch({ color })} />
       </Modal>
       {pick && (

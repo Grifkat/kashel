@@ -10,17 +10,19 @@ import { occurrencesInMonth } from '../engine/forecast'
 import { findRepeats } from '../engine/repeats'
 import { Avatar, ColorPicker, Confirm, Field, Modal, MoneyInput, Tbl, Toggle, useToast } from '../components/ui'
 import type { Freq, Recurring, TxKind } from '../lib/types'
+import { т, тр } from '../i18n'
 
+/** Один формат на колонку и на свёрнутую строку под названием. */
 /** Один формат на колонку и на свёрнутую строку под названием. */
 const freqText = (r: Recurring): string =>
   `${FREQ.find((f) => f.k === r.freq)?.t}${r.interval > 1 ? ` × ${r.interval}` : ''}` +
-  (r.freq === 'monthly' && r.dayOfMonth ? `, ${r.dayOfMonth} числа` : '')
+  (r.freq === 'monthly' && r.dayOfMonth ? т(', {0} числа', r.dayOfMonth) : '')
 
 const FREQ: { k: Freq; t: string }[] = [
-  { k: 'monthly', t: 'Ежемесячно' },
-  { k: 'weekly', t: 'Еженедельно' },
-  { k: 'yearly', t: 'Ежегодно' },
-  { k: 'daily', t: 'Ежедневно' },
+  { k: 'monthly', t: т('Ежемесячно') },
+  { k: 'weekly', t: т('Еженедельно') },
+  { k: 'yearly', t: т('Ежегодно') },
+  { k: 'daily', t: т('Ежедневно') },
 ]
 
 export default function RecurringView() {
@@ -54,11 +56,9 @@ export default function RecurringView() {
     <div className="view">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Регулярные платежи</h1>
+          <h1 className="view-title">{т('Регулярные платежи')}</h1>
           <div className="view-sub">
-            Фиксировано {money(monthlyExpense)} расходов и {money(monthlyIncome)} доходов в месяц ·
-            за год это {money(monthlyExpense * 12)} обязательных трат
-          </div>
+            {тр('Фиксировано {0} расходов и {1} доходов в месяц · за год это {2} обязательных трат', money(monthlyExpense), money(monthlyIncome), money(monthlyExpense * 12))}</div>
         </div>
         <button
           className="btn primary"
@@ -71,8 +71,7 @@ export default function RecurringView() {
             })
           }
         >
-          <Icon name="plus" size={15} /> Добавить
-        </button>
+          <Icon name="plus" size={15} /> {т(' Добавить')}</button>
       </div>
 
       {/* Замеченные повторы. Показываем ДО таблицы: человек, который сюда
@@ -81,24 +80,18 @@ export default function RecurringView() {
       {повторы.length > 0 && (
         <div className="card" style={{ marginBottom: 16 }}>
           <div className="card-title">
-            <Icon name="repeat" size={14} /> Похоже, это повторяется
-          </div>
+            <Icon name="repeat" size={14} /> {т(' Похоже, это повторяется')}</div>
           <div className="advice-body" style={{ marginBottom: 12 }}>
-            Эти траты вы вносили руками, и они идут ровной суммой через равные промежутки.
-            Регулярное правило поставит их в прогноз точной суммой в нужный месяц, а не
-            размажет по среднему.
-          </div>
+            {т('Эти траты вы вносили руками, и они идут ровной суммой через равные промежутки. Регулярное правило поставит их в прогноз точной суммой в нужный месяц, а не размажет по среднему.')}</div>
           {повторы.map((h) => {
             const c = h.categoryId ? catById.get(h.categoryId) : undefined
             return (
               <div key={h.key} className="cat-row">
                 <Avatar icon={c?.icon ?? 'repeat'} color={c?.color} size="sm" />
                 <span className="name">
-                  {h.note || c?.name || 'Без категории'}
+                  {h.note || c?.name || т('Без категории')}
                   <span className="d faint small">
-                    {' '}{FREQ.find((f) => f.k === h.freq)?.t.toLowerCase()} · {h.dates.length}
-                    {' '}{plural(h.dates.length, 'раз', 'раза', 'раз')} · последний {humanDate(h.dates[h.dates.length - 1])}
-                  </span>
+                    {тр('{0}{1} · {2}{3}{4} · последний {5}', ' ', FREQ.find((f) => f.k === h.freq)?.t.toLowerCase(), h.dates.length, ' ', plural(h.dates.length, 'раз', 'раза', 'раз'), humanDate(h.dates[h.dates.length - 1]))}</span>
                 </span>
                 <span className={'amt num ' + (h.kind === 'income' ? 'pos' : '')}>
                   {h.kind === 'income' ? '+' : '−'}{money(h.amount)}
@@ -108,7 +101,7 @@ export default function RecurringView() {
                   onClick={() =>
                     setEdit({
                       id: uid('r'),
-                      title: h.note || catById.get(h.categoryId ?? '')?.name || 'Повторяющийся платёж',
+                      title: h.note || catById.get(h.categoryId ?? '')?.name || т('Повторяющийся платёж'),
                       kind: h.kind, amount: h.amount, accountId: h.accountId, categoryId: h.categoryId,
                       freq: h.freq, interval: 1, dayOfMonth: h.dayOfMonth,
                       startDate: h.dates[h.dates.length - 1],
@@ -116,15 +109,12 @@ export default function RecurringView() {
                     })
                   }
                 >
-                  Сделать правилом
-                </button>
+                  {т('Сделать правилом')}</button>
               </div>
             )
           })}
           <div className="faint small" style={{ marginTop: 10 }}>
-            Автосоздание операций в предложенном правиле выключено: иначе платёж, который вы
-            и дальше будете вносить руками, посчитается дважды.
-          </div>
+            {т('Автосоздание операций в предложенном правиле выключено: иначе платёж, который вы и дальше будете вносить руками, посчитается дважды.')}</div>
         </div>
       )}
 
@@ -132,12 +122,12 @@ export default function RecurringView() {
         <Tbl>
           <thead>
             <tr>
-              <th>Название</th>
-              <th className="col-opt">Категория</th>
-              <th className="col-opt">Счёт</th>
-              <th>Периодичность</th>
-              <th className="r">Сумма</th>
-              <th className="r col-opt">В год</th>
+              <th>{т('Название')}</th>
+              <th className="col-opt">{т('Категория')}</th>
+              <th className="col-opt">{т('Счёт')}</th>
+              <th>{т('Периодичность')}</th>
+              <th className="r">{т('Сумма')}</th>
+              <th className="r col-opt">{т('В год')}</th>
               <th />
             </tr>
           </thead>
@@ -155,7 +145,7 @@ export default function RecurringView() {
                         size="sm"
                       />
                       <span>{r.title}</span>
-                      {r.autoPost && <span className="badge" title="Операции создаются автоматически">авто</span>}
+                      {r.autoPost && <span className="badge" title={т('Операции создаются автоматически')}>{т('авто')}</span>}
                       {/* На узкой таблице колонка периодичности прячется, а её
                           содержимое всплывает здесь. */}
                       <span className="col-fold small faint">{freqText(r)}</span>
@@ -174,7 +164,7 @@ export default function RecurringView() {
                     <div className="row" style={{ justifyContent: 'flex-end', gap: 2 }}>
                       <button
                         className="icon-btn"
-                        title={r.active ? 'Приостановить' : 'Возобновить'}
+                        title={r.active ? т('Приостановить') : т('Возобновить')}
                         onClick={() => upsertRecurring({ ...r, active: !r.active })}
                       >
                         <Icon name={r.active ? 'eye' : 'eyeOff'} size={15} />
@@ -192,17 +182,13 @@ export default function RecurringView() {
             })}
           </tbody>
         </Tbl>
-        {!rows.length && <div className="empty">Регулярных платежей нет</div>}
+        {!rows.length && <div className="empty">{т('Регулярных платежей нет')}</div>}
       </div>
 
       <div className="advice-card info" style={{ marginTop: 16 }}>
-        <div className="advice-title">Зачем это нужно прогнозу</div>
+        <div className="advice-title">{т('Зачем это нужно прогнозу')}</div>
         <div className="advice-body">
-          Регулярные платежи попадают в прогноз как точные суммы, а не как усреднённая статистика.
-          Чем больше обязательных платежей описано здесь, тем точнее прогноз и тем меньше «сюрпризов»
-          в конце месяца. Их суммы при этом исключаются из расчёта переменной части категории,
-          чтобы не считаться дважды.
-        </div>
+          {т('Регулярные платежи попадают в прогноз как точные суммы, а не как усреднённая статистика. Чем больше обязательных платежей описано здесь, тем точнее прогноз и тем меньше «сюрпризов» в конце месяца. Их суммы при этом исключаются из расчёта переменной части категории, чтобы не считаться дважды.')}</div>
       </div>
 
       {edit && (
@@ -211,18 +197,18 @@ export default function RecurringView() {
           onClose={() => setEdit(null)}
           onSave={(r) => {
             if (!r.title.trim() || !r.amount) {
-              toast('Нужны название и сумма')
+              toast(т('Нужны название и сумма'))
               return
             }
             // Без категории платёж раньше сохранялся молча и так же молча
             // выпадал из прогноза: человек заводил зарплату и не понимал,
             // почему линия не двинулась.
             if (r.kind !== 'transfer' && !r.categoryId) {
-              toast('Выберите категорию — без неё платёж не попадёт в разбор по категориям')
+              toast(т('Выберите категорию — без неё платёж не попадёт в разбор по категориям'))
               return
             }
             if (r.kind === 'transfer' && (!r.toAccountId || r.toAccountId === r.accountId)) {
-              toast('Для перевода нужны два разных счёта')
+              toast(т('Для перевода нужны два разных счёта'))
               return
             }
             upsertRecurring(r)
@@ -232,8 +218,8 @@ export default function RecurringView() {
       )}
       {del && (
         <Confirm
-          title={`Удалить «${del.title}»?`}
-          text="Уже созданные операции останутся. Если платёж просто закончился, лучше приостановить — история прогноза сохранится."
+          title={т('Удалить «{0}»?', del.title)}
+          text={т('Уже созданные операции останутся. Если платёж просто закончился, лучше приостановить — история прогноза сохранится.')}
           onConfirm={() => deleteRecurring(del.id)}
           onClose={() => setDel(null)}
         />
@@ -242,6 +228,11 @@ export default function RecurringView() {
   )
 }
 
+/**
+ * Значок из каталога — это имя вроде «credit-card»: в выпадающем списке
+ * рисовать его нечем, и оно печаталось бы текстом рядом с названием.
+ * Свой смайлик человека показываем как есть.
+ */
 /**
  * Значок из каталога — это имя вроде «credit-card»: в выпадающем списке
  * рисовать его нечем, и оно печаталось бы текстом рядом с названием.
@@ -265,6 +256,12 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
    * доходном правиле: в списке её уже нет, но в поле она есть, и правило
    * сохранялось с чужой категорией.
    */
+  /**
+   * Смена вида сбрасывает категорию чужого направления — та же защита, что в
+   * карточке операции. Без неё расходная категория оставалась висеть на
+   * доходном правиле: в списке её уже нет, но в поле она есть, и правило
+   * сохранялось с чужой категорией.
+   */
   const switchKind = (next: TxKind) => {
     patch({ kind: next })
     if (next === 'transfer') return
@@ -274,40 +271,38 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
 
   return (
     <Modal
-      title={value.title ? 'Регулярный платёж' : 'Новый регулярный платёж'}
+      title={value.title ? т('Регулярный платёж') : т('Новый регулярный платёж')}
       icon="repeat"
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>Отмена</button>
-          <button className="btn primary" onClick={() => onSave(r)}>Сохранить</button>
+          <button className="btn" onClick={onClose}>{т('Отмена')}</button>
+          <button className="btn primary" onClick={() => onSave(r)}>{т('Сохранить')}</button>
         </>
       }
     >
-      <Field label="Название">
-        <input type="text" autoFocus value={r.title} onChange={(e) => patch({ title: e.target.value })} placeholder="Подписка, аренда, зарплата" />
+      <Field label={т('Название')}>
+        <input type="text" autoFocus value={r.title} onChange={(e) => patch({ title: e.target.value })} placeholder={т('Подписка, аренда, зарплата')} />
       </Field>
 
       {catBad && (
         <div className="advice-card warn" style={{ margin: '0 0 14px', padding: '10px 12px' }}>
-          Категория «{chosen!.name}» {chosen!.archived ? 'лежит в архиве' : 'другого вида'}. Сумма в
-          прогнозе считается, но в разбор по категориям платёж не попадёт — лучше выбрать другую.
-        </div>
+          {тр('Категория «{0}» {1}. Сумма в прогнозе считается, но в разбор по категориям платёж не попадёт — лучше выбрать другую.', chosen!.name, chosen!.archived ? т('лежит в архиве') : т('другого вида'))}</div>
       )}
 
       <div className="seg" style={{ marginBottom: 14 }}>
         {(['expense', 'income', 'transfer'] as TxKind[]).map((k) => (
           <button key={k} className={r.kind === k ? 'on' : ''} onClick={() => switchKind(k)}>
-            {k === 'expense' ? 'Расход' : k === 'income' ? 'Доход' : 'Перевод'}
+            {k === 'expense' ? т('Расход') : k === 'income' ? т('Доход') : т('Перевод')}
           </button>
         ))}
       </div>
 
       <div className="grid c2">
-        <Field label="Сумма">
+        <Field label={т('Сумма')}>
           <MoneyInput value={r.amount || undefined} onChange={(v) => patch({ amount: v })} />
         </Field>
-        <Field label="Счёт">
+        <Field label={т('Счёт')}>
           <select value={r.accountId} onChange={(e) => patch({ accountId: e.target.value })}>
             {data.accounts.filter((a) => !a.archived).map((a) => (
               <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
@@ -315,20 +310,20 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
           </select>
         </Field>
         {r.kind !== 'transfer' && (
-          <Field label="Категория">
+          <Field label={т('Категория')}>
             <select value={r.categoryId ?? ''} onChange={(e) => patch({ categoryId: e.target.value || undefined })}>
-              <option value="">— выберите —</option>
+              <option value="">{т('— выберите —')}</option>
               {options.map((c) => (
                 <option key={c.id} value={c.id}>
                   {сЗначкомъ(c.icon, c.name)}
-                  {c.archived ? ' (в архиве)' : c.kind !== r.kind ? ' (другой вид)' : ''}
+                  {c.archived ? т(' (в архиве)') : c.kind !== r.kind ? т(' (другой вид)') : ''}
                 </option>
               ))}
             </select>
           </Field>
         )}
         {r.kind === 'transfer' && (
-          <Field label="На счёт">
+          <Field label={т('На счёт')}>
             <select value={r.toAccountId ?? ''} onChange={(e) => patch({ toAccountId: e.target.value || undefined })}>
               <option value="">—</option>
               {data.accounts.filter((a) => !a.archived && a.id !== r.accountId).map((a) => (
@@ -337,32 +332,32 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
             </select>
           </Field>
         )}
-        <Field label="Периодичность">
+        <Field label={т('Периодичность')}>
           <select value={r.freq} onChange={(e) => patch({ freq: e.target.value as Freq })}>
             {FREQ.map((f) => (
               <option key={f.k} value={f.k}>{f.t}</option>
             ))}
           </select>
         </Field>
-        <Field label="Каждые N периодов">
+        <Field label={т('Каждые N периодов')}>
           <input type="number" min={1} value={r.interval} onChange={(e) => patch({ interval: Math.max(1, Number(e.target.value)) })} />
         </Field>
         {r.freq === 'monthly' && (
-          <Field label="День месяца">
+          <Field label={т('День месяца')}>
             <input type="number" min={1} max={31} value={r.dayOfMonth ?? 1} onChange={(e) => patch({ dayOfMonth: Number(e.target.value) })} />
           </Field>
         )}
-        <Field label="Начало">
+        <Field label={т('Начало')}>
           <DateField value={r.startDate} onChange={(v) => patch({ startDate: v })} />
         </Field>
-        <Field label="Окончание" hint="Пусто — бессрочно">
+        <Field label={т('Окончание')} hint={т('Пусто — бессрочно')}>
           <DateField allowEmpty value={r.endDate ?? ''} onChange={(v) => patch({ endDate: v || undefined })} />
         </Field>
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 6 }}>
-        <Toggle checked={r.autoPost} onChange={(v) => patch({ autoPost: v })} label="Создавать операции автоматически" />
-        <Toggle checked={r.active} onChange={(v) => patch({ active: v })} label="Активен" />
+        <Toggle checked={r.autoPost} onChange={(v) => patch({ autoPost: v })} label={т('Создавать операции автоматически')} />
+        <Toggle checked={r.active} onChange={(v) => patch({ active: v })} label={т('Активен')} />
       </div>
     </Modal>
   )

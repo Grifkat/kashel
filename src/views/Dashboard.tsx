@@ -20,13 +20,14 @@ import { Proekty } from '../components/Proekty'
 import { личное } from '../engine/project'
 import { Ogonek } from '../components/Ogonek'
 import type { Transaction } from '../lib/types'
+import { т, тр } from '../i18n'
 
 const PERIODS: { k: PeriodKind; t: string }[] = [
-  { k: 'day', t: 'День' },
-  { k: 'week', t: 'Неделя' },
-  { k: 'month', t: 'Месяц' },
-  { k: 'year', t: 'Год' },
-  { k: 'custom', t: 'Период' },
+  { k: 'day', t: т('День') },
+  { k: 'week', t: т('Неделя') },
+  { k: 'month', t: т('Месяц') },
+  { k: 'year', t: т('Год') },
+  { k: 'custom', t: т('Период') },
 ]
 
 export default function Dashboard() {
@@ -111,7 +112,7 @@ export default function Dashboard() {
     return m
   }, [prevRange, side])
   const prevNote = prev.partial
-    ? `${prev.label.toLowerCase()}, за те же ${prev.days} ${plural(prev.days, 'день', 'дня', 'дней')}`
+    ? т('{0}, за те же {1} {2}', prev.label.toLowerCase(), prev.days, plural(prev.days, 'день', 'дня', 'дней'))
     : prev.label.toLowerCase()
 
   const headline =
@@ -119,11 +120,11 @@ export default function Dashboard() {
       ? bal.assets
       : bal.byAccount.get(accountId) ?? 0
   const headlineName =
-    accountId === '__all__' ? 'Итого' : data.accounts.find((a) => a.id === accountId)?.name ?? 'Счёт'
+    accountId === '__all__' ? т('Итого') : data.accounts.find((a) => a.id === accountId)?.name ?? т('Счёт')
 
   const slices = totals.slice(0, 12).map((t) => {
     const c = catById.get(t.categoryId)
-    return { id: t.categoryId, label: c?.name ?? 'Без категории', value: t.amount, color: c?.color ?? '#7c8794' }
+    return { id: t.categoryId, label: c?.name ?? т('Без категории'), value: t.amount, color: c?.color ?? '#7c8794' }
   })
 
   const year = useMemo(() => monthlySeries(личн.transactions, addMonths(today(), -11), today()), [личн.transactions])
@@ -149,8 +150,8 @@ export default function Dashboard() {
     const doomed = [...wipeTargets]
     deleteTransactions(doomed.map((t) => t.id))
     setUndoBuffer(doomed)
-    toast(`Удалено операций: ${doomed.length}`, {
-      label: 'Вернуть',
+    toast(т('Удалено операций: {0}', doomed.length), {
+      label: т('Вернуть'),
       onClick: () => {
         restoreTransactions(doomed)
         setUndoBuffer([])
@@ -160,7 +161,7 @@ export default function Dashboard() {
 
   const undoWipe = () => {
     restoreTransactions(undoBuffer)
-    toast(`Возвращено операций: ${undoBuffer.length}`)
+    toast(т('Возвращено операций: {0}', undoBuffer.length))
     setUndoBuffer([])
   }
 
@@ -178,7 +179,7 @@ export default function Dashboard() {
                 className="card"
                 style={{ position: 'absolute', top: 34, left: 0, zIndex: 30, width: 280, boxShadow: 'var(--shadow)' }}
               >
-                <div className="card-title">Выберите счёт</div>
+                <div className="card-title">{т('Выберите счёт')}</div>
                 <div
                   className="cat-row"
                   onClick={() => {
@@ -189,7 +190,7 @@ export default function Dashboard() {
                   <span className="avatar" style={{ background: 'color-mix(in srgb, var(--accent) 25%, transparent)' }}>
                     <Icon name="wallet" size={16} />
                   </span>
-                  <span className="name">Итого</span>
+                  <span className="name">{т('Итого')}</span>
                   <span className="amt num">{hidden ? '••••' : money(bal.assets)}</span>
                 </div>
                 {data.accounts.filter((a) => !a.archived).map((a) => (
@@ -208,7 +209,7 @@ export default function Dashboard() {
                 ))}
                 <div className="row" style={{ marginTop: 10 }}>
                   <button className="btn sm" onClick={() => patchSettings({ hideBalance: !hidden })}>
-                    <Icon name={hidden ? 'eye' : 'eyeOff'} size={14} /> {hidden ? 'Показать баланс' : 'Скрыть баланс'}
+                    <Icon name={hidden ? 'eye' : 'eyeOff'} size={14} /> {hidden ? т('Показать баланс') : т('Скрыть баланс')}
                   </button>
                 </div>
               </div>
@@ -220,44 +221,33 @@ export default function Dashboard() {
           <Ogonek />
           {/* Две кнопки вместо одной переключаемой: вид операции выбирается
               сразу, без лишнего клика по вкладке «Расходы/Доходы». */}
-          <button className="btn tone-out" onClick={() => app.openQuickAdd('', 'expense')} title={entryHint('Записать расход')}>
-            <Icon name="plus" size={16} /> Расход{entryMark}
-          </button>
-          <button className="btn tone-in" onClick={() => app.openQuickAdd('', 'income')} title={entryHint('Записать доход')}>
-            <Icon name="plus" size={16} /> Доход{entryMark}
-          </button>
+          <button className="btn tone-out" onClick={() => app.openQuickAdd('', 'expense')} title={entryHint(т('Записать расход'))}>
+            <Icon name="plus" size={16} /> {тр(' Расход{0}', entryMark)}</button>
+          <button className="btn tone-in" onClick={() => app.openQuickAdd('', 'income')} title={entryHint(т('Записать доход'))}>
+            <Icon name="plus" size={16} /> {тр(' Доход{0}', entryMark)}</button>
         </div>
         <div className="hero-total num" style={{ marginTop: 6 }}>
           {hidden ? '•••••••' : <Money value={headline} />}
         </div>
         <div className="hero-label">
-          чистый капитал {hidden ? '••••' : money(bal.net)}
-          {bal.liabilities < 0 && ` · обязательства ${hidden ? '••••' : money(bal.liabilities)}`}
-        </div>
+          {тр('чистый капитал {0}{1}', hidden ? '••••' : money(bal.net), bal.liabilities < 0 && т(' · обязательства {0}', hidden ? '••••' : money(bal.liabilities)))}</div>
       </div>
 
       {/* ------------------------------------------------ пустое хранилище */}
       {!data.accounts.length && (
         <Reveal className="card" style={{ marginBottom: 18, padding: 'calc(22px * var(--dens)) calc(24px * var(--dens))' }}>
           <h2 style={{ margin: '0 0 8px', fontSize: 19, color: 'var(--text-strong)' }}>
-            <GradientText>Хранилище пустое — заполните его своими данными</GradientText>
+            <GradientText>{т('Хранилище пустое — заполните его своими данными')}</GradientText>
           </h2>
           <div className="advice-body" style={{ maxWidth: 700 }}>
-            Программа ничего не придумывает за вас: ни счетов, ни операций. Начать проще всего
-            со счёта — карты или наличных — и указать на нём текущий остаток. Дальше появятся
-            категории, а прогноз и советы включатся сами, как только наберётся история за
-            пару месяцев.
-          </div>
+            {т('Программа ничего не придумывает за вас: ни счетов, ни операций. Начать проще всего со счёта — карты или наличных — и указать на нём текущий остаток. Дальше появятся категории, а прогноз и советы включатся сами, как только наберётся история за пару месяцев.')}</div>
           <div className="row wrap" style={{ gap: 8, marginTop: 16 }}>
             <button className="btn primary" onClick={() => app.openTab('accounts')}>
-              <Icon name="wallet" size={15} /> Создать первый счёт
-            </button>
+              <Icon name="wallet" size={15} /> {т(' Создать первый счёт')}</button>
             <button className="btn" onClick={() => app.openTab('categories')}>
-              <Icon name="tag" size={15} /> Категории
-            </button>
+              <Icon name="tag" size={15} /> {т(' Категории')}</button>
             <button className="btn" onClick={() => app.openTab('import')}>
-              <Icon name="download" size={15} /> Загрузить выписку из банка
-            </button>
+              <Icon name="download" size={15} /> {т(' Загрузить выписку из банка')}</button>
           </div>
         </Reveal>
       )}
@@ -265,8 +255,8 @@ export default function Dashboard() {
       {/* ------------------------------------------------ период и сторона */}
       <div className="row wrap" style={{ marginBottom: 16, gap: 12 }}>
         <div className="seg">
-          <button className={side === 'expense' ? 'on' : ''} onClick={() => setSide('expense')}>Расходы</button>
-          <button className={side === 'income' ? 'on' : ''} onClick={() => setSide('income')}>Доходы</button>
+          <button className={side === 'expense' ? 'on' : ''} onClick={() => setSide('expense')}>{т('Расходы')}</button>
+          <button className={side === 'income' ? 'on' : ''} onClick={() => setSide('income')}>{т('Доходы')}</button>
         </div>
         <div className="seg">
           {PERIODS.map((p) => (
@@ -289,7 +279,7 @@ export default function Dashboard() {
           </button>
           <button
             className="icon-btn"
-            title="К текущему периоду"
+            title={т('К текущему периоду')}
             onClick={() => setPeriod(makePeriod(period.kind, today(), data.settings.firstDayOfWeek))}
           >
             <Icon name="fit" size={15} />
@@ -331,7 +321,7 @@ export default function Dashboard() {
               <div>
                 {sumSide === 0 ? (
                   <div className="faint" style={{ fontSize: 14, lineHeight: 1.4 }}>
-                    {side === 'expense' ? 'В этот период расходов не было' : 'В этот период доходов не было'}
+                    {side === 'expense' ? т('В этот период расходов не было') : т('В этот период доходов не было')}
                   </div>
                 ) : (
                   <>
@@ -353,7 +343,7 @@ export default function Dashboard() {
           )}
           <div className="row" style={{ width: '100%', marginTop: 14 }}>
             <div className="stat">
-              <span className="l">Доход</span>
+              <span className="l">{т('Доход')}</span>
               <span className="v amount in" style={{ fontSize: 16 }}>
                 <span className="sign">+</span>{hidden ? '••••' : <Money value={income} />}
               </span>
@@ -361,7 +351,7 @@ export default function Dashboard() {
             </div>
             <span className="spacer" />
             <div className="stat">
-              <span className="l">Расход</span>
+              <span className="l">{т('Расход')}</span>
               <span className="v amount out" style={{ fontSize: 16 }}>
                 <span className="sign">−</span>{hidden ? '••••' : <Money value={expense} />}
               </span>
@@ -369,7 +359,7 @@ export default function Dashboard() {
             </div>
             <span className="spacer" />
             <div className="stat">
-              <span className="l">Итог</span>
+              <span className="l">{т('Итог')}</span>
               <span className={'v ' + (income - expense >= 0 ? 'pos' : 'neg')} style={{ fontSize: 16 }}>
                 {hidden ? '••••' : <Money value={income - expense} sign />}
               </span>
@@ -378,9 +368,7 @@ export default function Dashboard() {
           </div>
           {(prevIncome > 0 || prevExpense > 0) && (
             <div className="faint small" style={{ width: '100%', marginTop: 8 }}>
-              Сравнение с периодом «{prev.label}»
-              {prev.partial && ` — взяты первые ${prev.days} ${plural(prev.days, 'день', 'дня', 'дней')}, столько же, сколько прошло сейчас`}
-            </div>
+              {тр('Сравнение с периодом «{0}»{1}', prev.label, prev.partial && т(' — взяты первые {0} {1}, столько же, сколько прошло сейчас', prev.days, plural(prev.days, 'день', 'дня', 'дней')))}</div>
           )}
         </div>
 
@@ -389,12 +377,10 @@ export default function Dashboard() {
         {(data.transactions.length > 0 || data.accounts.length > 0) && (
         <div className="card tight">
           <div className="card-title" style={{ marginBottom: 8 }}>
-            <Icon name="trash" size={13} /> Очистка
-          </div>
+            <Icon name="trash" size={13} /> {т(' Очистка')}</div>
           {undoBuffer.length > 0 && (
             <button className="btn" style={{ width: '100%', marginBottom: 8, justifyContent: 'center' }} onClick={undoWipe}>
-              <Icon name="repeat" size={15} /> Вернуть {undoBuffer.length} {plural(undoBuffer.length, 'операцию', 'операции', 'операций')}
-            </button>
+              <Icon name="repeat" size={15} /> {тр(' Вернуть {0} {1}', undoBuffer.length, plural(undoBuffer.length, 'операцию', 'операции', 'операций'))}</button>
           )}
           <button
             className="btn danger"
@@ -403,8 +389,7 @@ export default function Dashboard() {
             onClick={() => setConfirmWipe('expense')}
           >
             <Icon name="arrowDown" size={15} />
-            Удалить все расходы{wipeExpense.length ? ` (${wipeExpense.length})` : ''}
-          </button>
+            {тр('Удалить все расходы{0}', wipeExpense.length ? ` (${wipeExpense.length})` : '')}</button>
           <button
             className="btn danger"
             style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}
@@ -412,29 +397,21 @@ export default function Dashboard() {
             onClick={() => setConfirmWipe('income')}
           >
             <Icon name="arrowUp" size={15} />
-            Удалить весь заработок{wipeIncome.length ? ` (${wipeIncome.length})` : ''}
-          </button>
+            {тр('Удалить весь заработок{0}', wipeIncome.length ? ` (${wipeIncome.length})` : '')}</button>
           <button
             className="btn danger"
             style={{ width: '100%', justifyContent: 'center', marginTop: 8, borderTop: '1px solid var(--border-soft)', borderRadius: 'var(--radius)' }}
             onClick={() => setConfirmWipe('all')}
           >
             <Icon name="trash" size={15} />
-            Стереть всё и начать заново
-          </button>
+            {т('Стереть всё и начать заново')}</button>
           <div className="faint small" style={{ marginTop: 10, lineHeight: 1.5 }}>
-            {wipeExpense.length || wipeIncome.length ? (
+            {тр('{0}{1}Нижняя кнопка не смотрит на период: она очищает хранилище целиком.', wipeExpense.length || wipeIncome.length ? (
               <>
-                Действует на {period.label.toLowerCase()}
-                {accountId !== '__all__' ? ` и счёт «${headlineName}»` : ''}:
-                расходы {money(expense)}, пополнения {money(income)}.
-                Кнопки независимы, переводы между счетами не трогаются.
-              </>
+                {тр('Действует на {0}{1}: расходы {2}, пополнения {3}. Кнопки независимы, переводы между счетами не трогаются.', period.label.toLowerCase(), accountId !== '__all__' ? т(' и счёт «{0}»', headlineName) : '', money(expense), money(income))}</>
             ) : (
-              <>За выбранный период удалять нечего.</>
-            )}
-            {' '}Нижняя кнопка не смотрит на период: она очищает хранилище целиком.
-          </div>
+              <>{т('За выбранный период удалять нечего.')}</>
+            ), ' ')}</div>
         </div>
         )}
         </div>
@@ -442,7 +419,7 @@ export default function Dashboard() {
         {/* cat-list — свой контейнер: что прятать в строке, решает ширина самой
             карточки, а не окна. */}
         <div className="card cat-list" style={{ padding: 'calc(10px * var(--dens)) calc(8px * var(--dens))' }} ref={catListRef}>
-          {totals.length === 0 && <div className="empty">Нет операций за выбранный период</div>}
+          {totals.length === 0 && <div className="empty">{т('Нет операций за выбранный период')}</div>}
           {totals.map((t) => {
             const c = catById.get(t.categoryId)
             return (
@@ -451,11 +428,11 @@ export default function Dashboard() {
                 className="cat-row"
                 onMouseEnter={() => setActiveCat(t.categoryId)}
                 onMouseLeave={() => setActiveCat(undefined)}
-                onClick={() => app.openTab('transactions', 'cat:' + t.categoryId, { title: c?.name ?? 'Категория' })}
+                onClick={() => app.openTab('transactions', 'cat:' + t.categoryId, { title: c?.name ?? т('Категория') })}
               >
                 <Avatar icon={c?.icon} color={c?.color} />
-                <span className="name">{c?.name ?? 'Без категории'}</span>
-                <span className="cnt faint small nowrap">{t.count} оп.</span>
+                <span className="name">{c?.name ?? т('Без категории')}</span>
+                <span className="cnt faint small nowrap">{тр('{0} оп.', t.count)}</span>
                 <Delta
                   cur={t.amount}
                   prev={prevByCat.get(t.categoryId) ?? 0}
@@ -475,14 +452,13 @@ export default function Dashboard() {
       <div className="grid c2" style={{ marginTop: 16 }}>
         <div className="card">
           <div className="card-title">
-            <Icon name="bars" size={14} /> Доходы и расходы за 12 месяцев
-          </div>
+            <Icon name="bars" size={14} /> {т(' Доходы и расходы за 12 месяцев')}</div>
           <BarChart
             groups={year.map((m) => ({
               label: MONTHS_SHORT[Number(m.key.slice(5, 7)) - 1],
               values: [
-                { value: m.income, color: 'var(--good)', name: 'Доход' },
-                { value: m.expense, color: 'var(--alert)', name: 'Расход' },
+                { value: m.income, color: 'var(--good)', name: т('Доход') },
+                { value: m.expense, color: 'var(--alert)', name: т('Расход') },
               ],
             }))}
             height={190}
@@ -490,8 +466,7 @@ export default function Dashboard() {
         </div>
         <div className="card">
           <div className="card-title">
-            <Icon name="chart" size={14} /> Остаток на счетах за 3 месяца
-          </div>
+            <Icon name="chart" size={14} /> {т(' Остаток на счетах за 3 месяца')}</div>
           <LineChart
             points={timeline
               .filter((_, i) => i % 2 === 0)
@@ -513,15 +488,14 @@ export default function Dashboard() {
       <div className="card" style={{ marginTop: 16 }}>
         <div className="row" style={{ marginBottom: 6 }}>
           <div className="card-title" style={{ margin: 0 }}>
-            <Icon name="list" size={14} /> Последние операции
-          </div>
+            <Icon name="list" size={14} /> {т(' Последние операции')}</div>
           <span className="spacer" />
           <button className="btn sm ghost" onClick={() => app.openTab('transactions')}>
-            Все операции <Icon name="right" size={13} />
+            {т('Все операции ')}<Icon name="right" size={13} />
           </button>
         </div>
         <div ref={recentRef}>
-        {recent.length === 0 && <div className="empty">Пусто</div>}
+        {recent.length === 0 && <div className="empty">{т('Пусто')}</div>}
         {recent.map((t) => {
           const c = t.categoryId ? catById.get(t.categoryId) : undefined
           const acc = data.accounts.find((a) => a.id === t.accountId)
@@ -533,7 +507,7 @@ export default function Dashboard() {
             >
               <Avatar icon={t.kind === 'transfer' ? 'arrow-left-right' : c?.icon} color={c?.color} />
               <div className="tx-main">
-                <div className="tx-title">{t.note || c?.name || (t.kind === 'transfer' ? 'Перевод' : 'Операция')}</div>
+                <div className="tx-title">{t.note || c?.name || (t.kind === 'transfer' ? т('Перевод') : т('Операция'))}</div>
                 <div className="tx-sub">
                   {humanDate(t.date)} · {acc?.name}
                   {c ? ' · ' + c.name : ''}
@@ -549,18 +523,18 @@ export default function Dashboard() {
 
       {confirmWipe === 'all' && (
         <Confirm
-          title="Стереть всё и начать заново?"
-          confirmLabel="Стереть всё"
+          title={т('Стереть всё и начать заново?')}
+          confirmLabel={т('Стереть всё')}
           text={
-            `Хранилище вернётся к состоянию только что установленной программы. ` +
-            `Будут удалены: ${data.transactions.length} ${plural(data.transactions.length, 'операция', 'операции', 'операций')}, ` +
-            `${data.accounts.length} ${plural(data.accounts.length, 'счёт', 'счёта', 'счетов')} вместе с кредитами и долгами, ` +
+            т('Хранилище вернётся к состоянию только что установленной программы. ') +
+            т('Будут удалены: {0} {1}, ', data.transactions.length, plural(data.transactions.length, 'операция', 'операции', 'операций')) +
+            т('{0} {1} вместе с кредитами и долгами, ', data.accounts.length, plural(data.accounts.length, 'счёт', 'счёта', 'счетов')) +
             `${data.categories.length} ${plural(data.categories.length, 'категория', 'категории', 'категорий')}, ` +
             `${data.goals.length} ${plural(data.goals.length, 'цель', 'цели', 'целей')}, ` +
             `${data.recurring.length} ${plural(data.recurring.length, 'регулярный платёж', 'регулярных платежа', 'регулярных платежей')}, ` +
-            `а также все заметки и канвасы. Настройки и путь к хранилищу останутся. ` +
-            `Отмены у этого действия нет — кнопка «Вернуть» здесь не поможет. ` +
-            `Если в данных есть что-то нужное, сначала сохраните их: «Настройки» → «Сохранить всё в файл».`
+            т('а также все заметки и канвасы. Настройки и путь к хранилищу останутся. ') +
+            т('Отмены у этого действия нет — кнопка «Вернуть» здесь не поможет. ') +
+            т('Если в данных есть что-то нужное, сначала сохраните их: «Настройки» → «Сохранить всё в файл».')
           }
           onConfirm={() => void store.wipeAll()}
           onClose={() => setConfirmWipe(null)}
@@ -571,22 +545,22 @@ export default function Dashboard() {
         <Confirm
           title={
             confirmWipe === 'income'
-              ? `Удалить весь заработок за ${period.label.toLowerCase()}?`
-              : `Удалить все расходы за ${period.label.toLowerCase()}?`
+              ? т('Удалить весь заработок за {0}?', period.label.toLowerCase())
+              : т('Удалить все расходы за {0}?', period.label.toLowerCase())
           }
-          confirmLabel={`Удалить ${wipeTargets.length}`}
+          confirmLabel={т('Удалить {0}', wipeTargets.length)}
           text={
-            `Будет удалено ${wipeTargets.length} ${plural(wipeTargets.length, 'операция', 'операции', 'операций')} ` +
+            т('Будет удалено {0} {1} ', wipeTargets.length, plural(wipeTargets.length, 'операция', 'операции', 'операций')) +
             `на ${money(wipeSum)}` +
-            (accountId !== '__all__' ? ` по счёту «${headlineName}»` : '') +
+            (accountId !== '__all__' ? т(' по счёту «{0}»', headlineName) : '') +
             `. ` +
             (confirmWipe === 'income'
-              ? `История пополнений за этот период исчезнет, расходы останутся. Учтите, что прогноз, ` +
-                `норма сбережений и советы считаются от дохода — без него картина станет заметно мрачнее. `
-              : `История трат за этот период исчезнет, пополнения останутся. `) +
-            `Остатки по счетам пересчитаются. ` +
-            `Сразу после удаления здесь же появится кнопка «Вернуть» — она действует до закрытия программы; ` +
-            `если данные важны, надёжнее сначала выгрузить их из раздела «Операции» в CSV.`
+              ? т('История пополнений за этот период исчезнет, расходы останутся. Учтите, что прогноз, ') +
+                т('норма сбережений и советы считаются от дохода — без него картина станет заметно мрачнее. ')
+              : т('История трат за этот период исчезнет, пополнения останутся. ')) +
+            т('Остатки по счетам пересчитаются. ') +
+            т('Сразу после удаления здесь же появится кнопка «Вернуть» — она действует до закрытия программы; ') +
+            т('если данные важны, надёжнее сначала выгрузить их из раздела «Операции» в CSV.')
           }
           onConfirm={doWipe}
           onClose={() => setConfirmWipe(null)}

@@ -2,6 +2,7 @@ import type { Ключи } from '../lib/crypto'
 import { облачноеХранилище } from './cloud'
 import type { Сеансъ } from './supabase'
 import { browserBridge, type Bridge } from './vault'
+import { т } from '../i18n'
 
 /*
  * Облачный мост: то же лицо, что у папки на диске и у браузера.
@@ -18,6 +19,7 @@ import { browserBridge, type Bridge } from './vault'
 
 export interface ОблачныйМостъ extends Bridge {
   /** Почта вошедшего — её показывают в настройках. */
+  /** Почта вошедшего — её показывают в настройках. */
   почта: string
 }
 
@@ -27,7 +29,7 @@ export function облачныйМостъ(сеансъ: Сеансъ, ключ�
   return {
     ...browserBridge,
 
-    vaultPath: async () => `облако · ${сеансъ.почта}`,
+    vaultPath: async () => т('облако · {0}', сеансъ.почта),
     почта: сеансъ.почта,
 
     read: (rel: string) => х.read(rel),

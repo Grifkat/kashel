@@ -65,6 +65,19 @@ export function shiftPeriod(p: Period, dir: -1 | 1, firstDay: number = 1): Perio
  * Даты лежат как YYYY-MM-DD, поэтому сравнение строк здесь — это и есть
  * сравнение дат; границы периода уже сравниваются так же, см. inPeriod.
  */
+/**
+ * Дата для новой записи, когда открыт этот период.
+ *
+ * Правило одно на все пять видов периода: сегодняшний день зажимается в
+ * границы того, на что человек сейчас смотрит. В режиме «День» границы
+ * сходятся в одну дату — берётся она. В диапазоне, куда сегодня попадает,
+ * ничего не меняется. Пролистали в прошлое — берётся последний день
+ * диапазона, в будущее — первый: всегда ближайшая к сегодня дата внутри
+ * просматриваемого куска.
+ *
+ * Даты лежат как YYYY-MM-DD, поэтому сравнение строк здесь — это и есть
+ * сравнение дат; границы периода уже сравниваются так же, см. inPeriod.
+ */
 export function entryDate(p: Period, now: string = today()): string {
   if (now < p.from) return p.from
   if (now > p.to) return p.to
@@ -72,6 +85,7 @@ export function entryDate(p: Period, now: string = today()): string {
 }
 
 import { MONTHS, MONTHS_GEN, MONTHS_SHORT } from '../lib/date'
+import { т } from '../i18n'
 
 const labelDay = (s: string) => {
   const d = parseISO(s)
@@ -96,13 +110,24 @@ export const inPeriod = (t: Transaction, p: Period) => t.date >= p.from && t.dat
  * ещё не прожит. Поэтому у прошлого периода берётся столько же дней с начала,
  * сколько прошло у нынешнего, и об этом честно сообщается флагом partial.
  */
+/**
+ * Прошлый такой же период — и та его часть, с которой честно сравнивать.
+ *
+ * Текущий месяц идёт неполным, поэтому сравнивать его целиком с прошлым
+ * нельзя: пятого числа любой месяц «дешевле» предыдущего просто потому, что
+ * ещё не прожит. Поэтому у прошлого периода берётся столько же дней с начала,
+ * сколько прошло у нынешнего, и об этом честно сообщается флагом partial.
+ */
 export interface PrevPeriod {
   from: string
   to: string
   /** Подпись целого периода — «июль 2026», а не обрезанного куска. */
+  /** Подпись целого периода — «июль 2026», а не обрезанного куска. */
   label: string
   /** Сравниваем с куском прошлого периода, а не со всем целиком. */
+  /** Сравниваем с куском прошлого периода, а не со всем целиком. */
   partial: boolean
+  /** Сколько дней взято, когда partial. */
   /** Сколько дней взято, когда partial. */
   days: number
 }
@@ -132,15 +157,19 @@ export interface DayPoint {
 export interface YearSummary {
   year: string
   /** Последний день, по который есть смысл считать: у текущего года — сегодня. */
+  /** Последний день, по который есть смысл считать: у текущего года — сегодня. */
   through: string
   income: Money
   expense: Money
   net: Money
   /** Доля отложенного от дохода, в процентах. Без дохода — 0. */
+  /** Доля отложенного от дохода, в процентах. Без дохода — 0. */
   savingsRate: number
   count: number
   /** Средний расход в день по прожитым дням года. */
+  /** Средний расход в день по прожитым дням года. */
   perDay: Money
+  /** Средний расход на одну расходную операцию. */
   /** Средний расход на одну расходную операцию. */
   perTx: Money
   daysLived: number
@@ -153,6 +182,10 @@ export interface YearSummary {
   biggest?: Transaction
 }
 
+/**
+ * Всё, что показывает экран «Итоги года», считается одним проходом:
+ * год — это до нескольких тысяч операций, и гонять их семь раз незачем.
+ */
 /**
  * Всё, что показывает экран «Итоги года», считается одним проходом:
  * год — это до нескольких тысяч операций, и гонять их семь раз незачем.
@@ -226,6 +259,7 @@ export function yearSummary(txs: Transaction[], year: string, now: string = toda
 }
 
 /** Влияние операции на остаток конкретного счёта. */
+/** Влияние операции на остаток конкретного счёта. */
 export function accountDelta(t: Transaction, accountId: string): Money {
   if (t.kind === 'income') return t.accountId === accountId ? t.amount : 0
   if (t.kind === 'expense') return t.accountId === accountId ? -t.amount : 0
@@ -261,6 +295,14 @@ export interface Balances {
  * самого счёта при этом считается и кладётся в byAccount — карточка счёта и
  * сводка по проекту обязаны его показывать.
  */
+/**
+ * Итоги по счетам.
+ *
+ * Проектный счёт в суммы не входит: деньги на нём чужие, и чистый капитал,
+ * куда они попали бы наравне с личными, врал бы ровно на их величину. Остаток
+ * самого счёта при этом считается и кладётся в byAccount — карточка счёта и
+ * сводка по проекту обязаны его показывать.
+ */
 export function balances(accounts: Account[], txs: Transaction[], upTo?: string): Balances {
   const byAccount = new Map<string, Money>()
   let assets = 0
@@ -277,6 +319,7 @@ export function balances(accounts: Account[], txs: Transaction[], upTo?: string)
 }
 
 /** Остаток по кредиту: тело минус проведённые платежи (грубо, без амортизации). */
+/** Остаток по кредиту: тело минус проведённые платежи (грубо, без амортизации). */
 export function creditRemaining(acc: Account, txs: Transaction[]): Money {
   if (!acc.credit) return 0
   const paid = txs.filter((t) => t.debtId === acc.id).reduce((s, t) => s + t.amount, 0)
@@ -290,6 +333,7 @@ export interface CatTotal {
   count: number
 }
 
+/** Суммы по категориям с раскрытием разбитых чеков. */
 /** Суммы по категориям с раскрытием разбитых чеков. */
 export function categoryTotals(txs: Transaction[], kind: 'expense' | 'income'): CatTotal[] {
   const map = new Map<string, { amount: Money; count: number }>()
@@ -357,6 +401,12 @@ export function monthlySeries(txs: Transaction[], from: string, to: string): Mon
  * Вид операции обязателен к проверке: иначе доход, которому по ошибке досталась
  * расходная категория, попадал бы в расходную статистику, прогноз и советы.
  */
+/**
+ * Суммы по одной категории по месяцам — база для прогноза.
+ *
+ * Вид операции обязателен к проверке: иначе доход, которому по ошибке досталась
+ * расходная категория, попадал бы в расходную статистику, прогноз и советы.
+ */
 export function categoryMonthly(
   txs: Transaction[],
   categoryId: string,
@@ -392,6 +442,7 @@ export function dailySeries(txs: Transaction[], from: string, to: string, kind: 
   return out
 }
 
+/** Кривая остатка активов по дням — для графика «куда идёт баланс». */
 /** Кривая остатка активов по дням — для графика «куда идёт баланс». */
 export function balanceTimeline(accounts: Account[], txs: Transaction[], from: string, to: string): { date: string; value: Money }[] {
   const assetIds = new Set(accounts.filter((a) => isAsset(a) && !a.archived).map((a) => a.id))
@@ -433,6 +484,7 @@ export const stdev = (arr: number[]): number => {
 }
 
 /** Наклон линейной регрессии: сколько прибавляется за один шаг. */
+/** Наклон линейной регрессии: сколько прибавляется за один шаг. */
 export function trendSlope(arr: number[]): number {
   const n = arr.length
   if (n < 3) return 0
@@ -452,5 +504,5 @@ export function buildCategoryMap(categories: Category[]): Map<string, Category> 
 }
 
 export const UNCATEGORIZED: Category = {
-  id: '__none__', name: 'Без категории', kind: 'expense', icon: '❓', color: '#7c8794',
+  id: '__none__', name: т('Без категории'), kind: 'expense', icon: '❓', color: '#7c8794',
 }

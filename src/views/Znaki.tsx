@@ -6,6 +6,7 @@ import { humanDate } from '../lib/date'
 import { awards } from '../engine/honors'
 import { Znak, ключъЗнака } from '../lib/znaki'
 import { ВСТУПЛЕНІЕ, РАЗДѢЛЫ } from '../lib/znakiText'
+import { т } from '../i18n'
 
 /*
  * «Кто на знакахъ» — справочникъ къ грамотѣ.
@@ -22,6 +23,7 @@ export default function Znaki() {
   const пожалованы = data.honors?.awarded ?? {}
 
   /** Награда, отвѣчающая знаку. У ордена берётся младшая степень. */
+  /** Награда, отвѣчающая знаку. У ордена берётся младшая степень. */
   const награда = (key: string) => {
     const свои = всѣ.filter((a) => ключъЗнака(a.id) === key)
     return свои.find((a) => a.earned) ?? свои[0] ?? null
@@ -31,13 +33,11 @@ export default function Znaki() {
     <div className="view gramota znaki-spravka">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Кто на знакахъ</h1>
+          <h1 className="view-title">{т('Кто на знакахъ')}</h1>
           <div className="view-sub">
-            Тридцать девять подлинниковъ и ни одного выдуманнаго лица. Здѣсь сказано, кто на
-            каждомъ знакѣ, почему именно онъ и за что даётся награда.
-          </div>
+            {т('Тридцать девять подлинниковъ и ни одного выдуманнаго лица. Здѣсь сказано, кто на каждомъ знакѣ, почему именно онъ и за что даётся награда.')}</div>
         </div>
-        <button className="btn ghost" onClick={() => app.openTab('profile')}>Къ грамотѣ</button>
+        <button className="btn ghost" onClick={() => app.openTab('profile')}>{т('Къ грамотѣ')}</button>
       </div>
 
       <div className="card" style={{ marginBottom: 16 }}>
@@ -68,13 +68,13 @@ export default function Znaki() {
                     <span className="faint small">{f.years}</span>
                     <span className="spacer" />
                     <span className={'badge' + (взято ? ' on' : '')}>
-                      {взято ? (день ? `пожаловано ${humanDate(день, true)}` : 'пожаловано') : 'ещё нѣтъ'}
+                      {взято ? (день ? `пожаловано ${humanDate(день, true)}` : 'пожаловано') : т('ещё нѣтъ')}
                     </span>
                   </div>
                   <div className="znaki-award">{a?.order ?? a?.title ?? '—'}</div>
                   <p className="znaki-who">{f.who}</p>
-                  <p className="znaki-why"><b>Почему онъ.</b> {f.why}</p>
-                  <p className="znaki-rule"><b>За что даётся.</b> {f.rule}</p>
+                  <p className="znaki-why"><b>{т('Почему онъ.')}</b> {f.why}</p>
+                  <p className="znaki-rule"><b>{т('За что даётся.')}</b> {f.rule}</p>
                 </div>
               </div>
             )
@@ -84,12 +84,7 @@ export default function Znaki() {
 
       <div className="card" style={{ marginTop: 16 }}>
         <div className="faint small" style={{ lineHeight: 1.7 }}>
-          Всѣ изображенія — общественное достояніе: иконы, портреты кисти Рѣпина, Боровиковскаго,
-          Кипренскаго, Перова, Тропинина, Левицкаго, Крейцингера, Доу, Брюллова, Миропольскаго,
-          Веденецкаго, Тюрина, Бажанова, Дункерса, Ботмана, Зубова, парсуны XVII вѣка и губернскіе
-          гербы XVIII столѣтія. Лица не рисованы и не сочинены: въ поле медали посаженъ подлинникъ,
-          вогнанный въ цвѣтъ металла.
-        </div>
+          {т('Всѣ изображенія — общественное достояніе: иконы, портреты кисти Рѣпина, Боровиковскаго, Кипренскаго, Перова, Тропинина, Левицкаго, Крейцингера, Доу, Брюллова, Миропольскаго, Веденецкаго, Тюрина, Бажанова, Дункерса, Ботмана, Зубова, парсуны XVII вѣка и губернскіе гербы XVIII столѣтія. Лица не рисованы и не сочинены: въ поле медали посаженъ подлинникъ, вогнанный въ цвѣтъ металла.')}</div>
       </div>
     </div>
   )

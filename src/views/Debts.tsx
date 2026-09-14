@@ -9,6 +9,7 @@ import { accountBalance, creditRemaining } from '../engine/stats'
 import { LineChart } from '../components/charts'
 import { Avatar } from '../components/ui'
 import type { Account, Money } from '../lib/types'
+import { т, тр } from '../i18n'
 
 interface Row {
   month: number
@@ -17,6 +18,7 @@ interface Row {
   balance: Money
 }
 
+/** График аннуитетного погашения с возможным досрочным платежом. */
 /** График аннуитетного погашения с возможным досрочным платежом. */
 function schedule(principal: Money, ratePct: number, payment: Money, extra = 0): Row[] {
   const rows: Row[] = []
@@ -54,28 +56,22 @@ export default function Debts() {
     <div className="view">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Долги и кредиты</h1>
+          <h1 className="view-title">{т('Долги и кредиты')}</h1>
           <div className="view-sub">
-            Всего обязательств {money(totalDebt)} · свободно в месяц {money(free)}
-          </div>
+            {тр('Всего обязательств {0} · свободно в месяц {1}', money(totalDebt), money(free))}</div>
         </div>
         <button className="btn" onClick={() => app.openTab('accounts')}>
-          <Icon name="plus" size={15} /> Добавить в разделе «Счета»
-        </button>
+          <Icon name="plus" size={15} /> {т(' Добавить в разделе «Счета»')}</button>
       </div>
 
       {credits.length > 1 && (
         <div className="advice-card info" style={{ marginBottom: 16 }}>
-          <div className="advice-title">Порядок погашения</div>
+          <div className="advice-title">{т('Порядок погашения')}</div>
           <div className="advice-body">
-            При нескольких кредитах свободные деньги выгоднее направлять в тот, где выше ставка, —
-            каждый рубль там «зарабатывает» больше. Порядок по ставке:{' '}
-            {[...credits]
+            {тр('При нескольких кредитах свободные деньги выгоднее направлять в тот, где выше ставка, — каждый рубль там «зарабатывает» больше. Порядок по ставке:{0}{1}.', ' ', [...credits]
               .sort((a, b) => (b.credit!.ratePct) - (a.credit!.ratePct))
               .map((a) => `${a.name} (${pct(a.credit!.ratePct, 1)})`)
-              .join(' → ')}
-            .
-          </div>
+              .join(' → '))}</div>
         </div>
       )}
 
@@ -97,11 +93,10 @@ export default function Debts() {
               <div style={{ flex: 1 }}>
                 <div className="strong">{a.name}</div>
                 <div className="faint small">
-                  {pct(cr.ratePct, 1)} годовых · платёж {money(cr.monthlyPayment)} до {cr.paymentDay} числа
-                </div>
+                  {тр('{0} годовых · платёж {1} до {2} числа', pct(cr.ratePct, 1), money(cr.monthlyPayment), cr.paymentDay)}</div>
               </div>
               <div className="stat" style={{ alignItems: 'flex-end' }}>
-                <span className="l">Осталось</span>
+                <span className="l">{т('Осталось')}</span>
                 <span className="v neg">{money(left)}</span>
               </div>
             </div>
@@ -113,14 +108,14 @@ export default function Debts() {
               />
             </div>
             <div className="row small faint" style={{ marginTop: 5 }}>
-              <span>выплачено {money(paid)}</span>
+              <span>{тр('выплачено {0}', money(paid))}</span>
               <span className="spacer" />
-              <span>тело кредита {money(cr.principal)}</span>
+              <span>{тр('тело кредита {0}', money(cr.principal))}</span>
             </div>
 
             <div className="grid c2" style={{ marginTop: 18 }}>
               <div>
-                <div className="card-title">Досрочный платёж</div>
+                <div className="card-title">{т('Досрочный платёж')}</div>
                 <div className="row" style={{ gap: 12 }}>
                   <input
                     type="range"
@@ -138,22 +133,22 @@ export default function Debts() {
                       +{money(v)}
                     </span>
                   ))}
-                  <span className="chip" onClick={() => setExtra((s) => ({ ...s, [a.id]: 0 }))}>сброс</span>
+                  <span className="chip" onClick={() => setExtra((s) => ({ ...s, [a.id]: 0 }))}>{т('сброс')}</span>
                 </div>
 
                 <div className="row" style={{ marginTop: 16, gap: 20 }}>
                   <div className="stat">
-                    <span className="l">Срок</span>
+                    <span className="l">{т('Срок')}</span>
                     <span className="v" style={{ fontSize: 17 }}>{monthsWord(fastPlan.length)}</span>
                     {extra > 0 && <span className="d pos">−{monthsWord(basePlan.length - fastPlan.length)}</span>}
                   </div>
                   <div className="stat">
-                    <span className="l">Переплата</span>
+                    <span className="l">{т('Переплата')}</span>
                     <span className="v" style={{ fontSize: 17 }}>{money(fastInterest)}</span>
-                    {extra > 0 && <span className="d pos">экономия {money(baseInterest - fastInterest)}</span>}
+                    {extra > 0 && <span className="d pos">{тр('экономия {0}', money(baseInterest - fastInterest))}</span>}
                   </div>
                   <div className="stat">
-                    <span className="l">Закроется</span>
+                    <span className="l">{т('Закроется')}</span>
                     <span className="v" style={{ fontSize: 17 }}>
                       {fastPlan.length ? humanDate(addMonths(today(), fastPlan.length), true) : '—'}
                     </span>
@@ -163,21 +158,16 @@ export default function Debts() {
                 <div className="faint small" style={{ marginTop: 12, lineHeight: 1.55 }}>
                   {worthIt ? (
                     <>
-                      Ставка {pct(cr.ratePct, 1)} выше доходности вклада {pct(depositRate)} — досрочное погашение
-                      выгоднее, чем копить те же деньги под процент. Разница в вашу пользу примерно{' '}
-                      {money(Math.round((left * (cr.ratePct - depositRate)) / 100 / 12))} в месяц.
-                    </>
+                      {тр('Ставка {0} выше доходности вклада {1} — досрочное погашение выгоднее, чем копить те же деньги под процент. Разница в вашу пользу примерно{2}{3} в месяц.', pct(cr.ratePct, 1), pct(depositRate), ' ', money(Math.round((left * (cr.ratePct - depositRate)) / 100 / 12)))}</>
                   ) : (
                     <>
-                      Ставка {pct(cr.ratePct, 1)} ниже доходности вклада {pct(depositRate)} — гасить досрочно
-                      невыгодно. Те же деньги на вкладе принесут больше, чем сэкономят на процентах.
-                    </>
+                      {тр('Ставка {0} ниже доходности вклада {1} — гасить досрочно невыгодно. Те же деньги на вкладе принесут больше, чем сэкономят на процентах.', pct(cr.ratePct, 1), pct(depositRate))}</>
                   )}
                 </div>
               </div>
 
               <div>
-                <div className="card-title">Как тает долг</div>
+                <div className="card-title">{т('Как тает долг')}</div>
                 <LineChart
                   height={200}
                   points={fastPlan
@@ -185,7 +175,7 @@ export default function Debts() {
                     .map((r) => ({ label: String(r.month), value: r.balance }))}
                   color="var(--alert)"
                 />
-                <div className="faint small">месяцы от сегодняшнего дня</div>
+                <div className="faint small">{т('месяцы от сегодняшнего дня')}</div>
               </div>
             </div>
           </div>
@@ -194,7 +184,7 @@ export default function Debts() {
 
       {debts.length > 0 && (
         <>
-          <div className="card-title">Долги людям</div>
+          <div className="card-title">{т('Долги людям')}</div>
           <div className="grid c2">
             {debts.map((a) => {
               const b = accountBalance(a, data.transactions)
@@ -208,7 +198,7 @@ export default function Debts() {
                     <div style={{ flex: 1 }}>
                       <div className="strong">{a.name}</div>
                       <div className="faint small">
-                        {a.debt!.direction === 'i_owe' ? 'вы должны' : 'должны вам'} · {a.debt!.counterparty}
+                        {a.debt!.direction === 'i_owe' ? т('вы должны') : т('должны вам')} · {a.debt!.counterparty}
                       </div>
                     </div>
                     <div className={'num strong ' + (a.debt!.direction === 'i_owe' ? 'neg' : 'pos')} style={{ fontSize: 18 }}>
@@ -218,8 +208,8 @@ export default function Debts() {
                   {due && (
                     <div className={'small ' + (daysLeft != null && daysLeft < 0 ? 'neg' : 'faint')} style={{ marginTop: 8 }}>
                       {daysLeft != null && daysLeft < 0
-                        ? `просрочено на ${Math.abs(daysLeft)} ${plural(Math.abs(daysLeft), 'день', 'дня', 'дней')}`
-                        : `вернуть до ${humanDate(due, true)} — осталось ${daysLeft} ${plural(daysLeft ?? 0, 'день', 'дня', 'дней')}`}
+                        ? т('просрочено на {0} {1}', Math.abs(daysLeft), plural(Math.abs(daysLeft), 'день', 'дня', 'дней'))
+                        : т('вернуть до {0} — осталось {1} {2}', humanDate(due, true), daysLeft, plural(daysLeft ?? 0, 'день', 'дня', 'дней'))}
                     </div>
                   )}
                   <div className="row" style={{ marginTop: 10 }}>
@@ -230,13 +220,13 @@ export default function Debts() {
                           kind: 'transfer',
                           amount,
                           toAccountId: a.id,
-                          note: (a.debt!.direction === 'i_owe' ? 'Возврат долга: ' : 'Получен возврат: ') + a.debt!.counterparty,
+                          note: (a.debt!.direction === 'i_owe' ? т('Возврат долга: ') : т('Получен возврат: ')) + a.debt!.counterparty,
                         })
                       }
                     >
-                      {a.debt!.direction === 'i_owe' ? 'Отдать' : 'Получить'}
+                      {a.debt!.direction === 'i_owe' ? т('Отдать') : т('Получить')}
                     </button>
-                    <button className="btn sm ghost" onClick={() => app.openTab('accounts')}>Изменить</button>
+                    <button className="btn sm ghost" onClick={() => app.openTab('accounts')}>{т('Изменить')}</button>
                   </div>
                 </div>
               )
@@ -246,7 +236,7 @@ export default function Debts() {
       )}
 
       {!credits.length && !debts.length && (
-        <div className="empty">Кредитов и долгов нет — это лучшее состояние раздела.</div>
+        <div className="empty">{т('Кредитов и долгов нет — это лучшее состояние раздела.')}</div>
       )}
     </div>
   )

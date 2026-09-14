@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { useStore } from '../state/store'
 import { useToast } from './ui'
 import { playTone } from '../lib/sound'
+import { т } from '../i18n'
 
 /*
  * Помидор.
@@ -21,10 +22,13 @@ export type PomodoroPhase = 'idle' | 'work' | 'rest'
 interface Pomodoro {
   phase: PomodoroPhase
   /** Сколько секунд осталось. Когда стоит на паузе — застывшее значение. */
+  /** Сколько секунд осталось. Когда стоит на паузе — застывшее значение. */
   left: number
   paused: boolean
   /** Над какой задачей идёт работа. Пусто — просто отсчёт. */
+  /** Над какой задачей идёт работа. Пусто — просто отсчёт. */
   taskId: string | null
+  /** Сколько рабочих отрезков закрыто за этот запуск программы. */
   /** Сколько рабочих отрезков закрыто за этот запуск программы. */
   doneToday: number
   start(taskId: string | null): void
@@ -38,7 +42,7 @@ const Ctx = createContext<Pomodoro | null>(null)
 
 export const usePomodoro = (): Pomodoro => {
   const v = useContext(Ctx)
-  if (!v) throw new Error('usePomodoro вне провайдера')
+  if (!v) throw new Error(т('usePomodoro вне провайдера'))
   return v
 }
 
@@ -93,6 +97,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   /** Завершает текущий отрезок: рабочий засчитывается задаче, отдых — нет. */
+  /** Завершает текущий отрезок: рабочий засчитывается задаче, отдых — нет. */
   const завершить = useCallback(() => {
     const { phase: p, taskId: id, minutes: m } = cur.current
     if (p === 'work') {
@@ -102,11 +107,11 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
         if (t) upsertTask({ ...t, pomodoros: (t.pomodoros ?? 0) + 1 })
       }
       playTone('bell')
-      toast('Отрезок закрыт — перерыв ' + Math.max(1, m.rest) + ' мин')
+      toast(т('Отрезок закрыт — перерыв ') + Math.max(1, m.rest) + ' мин')
       начать('rest', Math.max(1, m.rest) * 60)
     } else {
       playTone('soft')
-      toast('Перерыв закончился')
+      toast(т('Перерыв закончился'))
       начать('work', Math.max(1, m.work) * 60)
     }
   }, [data.tasks, upsertTask, toast, начать])
@@ -130,6 +135,7 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>
 }
 
+/** Минуты и секунды из остатка: 1500 → «25:00». */
 /** Минуты и секунды из остатка: 1500 → «25:00». */
 export const clock = (secs: number): string =>
   `${String(Math.floor(secs / 60)).padStart(2, '0')}:${String(secs % 60).padStart(2, '0')}`

@@ -4,6 +4,7 @@ import { useApp } from '../App'
 import { plural } from '../lib/format'
 import { streak } from '../engine/streak'
 import { Znak } from '../lib/znaki'
+import { т } from '../i18n'
 
 /*
  * Огонёк: сколько дней подряд ведётся учёт.
@@ -25,21 +26,21 @@ export function Ogonek({ compact }: { compact?: boolean }) {
 
   const горит = с.days > 0
   const подпись = с.todayDone
-    ? 'сегодня записано'
+    ? т('сегодня записано')
     : горит
-      ? 'сегодня ещё нет записи'
-      : 'серия прервалась'
+      ? т('сегодня ещё нет записи')
+      : т('серия прервалась')
 
   return (
     <button
       className={'ogonek' + (горит ? '' : ' cold') + (compact ? ' compact' : '')}
       onClick={() => app.openTab('profile')}
       title={
-        `Серия: ${с.days} ${plural(с.days, 'день', 'дня', 'дней')} подряд · ` +
-        `лучшая ${с.best} · заморозок осталось ${с.freezesLeft}`
+        т('Серия: {0} {1} подряд · ', с.days, plural(с.days, 'день', 'дня', 'дней')) +
+        т('лучшая {0} · заморозок осталось {1}', с.best, с.freezesLeft)
       }
     >
-      <Znak id="inbox_zero" size={compact ? 26 : 34} on={горит} title="Столыпин" />
+      <Znak id="inbox_zero" size={compact ? 26 : 34} on={горит} title={т('Столыпин')} />
       <span className="ogonek-num">{с.days}</span>
       {!compact && <span className="ogonek-sub">{подпись}</span>}
     </button>

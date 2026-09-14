@@ -10,7 +10,9 @@ import {
   DEFAULT_CATEGORIES, DEFAULT_SETTINGS, emptyVault, freshVault, migrateCredits, migrateSettings,
 } from './defaults'
 import { occurrencesInMonth } from '../engine/forecast'
+import { т } from '../i18n'
 
+/** Почему хранилище не открылось — от этого зависит текст совета на экране. */
 /** Почему хранилище не открылось — от этого зависит текст совета на экране. */
 export interface VaultFailure {
   stage: 'path' | 'read' | 'create'
@@ -25,7 +27,9 @@ interface Store {
   dirty: boolean
   lastSaved: number | null
   /** Не null — хранилище не открылось; интерфейс рисовать нечем и незачем. */
+  /** Не null — хранилище не открылось; интерфейс рисовать нечем и незачем. */
   failure: VaultFailure | null
+  /** Последний отказ записи. Раньше он молча терялся в отложенном таймере. */
   /** Последний отказ записи. Раньше он молча терялся в отложенном таймере. */
   saveError: string | null
   retryBoot(): Promise<void>
@@ -67,10 +71,17 @@ const Ctx = createContext<Store | null>(null)
 
 export const useStore = (): Store => {
   const v = useContext(Ctx)
-  if (!v) throw new Error('useStore вне провайдера')
+  if (!v) throw new Error(т('useStore вне провайдера'))
   return v
 }
 
+/**
+ * Догоняет пропущенные автосписания регулярных платежей до сегодняшнего дня.
+ *
+ * Отметка lastPosted обязательна: без неё удалённое пользователем автосписание
+ * воскресало при следующем запуске, потому что правило снова не находило
+ * операции за текущий месяц и создавало её заново.
+ */
 /**
  * Догоняет пропущенные автосписания регулярных платежей до сегодняшнего дня.
  *
@@ -247,6 +258,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * не дожидаясь отложенной записи. Используется кнопкой «Сохранить»,
    * Ctrl+S, автосохранением по таймеру и закрытием окна.
    */
+  /**
+   * Полное сохранение по требованию: пишет и справочники, и все месяцы,
+   * не дожидаясь отложенной записи. Используется кнопкой «Сохранить»,
+   * Ctrl+S, автосохранением по таймеру и закрытием окна.
+   */
   const saveNow = useCallback(async () => {
     if (saveTimer.current) {
       window.clearTimeout(saveTimer.current)
@@ -341,6 +357,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   )
 
   /** Групповое удаление одним обновлением: по одному это сотни лишних перерисовок. */
+  /** Групповое удаление одним обновлением: по одному это сотни лишних перерисовок. */
   const deleteTransactions = useCallback(
     (ids: string[]) => {
       if (!ids.length) return
@@ -354,6 +371,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [queueSave],
   )
 
+  /** Возврат удалённого пакета — страховка для кнопки «отменить». */
   /** Возврат удалённого пакета — страховка для кнопки «отменить». */
   const restoreTransactions = useCallback(
     (list: Transaction[]) => {
@@ -436,6 +454,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * платежи, сценарии, правила импорта, заметки и канвасы. Настройки и путь
    * к хранилищу сохраняются — это про данные, а не про программу.
    */
+  /**
+   * Полная очистка: хранилище возвращается к состоянию «программа только что
+   * установлена». Стираются операции, счета, категории, цели, регулярные
+   * платежи, сценарии, правила импорта, заметки и канвасы. Настройки и путь
+   * к хранилищу сохраняются — это про данные, а не про программу.
+   */
   const wipeAll = useCallback(async () => {
     const months = new Set(dataRef.current.transactions.map((t) => monthKey(t.date)))
     // «Стереть всё» возвращает состояние только что установленной программы —
@@ -456,6 +480,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     setDirty(false)
   }, [])
 
+  /**
+   * Полная замена справочников и операций — этим пользуется загрузка архива.
+   *
+   * Пишем сразу и целиком, не дожидаясь отложенного сохранения: пустой набор
+   * затронутых месяцев означает «переписать все и подчистить лишние файлы»,
+   * иначе месяцы прежнего хранилища остались бы лежать рядом с новыми.
+   */
   /**
    * Полная замена справочников и операций — этим пользуется загрузка архива.
    *

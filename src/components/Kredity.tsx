@@ -6,6 +6,7 @@ import { Icon } from '../lib/icons'
 import { money, moneyShort, pct, plural } from '../lib/format'
 import { monthTitle } from '../lib/date'
 import { creditsSummary, whatIf, type Кредит } from '../engine/credit'
+import { т, тр } from '../i18n'
 
 /*
  * Кредиты на дашбордѣ.
@@ -40,24 +41,20 @@ export function Kredity({ style }: { style?: React.CSSProperties }) {
     <div className="card kredity" style={style}>
       <div className="row" style={{ marginBottom: 12 }}>
         <div className="card-title" style={{ margin: 0 }}>
-          <Icon name="credit" size={14} /> Кредиты
-        </div>
+          <Icon name="credit" size={14} /> {т(' Кредиты')}</div>
         <span className="spacer" />
         <span className="faint small">
-          должны <b className="neg">{money(сводка.debt)}</b>
-          {сводка.limit > 0 && <> · свободно {money(сводка.available)}</>}
+          {т('должны ')}<b className="neg">{money(сводка.debt)}</b>
+          {сводка.limit > 0 && <> {тр(' · свободно {0}', money(сводка.available))}</>}
         </span>
         <button className="btn sm ghost" style={{ marginLeft: 10 }} onClick={() => app.openTab('debts')}>
-          Подробно <Icon name="right" size={13} />
+          {т('Подробно ')}<Icon name="right" size={13} />
         </button>
       </div>
 
       {доход > 0 && сводка.payment > 0 && (
         <div className="faint small" style={{ marginBottom: 12 }}>
-          На платежи уходит <b>{money(сводка.payment)}</b> в месяц — это{' '}
-          <b className={доляДохода > 30 ? 'neg' : ''}>{pct(доляДохода, 0)}</b> дохода.
-          Остаётся {money(Math.max(0, доход - сводка.payment))}.
-        </div>
+          {т('На платежи уходит ')}<b>{money(сводка.payment)}</b> {тр(' в месяц — это{0}', ' ')}<b className={доляДохода > 30 ? 'neg' : ''}>{pct(доляДохода, 0)}</b> {тр(' дохода. Остаётся {0}.', money(Math.max(0, доход - сводка.payment)))}</div>
       )}
 
       {сводка.список.map((k) => (
@@ -76,13 +73,13 @@ function Одинъ({ k, доплата, setДоплата }: {
   const app = useApp()
   const карта = k.kind === 'card'
   const прикидка = доплата > 0 ? whatIf(k, доплата) : null
-  const статья = (id: string | null) => data.categories.find((c) => c.id === id)?.name ?? 'без статьи'
+  const статья = (id: string | null) => data.categories.find((c) => c.id === id)?.name ?? т('без статьи')
 
   return (
     <div className="kredit-row">
       <div className="row" style={{ alignItems: 'baseline' }}>
         <span className="strong">{k.acc.name}</span>
-        <span className="faint small">{карта ? 'карта' : 'заём'} · {pct(k.ratePct, 0)} годовых</span>
+        <span className="faint small">{тр('{0} · {1} годовых', карта ? 'карта' : 'заём', pct(k.ratePct, 0))}</span>
         <span className="spacer" />
         <span className="num strong neg" style={{ fontSize: 17 }}>{money(k.debt)}</span>
       </div>
@@ -90,11 +87,11 @@ function Одинъ({ k, доплата, setДоплата }: {
       {/* Лимит карты: видно, сколько уже съедено и сколько ещё можно взять. */}
       {карта && k.limit > 0 && (
         <>
-          <div className="kredit-bar" title={`Использовано ${pct(k.used * 100, 0)} лимита`}>
+          <div className="kredit-bar" title={т('Использовано {0} лимита', pct(k.used * 100, 0))}>
             <span style={{ width: `${Math.round(k.used * 100)}%` }} />
           </div>
           <div className="faint small">
-            взято {money(k.debt)} из {money(k.limit)} · свободно <b>{money(k.available)}</b>
+            {тр('взято {0} из {1} · свободно ', money(k.debt), money(k.limit))}<b>{money(k.available)}</b>
           </div>
         </>
       )}
@@ -102,18 +99,13 @@ function Одинъ({ k, доплата, setДоплата }: {
       {/* Последствия: во что обойдётся и когда кончится. */}
       <div className="faint small" style={{ marginTop: 6, lineHeight: 1.6 }}>
         {k.debt <= 0 ? (
-          'Долга нет.'
+          т('Долга нет.')
         ) : k.monthsLeft == null ? (
           <span className="neg">
-            Платёж {money(k.payment)} не покрывает проценты — при нём долг не гасится никогда.
-            Чтобы он убывал, платить нужно больше {money(Math.ceil((k.debt * k.ratePct) / 100 / 12))} в месяц.
-          </span>
+            {тр('Платёж {0} не покрывает проценты — при нём долг не гасится никогда. Чтобы он убывал, платить нужно больше {1} в месяц.', money(k.payment), money(Math.ceil((k.debt * k.ratePct) / 100 / 12)))}</span>
         ) : (
           <>
-            При платеже {money(k.payment)} закроетесь через <b>{k.monthsLeft}</b>{' '}
-            {plural(k.monthsLeft, 'месяц', 'месяца', 'месяцев')}
-            {k.freeMonth && <> — в {monthTitle(k.freeMonth).toLowerCase()}</>}. Переплата составит{' '}
-            <b>{money(k.overpay)}</b>.
+            {тр('При платеже {0} закроетесь через ', money(k.payment))}<b>{k.monthsLeft}</b>{тр('{0}{1}{2}. Переплата составит{3}', ' ', plural(k.monthsLeft, 'месяц', 'месяца', 'месяцев'), k.freeMonth && <> {тр(' — в {0}', monthTitle(k.freeMonth).toLowerCase())}</>, ' ')}<b>{money(k.overpay)}</b>.
           </>
         )}
       </div>
@@ -121,7 +113,7 @@ function Одинъ({ k, доплата, setДоплата }: {
       {/* Прикидка «а если платить больше» — тем же графиком, что и срок выше. */}
       {k.monthsLeft != null && k.debt > 0 && (
         <div className="row wrap" style={{ gap: 6, marginTop: 8, alignItems: 'center' }}>
-          <span className="faint small">Платить больше на</span>
+          <span className="faint small">{т('Платить больше на')}</span>
           {ДОПЛАТЫ.map((v) => (
             <span
               key={v}
@@ -134,10 +126,8 @@ function Одинъ({ k, доплата, setДоплата }: {
           {прикидка && (
             прикидка.faster > 0
               ? <span className="small pos">
-                  раньше на {прикидка.faster} {plural(прикидка.faster, 'месяц', 'месяца', 'месяцев')},
-                  сбережёте {money(прикидка.saved)}
-                </span>
-              : <span className="small faint">срок почти не изменится</span>
+                  {тр('раньше на {0} {1}, сбережёте {2}', прикидка.faster, plural(прикидка.faster, 'месяц', 'месяца', 'месяцев'), money(прикидка.saved))}</span>
+              : <span className="small faint">{т('срок почти не изменится')}</span>
           )}
         </div>
       )}
@@ -145,14 +135,11 @@ function Одинъ({ k, доплата, setДоплата }: {
       {/* Куда ушли кредитные деньги. Без этого долг — просто число. */}
       {k.spent.length > 0 && (
         <div className="faint small" style={{ marginTop: 8 }}>
-          Потрачено с этого счёта {money(k.spentTotal)}:{' '}
-          {k.spent.slice(0, 4).map((t, i) => (
+          {тр('Потрачено с этого счёта {0}:{1}{2}{3}', money(k.spentTotal), ' ', k.spent.slice(0, 4).map((t, i) => (
             <span key={t.categoryId ?? 'нет'}>
               {i > 0 && ', '}{статья(t.categoryId)} {money(t.amount)}
             </span>
-          ))}
-          {k.spent.length > 4 && ` и ещё ${k.spent.length - 4}`}
-        </div>
+          )), k.spent.length > 4 && т(' и ещё {0}', k.spent.length - 4))}</div>
       )}
 
       <div className="row wrap" style={{ gap: 8, marginTop: 10 }}>
@@ -160,14 +147,12 @@ function Одинъ({ k, доплата, setДоплата }: {
           className="btn sm"
           onClick={() => app.editTransaction({ kind: 'transfer', toAccountId: k.acc.id, amount: k.payment || undefined })}
         >
-          Погасить
-        </button>
+          {т('Погасить')}</button>
         <button
           className="btn sm ghost"
           onClick={() => app.editTransaction({ kind: 'expense', accountId: k.acc.id })}
         >
-          Потратить с кредита
-        </button>
+          {т('Потратить с кредита')}</button>
       </div>
     </div>
   )

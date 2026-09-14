@@ -1,5 +1,6 @@
 import type { Money, Task, VaultData } from '../lib/types'
 import { addDays, addMonths, monthKey, today } from '../lib/date'
+import { т } from '../i18n'
 
 /*
  * Задачи: срочность, четверти матрицы и запланированные деньги.
@@ -12,15 +13,16 @@ import { addDays, addMonths, monthKey, today } from '../lib/date'
  */
 
 /** Сколько дней впереди считаются срочными. Сегодня, завтра и всё просроченное. */
+/** Сколько дней впереди считаются срочными. Сегодня, завтра и всё просроченное. */
 export const URGENT_DAYS = 1
 
 export type Quadrant = 1 | 2 | 3 | 4
 
 export const QUADRANTS: { q: Quadrant; title: string; hint: string; tone: string }[] = [
-  { q: 1, title: 'Срочно и важно', hint: 'делать сейчас', tone: 'q1' },
-  { q: 2, title: 'Не срочно, но важно', hint: 'запланировать', tone: 'q2' },
-  { q: 3, title: 'Срочно, но не важно', hint: 'по возможности передать', tone: 'q3' },
-  { q: 4, title: 'Не срочно и не важно', hint: 'может подождать', tone: 'q4' },
+  { q: 1, title: т('Срочно и важно'), hint: т('делать сейчас'), tone: 'q1' },
+  { q: 2, title: т('Не срочно, но важно'), hint: 'запланировать', tone: 'q2' },
+  { q: 3, title: т('Срочно, но не важно'), hint: т('по возможности передать'), tone: 'q3' },
+  { q: 4, title: т('Не срочно и не важно'), hint: т('может подождать'), tone: 'q4' },
 ]
 
 export const isOverdue = (t: Task, now: string = today()): boolean => !!t.due && !t.done && t.due < now
@@ -39,15 +41,17 @@ export const isUrgent = (t: Task, now: string = today()): boolean =>
 export type Priority = 0 | 1 | 2 | 3
 
 export const PRIORITIES: { p: Priority; t: string; hint: string }[] = [
-  { p: 0, t: 'Нет', hint: 'обычное дело' },
-  { p: 1, t: 'Низкая', hint: 'не забыть' },
-  { p: 2, t: 'Средняя', hint: 'важно — идёт в матрицу' },
-  { p: 3, t: 'Высокая', hint: 'горит' },
+  { p: 0, t: т('Нет'), hint: т('обычное дело') },
+  { p: 1, t: т('Низкая'), hint: т('не забыть') },
+  { p: 2, t: т('Средняя'), hint: т('важно — идёт в матрицу') },
+  { p: 3, t: т('Высокая'), hint: 'горит' },
 ]
 
 /** Важность задачи. У старых задач её нет, и «важно» там равно высокой. */
+/** Важность задачи. У старых задач её нет, и «важно» там равно высокой. */
 export const priorityOf = (t: Task): Priority => t.priority ?? (t.important ? 3 : 0)
 
+/** Важное для матрицы — средняя ступень и выше. */
 /** Важное для матрицы — средняя ступень и выше. */
 export const isImportant = (t: Task) => priorityOf(t) >= 2
 
@@ -57,6 +61,19 @@ export function quadrantOf(t: Task, now: string = today()): Quadrant {
   return urgent ? 3 : 4
 }
 
+/**
+ * Порядок списка: незакрытые вперёд, ближний срок выше, внутри одного дня —
+ * важные впереди, бессрочные в конце и тоже по важности.
+ *
+ * Срок стоит выше важности намеренно. Срок — это факт, важность — мнение;
+ * если пустить важность вперёд, задача на послезавтра с красной меткой
+ * заслонит сегодняшнюю без метки, и список перестанет показывать, что горит.
+ * Зато внутри одного дня и среди бессрочных важность решает всё — там как раз
+ * и нужно, чтобы существенное было сверху.
+ *
+ * Бессрочные именно в конце, а не в начале: список без сроков — это склад
+ * идей, и он не должен заслонять то, что горит.
+ */
 /**
  * Порядок списка: незакрытые вперёд, ближний срок выше, внутри одного дня —
  * важные впереди, бессрочные в конце и тоже по важности.
@@ -82,6 +99,7 @@ export function sortTasks(list: Task[]): Task[] {
 }
 
 /** Сколько денег обещано задачами в каждом месяце. Знак: приход плюс, трата минус. */
+/** Сколько денег обещано задачами в каждом месяце. Знак: приход плюс, трата минус. */
 export function plannedByMonth(data: VaultData, now: string = today()): Map<string, Money> {
   const out = new Map<string, Money>()
   // Прогноз начинается со следующего месяца, поэтому всё, что обещано на этот
@@ -99,6 +117,7 @@ export function plannedByMonth(data: VaultData, now: string = today()): Map<stri
 }
 
 /** Итог по задачам-деньгам: сколько обещано потратить и получить впереди. */
+/** Итог по задачам-деньгам: сколько обещано потратить и получить впереди. */
 export function plannedTotals(data: VaultData, now: string = today()): { out: Money; in: Money } {
   let outSum = 0
   let inSum = 0
@@ -112,9 +131,11 @@ export function plannedTotals(data: VaultData, now: string = today()): { out: Mo
 }
 
 /** Задачи со сроком в этот день. Нужен и календарю, и напоминаниям. */
+/** Задачи со сроком в этот день. Нужен и календарю, и напоминаниям. */
 export const tasksOn = (data: VaultData, day: string): Task[] =>
   (data.tasks ?? []).filter((t) => t.due === day)
 
+/** Дни месяца, на которых что-то висит: календарь ставит на них точку. */
 /** Дни месяца, на которых что-то висит: календарь ставит на них точку. */
 export function daysWithTasks(data: VaultData, mk: string): Set<string> {
   const out = new Set<string>()

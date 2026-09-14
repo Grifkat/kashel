@@ -6,7 +6,9 @@ import { money, moneyShort } from '../lib/format'
 import { humanDate } from '../lib/date'
 import { runQuery } from '../engine/query'
 import { BarChart, Donut, LineChart } from './charts'
+import { т, тр } from '../i18n'
 
+/** Блок ```kashel — считает по операциям прямо в заметке. */
 /** Блок ```kashel — считает по операциям прямо в заметке. */
 export function QueryBlock({ source }: { source: string }) {
   const { data } = useStore()
@@ -20,14 +22,12 @@ export function QueryBlock({ source }: { source: string }) {
     <div className="query-block">
       <div className="query-head">
         <Icon name="donut" size={12} />
-        живой запрос · {res.spec.periodLabel}
-        {res.spec.kind && ` · ${res.spec.kind === 'expense' ? 'расходы' : res.spec.kind === 'income' ? 'доходы' : 'переводы'}`}
-      </div>
+        {тр('живой запрос · {0}{1}', res.spec.periodLabel, res.spec.kind && ` · ${res.spec.kind === 'expense' ? 'расходы' : res.spec.kind === 'income' ? 'доходы' : 'переводы'}`)}</div>
 
       {res.type === 'sum' && (
         <div>
           <div className="num" style={{ fontSize: 26, fontWeight: 650, color: 'var(--text-strong)' }}>{money(res.value)}</div>
-          <div className="faint small">{res.count} операций</div>
+          <div className="faint small">{тр('{0} операций', res.count)}</div>
         </div>
       )}
 
@@ -64,8 +64,8 @@ export function QueryBlock({ source }: { source: string }) {
           groups={res.series.map((s) => ({
             label: s.key.slice(5),
             values: [
-              { value: s.income, color: 'var(--good)', name: 'Доход' },
-              { value: s.expense, color: 'var(--alert)', name: 'Расход' },
+              { value: s.income, color: 'var(--good)', name: т('Доход') },
+              { value: s.expense, color: 'var(--alert)', name: т('Расход') },
             ],
           }))}
           height={200}
@@ -83,9 +83,9 @@ export function QueryBlock({ source }: { source: string }) {
         <Tbl>
           <thead>
             <tr>
-              <th>Дата</th>
-              <th>Описание</th>
-              <th className="r">Сумма</th>
+              <th>{т('Дата')}</th>
+              <th>{т('Описание')}</th>
+              <th className="r">{т('Сумма')}</th>
             </tr>
           </thead>
           <tbody>

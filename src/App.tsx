@@ -45,6 +45,7 @@ import { relDate, setDateFormat, today } from './lib/date'
 import { bridge } from './state/vault'
 import type { Transaction, TxKind } from './lib/types'
 import { попроситьПроверку, useЕстьОбновленіе } from './components/Obnovlenie'
+import { т, тр } from './i18n'
 
 export type ViewId =
   | 'dashboard' | 'transactions' | 'categories' | 'accounts' | 'budget' | 'goals'
@@ -66,27 +67,27 @@ interface Pane {
 }
 
 export const VIEW_META: Record<ViewId, { title: string; icon: string }> = {
-  dashboard: { title: 'Дашборд', icon: 'donut' },
-  transactions: { title: 'Операции', icon: 'list' },
-  categories: { title: 'Категории', icon: 'tag' },
-  accounts: { title: 'Счета', icon: 'wallet' },
-  budget: { title: 'Бюджет', icon: 'scale' },
-  goals: { title: 'Цели', icon: 'target' },
-  debts: { title: 'Долги и кредиты', icon: 'credit' },
-  recurring: { title: 'Регулярные', icon: 'repeat' },
-  reminders: { title: 'Напоминания', icon: 'bulb' },
-  tasks: { title: 'Задачи', icon: 'list' },
-  profile: { title: 'Грамота', icon: 'sparkle' },
-  znaki: { title: 'Кто на знаках', icon: 'shield' },
-  forecast: { title: 'Прогноз', icon: 'chart' },
-  advice: { title: 'Советы', icon: 'bulb' },
-  calendar: { title: 'Календарь', icon: 'calendar' },
-  year: { title: 'Итоги года', icon: 'sparkle' },
-  canvas: { title: 'Канвас', icon: 'canvas' },
-  notes: { title: 'Заметки', icon: 'note' },
-  graph: { title: 'Граф', icon: 'graph' },
-  import: { title: 'Импорт', icon: 'download' },
-  settings: { title: 'Настройки', icon: 'gear' },
+  dashboard: { title: т('Дашборд'), icon: 'donut' },
+  transactions: { title: т('Операции'), icon: 'list' },
+  categories: { title: т('Категории'), icon: 'tag' },
+  accounts: { title: т('Счета'), icon: 'wallet' },
+  budget: { title: т('Бюджет'), icon: 'scale' },
+  goals: { title: т('Цели'), icon: 'target' },
+  debts: { title: т('Долги и кредиты'), icon: 'credit' },
+  recurring: { title: т('Регулярные'), icon: 'repeat' },
+  reminders: { title: т('Напоминания'), icon: 'bulb' },
+  tasks: { title: т('Задачи'), icon: 'list' },
+  profile: { title: т('Грамота'), icon: 'sparkle' },
+  znaki: { title: т('Кто на знаках'), icon: 'shield' },
+  forecast: { title: т('Прогноз'), icon: 'chart' },
+  advice: { title: т('Советы'), icon: 'bulb' },
+  calendar: { title: т('Календарь'), icon: 'calendar' },
+  year: { title: т('Итоги года'), icon: 'sparkle' },
+  canvas: { title: т('Канвас'), icon: 'canvas' },
+  notes: { title: т('Заметки'), icon: 'note' },
+  graph: { title: т('Граф'), icon: 'graph' },
+  import: { title: т('Импорт'), icon: 'download' },
+  settings: { title: т('Настройки'), icon: 'gear' },
 }
 
 interface AppApi {
@@ -98,10 +99,16 @@ interface AppApi {
   setFocusPane(i: number): void
   splitPane(): void
   /** Схлопывает всё до одной вкладки дашборда — после полной смены хранилища. */
+  /** Схлопывает всё до одной вкладки дашборда — после полной смены хранилища. */
   resetWorkspace(): void
   editTransaction(t: Transaction | Partial<Transaction> | null): void
   openPalette(): void
   openQuickAdd(prefill?: string, kind?: TxKind): void
+  /**
+   * Дата, на которую уйдёт новая запись. Её публикует активная вкладка:
+   * дашборд отдаёт дату открытого периода. null — значит сегодня, и тогда
+   * подставлять нечего.
+   */
   /**
    * Дата, на которую уйдёт новая запись. Её публикует активная вкладка:
    * дашборд отдаёт дату открытого периода. null — значит сегодня, и тогда
@@ -119,10 +126,18 @@ interface AppApi {
 const AppCtx = createContext<AppApi | null>(null)
 export const useApp = (): AppApi => {
   const v = useContext(AppCtx)
-  if (!v) throw new Error('useApp вне провайдера')
+  if (!v) throw new Error(т('useApp вне провайдера'))
   return v
 }
 
+/**
+ * Ид вкладки, внутри которой нарисован раздел. Нужен, чтобы раздел мог
+ * заявить о себе на весь App — например, отдать дату открытого периода — и
+ * чтобы в разделённом окне два одинаковых раздела не затирали друг друга.
+ *
+ * Запасное значение — для раздела, отрисованного вне вкладок (в оснастке):
+ * такой раздел просто делит общую ячейку, а не роняет окно.
+ */
 /**
  * Ид вкладки, внутри которой нарисован раздел. Нужен, чтобы раздел мог
  * заявить о себе на весь App — например, отдать дату открытого периода — и
@@ -174,7 +189,7 @@ export default function App() {
      * разметки (градиент шапки, буквы на кнопках). Переменные — на корень.
      */
     const своя = data.settings.customTheme
-      ? data.settings.customThemes?.find((т) => т.id === data.settings.customTheme)
+      ? data.settings.customThemes?.find((тм) => тм.id === data.settings.customTheme)
       : undefined
     root.dataset.theme = своя ? своя.base : data.settings.theme
     применитьТокены(root, своя ? своя.tokens : null)
@@ -265,6 +280,11 @@ export default function App() {
     })
   }, [])
 
+  /**
+   * После загрузки архива открытые вкладки показывают то, чего в хранилище
+   * больше нет: заметку прежнего владельца, удалённую доску. Заново открытый
+   * дашборд честнее, чем список призраков.
+   */
   /**
    * После загрузки архива открытые вкладки показывают то, чего в хранилище
    * больше нет: заметку прежнего владельца, удалённую доску. Заново открытый
@@ -366,7 +386,7 @@ export default function App() {
     return (
       <div className="splash">
         <div style={{ fontSize: 30 }}>💰</div>
-        <div>Открываю хранилище…</div>
+        <div>{т('Открываю хранилище…')}</div>
       </div>
     )
   }
@@ -415,10 +435,10 @@ export default function App() {
                     </button>
                   ))}
                   <div className="tabbar-actions">
-                    <button className="icon-btn" title="Разделить панель (Ctrl+\)" onClick={splitPane}>
+                    <button className="icon-btn" title={т('Разделить панель (Ctrl+\\)')} onClick={splitPane}>
                       <Icon name="panel" size={15} />
                     </button>
-                    <button className="icon-btn" title="Боковая панель (Ctrl+I)" onClick={() => setRightOpen((v) => !v)}>
+                    <button className="icon-btn" title={т('Боковая панель (Ctrl+I)')} onClick={() => setRightOpen((v) => !v)}>
                       <Icon name="menu" size={15} />
                     </button>
                   </div>
@@ -436,7 +456,7 @@ export default function App() {
             .app потеряет ширину, а скрытая панель станет видимой. */}
         <Boundary
           level="slot"
-          where="Сводка"
+          where={т('Сводка')}
           slotClass={'rightbar' + (rightOpen ? '' : ' hidden')}
           resetKey={String(rightOpen)}
         >
@@ -447,35 +467,34 @@ export default function App() {
               потому что ушли на другой экран, — не таймер. */}
           <PomodoroBadge />
           <span>
-            <b>Активы:</b> {data.settings.hideBalance ? '••••' : money(bal.assets)}
+            <b>{т('Активы:')}</b> {data.settings.hideBalance ? '••••' : money(bal.assets)}
           </span>
           {bal.liabilities < 0 && (
             <span>
-              <b>Обязательства:</b> {data.settings.hideBalance ? '••••' : money(bal.liabilities)}
+              <b>{т('Обязательства:')}</b> {data.settings.hideBalance ? '••••' : money(bal.liabilities)}
             </span>
           )}
           <span>
-            <b>Чистый капитал:</b> {data.settings.hideBalance ? '••••' : money(bal.net)}
+            <b>{т('Чистый капитал:')}</b> {data.settings.hideBalance ? '••••' : money(bal.net)}
           </span>
           <span className="sp" />
-          <span>{data.transactions.length} операций</span>
+          <span>{тр('{0} операций', data.transactions.length)}</span>
           <button
             className="btn sm ghost"
             style={{ padding: '1px 8px', fontSize: 12 }}
             onClick={() => void store.saveNow().catch(() => {})}
-            title="Сохранить сейчас (Ctrl+S). Кроме того, изменения пишутся сразу после правки и раз в пять минут целиком."
+            title={т('Сохранить сейчас (Ctrl+S). Кроме того, изменения пишутся сразу после правки и раз в пять минут целиком.')}
           >
             <Icon name="save" size={13} />
             {dirty
-              ? 'сохраняю…'
+              ? т('сохраняю…')
               : lastSaved
-                ? `сохранено в ${new Date(lastSaved).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}`
+                ? т('сохранено в {0}', new Date(lastSaved).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' }))
                 : 'сохранить'}
           </button>
           {saveError && (
             <span style={{ color: 'var(--money-out)' }} title={saveError}>
-              не сохраняется
-            </span>
+              {т('не сохраняется')}</span>
           )}
           <span title={vaultPath} style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {vaultPath}
@@ -500,14 +519,14 @@ export default function App() {
 
 // ------------------------------------------------------------------ лента
 const RIBBON: { view: ViewId; hint: string }[] = [
-  { view: 'dashboard', hint: 'Дашборд' },
-  { view: 'transactions', hint: 'Операции' },
-  { view: 'budget', hint: 'Бюджет' },
-  { view: 'forecast', hint: 'Прогноз' },
-  { view: 'advice', hint: 'Советы' },
-  { view: 'canvas', hint: 'Канвас' },
-  { view: 'notes', hint: 'Заметки' },
-  { view: 'graph', hint: 'Граф' },
+  { view: 'dashboard', hint: т('Дашборд') },
+  { view: 'transactions', hint: т('Операции') },
+  { view: 'budget', hint: т('Бюджет') },
+  { view: 'forecast', hint: т('Прогноз') },
+  { view: 'advice', hint: т('Советы') },
+  { view: 'canvas', hint: т('Канвас') },
+  { view: 'notes', hint: т('Заметки') },
+  { view: 'graph', hint: т('Граф') },
 ]
 
 function Ribbon({ onTheme }: { onTheme: () => void }) {
@@ -523,7 +542,7 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
           не может. Так и было: свернул — и развернуть нечем. */}
       <button
         className="ribbon-btn"
-        title={app.sidebarOpen ? 'Скрыть левую панель (Ctrl+B)' : 'Показать левую панель (Ctrl+B)'}
+        title={app.sidebarOpen ? т('Скрыть левую панель (Ctrl+B)') : т('Показать левую панель (Ctrl+B)')}
         aria-pressed={app.sidebarOpen}
         onClick={app.toggleSidebar}
       >
@@ -533,7 +552,7 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
           видно, какой период открыт на вкладке. */}
       <button
         className="ribbon-btn"
-        title={app.entryDate ? 'Новая операция за ' + relDate(app.entryDate) + ' (Ctrl+N)' : 'Новая операция (Ctrl+N)'}
+        title={app.entryDate ? т('Новая операция за ') + relDate(app.entryDate) + ' (Ctrl+N)' : т('Новая операция (Ctrl+N)')}
         onClick={() => app.openQuickAdd()}
       >
         <Icon name="plus" size={19} />
@@ -552,10 +571,8 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
       <div className="ribbon-spacer" />
       <button
         className="ribbon-btn"
-        title={`Оформление: ${
-          store.data.settings.customThemes?.find((т) => т.id === store.data.settings.customTheme)?.name ??
-          themeById(store.data.settings.theme).name
-        }. Клик — галерея, средняя кнопка — светлая/тёмная`}
+        title={т('Оформление: {0}. Клик — галерея, средняя кнопка — светлая/тёмная', store.data.settings.customThemes?.find((тм) => тм.id === store.data.settings.customTheme)?.name ??
+          themeById(store.data.settings.theme).name)}
         onClick={onTheme}
         onAuxClick={(e) => {
           // Светлость переключается у встроенной темы; своя при этом снимается,
@@ -565,12 +582,12 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
       >
         <Icon name={themeById(store.data.settings.theme).mode === 'dark' ? 'moon' : 'sun'} size={17} />
       </button>
-      <button className="ribbon-btn" title="Палитра команд (Ctrl+P)" onClick={app.openPalette}>
+      <button className="ribbon-btn" title={т('Палитра команд (Ctrl+P)')} onClick={app.openPalette}>
         <Icon name="search" size={17} />
       </button>
       <button
         className={'ribbon-btn' + (cur === 'settings' ? ' active' : '')}
-        title={обновленіе ? 'Настройки · есть новая версия' : 'Настройки'}
+        title={обновленіе ? т('Настройки · есть новая версия') : т('Настройки')}
         onClick={() => app.openTab('settings')}
       >
         <Icon name="gear" size={17} />
@@ -591,11 +608,11 @@ function Sidebar() {
   if (!app.sidebarOpen) return <div className="sidebar hidden" />
 
   const groups: { title: string; items: ViewId[] }[] = [
-    { title: 'Учёт', items: ['dashboard', 'transactions', 'accounts', 'categories'] },
-    { title: 'Планирование', items: ['tasks', 'budget', 'goals', 'recurring', 'reminders', 'debts'] },
-    { title: 'Анализ', items: ['profile', 'znaki', 'forecast', 'calendar', 'year', 'advice'] },
-    { title: 'Пространство', items: ['canvas', 'notes', 'graph'] },
-    { title: 'Данные', items: ['import', 'settings'] },
+    { title: т('Учёт'), items: ['dashboard', 'transactions', 'accounts', 'categories'] },
+    { title: т('Планирование'), items: ['tasks', 'budget', 'goals', 'recurring', 'reminders', 'debts'] },
+    { title: т('Анализ'), items: ['profile', 'znaki', 'forecast', 'calendar', 'year', 'advice'] },
+    { title: т('Пространство'), items: ['canvas', 'notes', 'graph'] },
+    { title: т('Данные'), items: ['import', 'settings'] },
   ]
 
   const counts: Partial<Record<ViewId, number>> = {
@@ -616,10 +633,10 @@ function Sidebar() {
           одна на панель и всегда на виду. Прежняя стрелка прятала панель
           вместе с собой, и вернуть её можно было только Ctrl+B. */}
       <div className="sidebar-head">
-        <ShinyText speed={7}>Кошель</ShinyText>
+        <ShinyText speed={7}>{т('Кошель')}</ShinyText>
         <button
           className="icon-btn"
-          title={всеСвёрнуты ? 'Развернуть все группы' : 'Свернуть все группы'}
+          title={всеСвёрнуты ? т('Развернуть все группы') : т('Свернуть все группы')}
           onClick={() => поставитьСвёрнуты(всеСвёрнуты ? new Set() : new Set(groups.map((g) => g.title)))}
         >
           <Icon name={всеСвёрнуты ? 'down' : 'up'} size={14} />
@@ -656,7 +673,7 @@ function Sidebar() {
                       <Icon name={VIEW_META[v].icon} size={15} />
                       <span>{VIEW_META[v].title}</span>
                       {counts[v] != null && <span className="count">{counts[v]}</span>}
-                      {v === 'settings' && обновленіе && <span className="nav-dot" title="Есть новая версия" />}
+                      {v === 'settings' && обновленіе && <span className="nav-dot" title={т('Есть новая версия')} />}
                     </button>
                   ))}
                 </div>
@@ -675,7 +692,7 @@ function Sidebar() {
  * Хранится в localStorage, а не в хранилище: это привычка окна, а не данные
  * о деньгах, и уезжать вместе с ними в облако на другой компьютер ей незачем.
  */
-const ГДѢ_СВЁРНУТЫ = 'kashel:свёрнутыеГруппы'
+const ГДѢ_СВЁРНУТЫ = т('kashel:свёрнутыеГруппы')
 
 function useСвёрнутыеГруппы(): [Set<string>, (н: Set<string>) => void] {
   const [свёрнуты, setСвёрнуты] = useState<Set<string>>(() => {
@@ -746,6 +763,7 @@ function renderView(tab: Tab) {
 }
 
 /** Отсчёт помидора в строке состояния. Молчит, пока таймер не запущен. */
+/** Отсчёт помидора в строке состояния. Молчит, пока таймер не запущен. */
 function PomodoroBadge() {
   const app = useApp()
   const p = usePomodoro()
@@ -754,11 +772,11 @@ function PomodoroBadge() {
     <span
       className="btn sm ghost"
       style={{ cursor: 'pointer' }}
-      title={p.phase === 'work' ? 'Идёт работа' : 'Перерыв'}
+      title={p.phase === 'work' ? т('Идёт работа') : т('Перерыв')}
       onClick={() => app.openTab('tasks')}
     >
       <Icon name="clock" size={13} /> {clock(p.left)}
-      {p.paused ? ' · пауза' : p.phase === 'rest' ? ' · перерыв' : ''}
+      {p.paused ? т(' · пауза') : p.phase === 'rest' ? т(' · перерыв') : ''}
     </span>
   )
 }

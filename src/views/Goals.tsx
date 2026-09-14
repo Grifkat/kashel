@@ -13,6 +13,7 @@ import { balances } from '../engine/stats'
 import { Avatar, ColorPicker, Confirm, Field, IconPicker, Modal, MoneyInput, Toggle, useToast } from '../components/ui'
 import type { Goal } from '../lib/types'
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../engine/goals'
+import { т, тр } from '../i18n'
 
 export default function Goals() {
   const app = useApp()
@@ -47,11 +48,9 @@ export default function Goals() {
     <div className="view">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Цели</h1>
+          <h1 className="view-title">{т('Цели')}</h1>
           <div className="view-sub">
-            Свободно в месяц {money(Math.max(0, free))} · цели требуют {money(totalNeed)}
-            {totalNeed > Math.max(0, free) && <span className="neg"> · не хватает {money(totalNeed - Math.max(0, free))}</span>}
-          </div>
+            {тр('Свободно в месяц {0} · цели требуют {1}{2}', money(Math.max(0, free)), money(totalNeed), totalNeed > Math.max(0, free) && <span className="neg"> {тр(' · не хватает {0}', money(totalNeed - Math.max(0, free)))}</span>)}</div>
         </div>
         <button
           className="btn primary"
@@ -62,18 +61,14 @@ export default function Goals() {
             })
           }
         >
-          <Icon name="plus" size={15} /> Новая цель
-        </button>
+          <Icon name="plus" size={15} /> {т(' Новая цель')}</button>
       </div>
 
       {totalNeed > Math.max(0, free) && free > 0 && (
         <div className="advice-card warn" style={{ marginBottom: 16 }}>
-          <div className="advice-title">Все цели одновременно не тянутся</div>
+          <div className="advice-title">{т('Все цели одновременно не тянутся')}</div>
           <div className="advice-body">
-            Свободных денег {money(free)} в месяц, а цели требуют {money(totalNeed)}. Двигать всё
-            понемногу — худший вариант: не закроется ни одна. Оставьте активной цель с ближайшим сроком,
-            остальные поставьте на паузу и вернитесь к ним после.
-          </div>
+            {тр('Свободных денег {0} в месяц, а цели требуют {1}. Двигать всё понемногу — худший вариант: не закроется ни одна. Оставьте активной цель с ближайшим сроком, остальные поставьте на паузу и вернитесь к ним после.', money(free), money(totalNeed))}</div>
         </div>
       )}
 
@@ -87,11 +82,11 @@ export default function Goals() {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div className="row" style={{ gap: 7 }}>
                     <span className="strong">{g.name}</span>
-                    {g.done && <span className="badge good">закрыта</span>}
+                    {g.done && <span className="badge good">{т('закрыта')}</span>}
                   </div>
                   <div className="faint small">
-                    {g.targetDate ? `до ${humanDate(g.targetDate, true)}` : 'без срока'}
-                    {g.accountId ? ` · счёт ${data.accounts.find((a) => a.id === g.accountId)?.name}` : ''}
+                    {g.targetDate ? `до ${humanDate(g.targetDate, true)}` : т('без срока')}
+                    {g.accountId ? т(' · счёт {0}', data.accounts.find((a) => a.id === g.accountId)?.name) : ''}
                   </div>
                 </div>
                 <button className="icon-btn" onClick={() => setEdit(g)}>
@@ -101,7 +96,7 @@ export default function Goals() {
 
               <div className="row" style={{ margin: '14px 0 6px', alignItems: 'baseline' }}>
                 <span className="num strong" style={{ fontSize: 21 }}><Money value={saved} /></span>
-                <span className="faint">из {money(g.targetAmount)}</span>
+                <span className="faint">{тр('из {0}', money(g.targetAmount))}</span>
                 <span className="spacer" />
                 <span className="num faint">{Math.round(share * 100)}%</span>
               </div>
@@ -111,31 +106,28 @@ export default function Goals() {
 
               <div className="row" style={{ marginTop: 12, gap: 18 }}>
                 <div className="stat">
-                  <span className="l">Осталось собрать</span>
+                  <span className="l">{т('Осталось собрать')}</span>
                   <span className="v" style={{ fontSize: 16 }}>{money(left)}</span>
                 </div>
                 {need != null && (
                   <div className="stat">
-                    <span className="l">Нужно в месяц</span>
+                    <span className="l">{т('Нужно в месяц')}</span>
                     <span className={'v ' + (late ? 'neg' : 'pos')} style={{ fontSize: 16 }}>{money(need)}</span>
-                    <span className="d faint">на {monthsWord(monthsLeft!)}</span>
+                    <span className="d faint">{тр('на {0}', monthsWord(monthsLeft!))}</span>
                   </div>
                 )}
                 {atPace != null && left > 0 && (
                   <div className="stat">
-                    <span className="l">При текущем темпе</span>
+                    <span className="l">{т('При текущем темпе')}</span>
                     <span className="v" style={{ fontSize: 16 }}>{monthsWord(atPace)}</span>
-                    <span className="d faint">закроется {humanDate(addMonths(today(), atPace), true)}</span>
+                    <span className="d faint">{тр('закроется {0}', humanDate(addMonths(today(), atPace), true))}</span>
                   </div>
                 )}
               </div>
 
               {late && (
                 <div className="faint small" style={{ marginTop: 10, lineHeight: 1.5 }}>
-                  Чтобы уложиться в срок, нужно {money(need!)} в месяц — это больше свободных {money(Math.max(0, free))}.
-                  Реалистичные варианты: сдвинуть срок на {monthsWord(Math.max(1, (atPace ?? 0) - (monthsLeft ?? 0)))},
-                  снизить цель до {money(saved + Math.max(0, free) * (monthsLeft ?? 1))} или найти {money(need! - Math.max(0, free))} в месяц в расходах.
-                </div>
+                  {тр('Чтобы уложиться в срок, нужно {0} в месяц — это больше свободных {1}. Реалистичные варианты: сдвинуть срок на {2}, снизить цель до {3} или найти {4} в месяц в расходах.', money(need!), money(Math.max(0, free)), monthsWord(Math.max(1, (atPace ?? 0) - (monthsLeft ?? 0))), money(saved + Math.max(0, free) * (monthsLeft ?? 1)), money(need! - Math.max(0, free)))}</div>
               )}
 
               <div className="row" style={{ marginTop: 12, gap: 6 }}>
@@ -143,11 +135,11 @@ export default function Goals() {
                     сроком: цель «без срока» тоже копится. */}
                 {!g.done && left > 0 && (
                   <button className="btn sm" onClick={() => setПополнить({ goal: g, suggested: Math.min(need ?? left, left) })}>
-                    <Icon name="plus" size={13} /> {need != null ? `Пополнить на ${money(Math.min(need, left))}` : 'Пополнить'}
+                    <Icon name="plus" size={13} /> {need != null ? т('Пополнить на {0}', money(Math.min(need, left))) : т('Пополнить')}
                   </button>
                 )}
                 <button className="btn sm ghost" onClick={() => upsertGoal({ ...g, done: !g.done })}>
-                  {g.done ? 'Вернуть в работу' : 'Отметить закрытой'}
+                  {g.done ? т('Вернуть в работу') : т('Отметить закрытой')}
                 </button>
                 <span className="spacer" />
                 <button className="btn sm danger" onClick={() => setDel(g)}>
@@ -159,7 +151,7 @@ export default function Goals() {
         })}
       </div>
 
-      {!rows.length && <div className="empty">Целей пока нет. Первая разумная цель — подушка на 3–6 месяцев расходов.</div>}
+      {!rows.length && <div className="empty">{т('Целей пока нет. Первая разумная цель — подушка на 3–6 месяцев расходов.')}</div>}
 
       {edit && (
         <GoalModal
@@ -167,7 +159,7 @@ export default function Goals() {
           onClose={() => setEdit(null)}
           onSave={(g) => {
             if (!g.name.trim()) {
-              toast('Введите название цели')
+              toast(т('Введите название цели'))
               return
             }
             upsertGoal(g)
@@ -181,8 +173,8 @@ export default function Goals() {
 
       {del && (
         <Confirm
-          title={`Удалить цель «${del.name}»?`}
-          text="Накопленные деньги останутся на счёте, удалится только сама цель."
+          title={т('Удалить цель «{0}»?', del.name)}
+          text={т('Накопленные деньги останутся на счёте, удалится только сама цель.')}
           onConfirm={() => deleteGoal(del.id)}
           onClose={() => setDel(null)}
         />
@@ -191,6 +183,13 @@ export default function Goals() {
   )
 }
 
+/**
+ * Окно «Пополнить цель».
+ *
+ * Прежде кнопка открывала форму перевода со счёта на счёт — и у цели без
+ * счёта перевести было некуда: форма требовала второй счёт и не давала
+ * сохранить. Пополнить цель было нельзя вовсе.
+ */
 /**
  * Окно «Пополнить цель».
  *
@@ -217,27 +216,27 @@ function ПополнениеЦели({ goal, suggested, onClose }: { goal: Goal
     if (планъ.статья) upsertCategory(планъ.статья)
     if (планъ.цель) upsertGoal(планъ.цель)
     if (планъ.операція) addTransaction(планъ.операція)
-    toast(`Цель «${goal.name}» пополнена на ${money(сумма)}`)
+    toast(т('Цель «{0}» пополнена на {1}', goal.name, money(сумма)))
     onClose()
   }
 
   return (
     <Modal
-      title={`Пополнить цель «${goal.name}»`}
+      title={т('Пополнить цель «{0}»', goal.name)}
       icon="target"
       onClose={onClose}
       footer={
         <>
-          <button className="btn" onClick={onClose}>Отмена</button>
-          <button className="btn primary" disabled={!можно} onClick={сохранить}>Пополнить</button>
+          <button className="btn" onClick={onClose}>{т('Отмена')}</button>
+          <button className="btn primary" disabled={!можно} onClick={сохранить}>{т('Пополнить')}</button>
         </>
       }
     >
       <div className="grid c2">
-        <Field label="Сумма">
+        <Field label={т('Сумма')}>
           <MoneyInput value={сумма || undefined} onChange={(v) => setСумма(v)} />
         </Field>
-        <Field label="Дата">
+        <Field label={т('Дата')}>
           <DateField value={дата} onChange={setДата} />
         </Field>
       </div>
@@ -245,31 +244,28 @@ function ПополнениеЦели({ goal, suggested, onClose }: { goal: Goal
       {привязана ? (
         <>
           <div className="faint small" style={{ margin: '10px 0', lineHeight: 1.55 }}>
-            Эта цель — счёт «{счётЦели?.name}»: сколько на нём лежит, столько и накоплено. Поэтому деньги
-            переводятся на него с другого счёта, иначе цифры цели и счёта разойдутся.
-          </div>
-          <Field label="Откуда">
+            {тр('Эта цель — счёт «{0}»: сколько на нём лежит, столько и накоплено. Поэтому деньги переводятся на него с другого счёта, иначе цифры цели и счёта разойдутся.', счётЦели?.name)}</div>
+          <Field label={т('Откуда')}>
             <select value={счётъ} onChange={(e) => setСчётъ(e.target.value)} disabled={!источники.length}>
               {источники.map((a) => <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>)}
             </select>
           </Field>
-          {!источники.length && <div className="neg small">Другого счёта нет — переводить неоткуда.</div>}
+          {!источники.length && <div className="neg small">{т('Другого счёта нет — переводить неоткуда.')}</div>}
         </>
       ) : (
         <>
           <div style={{ margin: '12px 0 8px' }}>
-            <Toggle checked={списать} onChange={setСписать} label="Вычесть эти деньги со счёта" />
+            <Toggle checked={списать} onChange={setСписать} label={т('Вычесть эти деньги со счёта')} />
           </div>
           {списать && (
             <>
-              <Field label="С какого счёта">
+              <Field label={т('С какого счёта')}>
                 <select value={счётъ} onChange={(e) => setСчётъ(e.target.value)} disabled={!источники.length}>
                   {источники.map((a) => <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>)}
                 </select>
               </Field>
               <div className="faint small" style={{ marginTop: 6, lineHeight: 1.55 }}>
-                Со счёта спишется {money(сумма || 0)} расходом по статье «Цели» — в тратах месяца это будет видно.
-              </div>
+                {тр('Со счёта спишется {0} расходом по статье «Цели» — в тратах месяца это будет видно.', money(сумма || 0))}</div>
             </>
           )}
         </>
@@ -288,39 +284,39 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
   return (
     <>
       <Modal
-        title={value.name ? 'Цель' : 'Новая цель'}
+        title={value.name ? т('Цель') : т('Новая цель')}
         icon="target"
         onClose={onClose}
         footer={
           <>
-            <button className="btn" onClick={onClose}>Отмена</button>
-            <button className="btn primary" onClick={() => onSave(g)}>Сохранить</button>
+            <button className="btn" onClick={onClose}>{т('Отмена')}</button>
+            <button className="btn primary" onClick={() => onSave(g)}>{т('Сохранить')}</button>
           </>
         }
       >
         <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-          <button className="icon-trigger" onClick={() => setPick(true)} title="Выбрать иконку и цвет">
+          <button className="icon-trigger" onClick={() => setPick(true)} title={т('Выбрать иконку и цвет')}>
             <Avatar icon={g.icon} color={g.color} size="lg" style={{ width: 54, height: 54 }} />
           </button>
           <div style={{ flex: 1 }}>
-            <Field label="Название">
+            <Field label={т('Название')}>
               <input type="text" autoFocus value={g.name} onChange={(e) => patch({ name: e.target.value })} />
             </Field>
           </div>
         </div>
 
         <div className="grid c2">
-          <Field label="Нужная сумма">
+          <Field label={т('Нужная сумма')}>
             <MoneyInput value={g.targetAmount || undefined} onChange={(v) => patch({ targetAmount: v })} />
           </Field>
-          <Field label="Срок">
+          <Field label={т('Срок')}>
             <DateField allowEmpty value={g.targetDate ?? ''} onChange={(v) => patch({ targetDate: v || undefined })} />
           </Field>
         </div>
 
-        <Field label="Счёт-копилка" hint="Если выбран, накопленное считается по остатку счёта">
+        <Field label={т('Счёт-копилка')} hint={т('Если выбран, накопленное считается по остатку счёта')}>
           <select value={g.accountId ?? ''} onChange={(e) => patch({ accountId: e.target.value || undefined })}>
-            <option value="">Без счёта — веду вручную</option>
+            <option value="">{т('Без счёта — веду вручную')}</option>
             {data.accounts.filter((a) => !a.archived).map((a) => (
               <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
             ))}
@@ -328,24 +324,22 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
         </Field>
 
         {!g.accountId && (
-          <Field label="Уже накоплено">
+          <Field label={т('Уже накоплено')}>
             <MoneyInput value={g.saved} onChange={(v) => patch({ saved: v })} />
           </Field>
         )}
 
-        <Field label="Заметка">
-          <input type="text" value={g.note ?? ''} onChange={(e) => patch({ note: e.target.value })} placeholder="Зачем эта цель" />
+        <Field label={т('Заметка')}>
+          <input type="text" value={g.note ?? ''} onChange={(e) => patch({ note: e.target.value })} placeholder={т('Зачем эта цель')} />
         </Field>
 
         {monthsLeft && g.targetAmount > 0 && (
           <div className="advice-card info" style={{ padding: '10px 12px' }}>
-            До срока {monthsWord(monthsLeft)}. Чтобы успеть, откладывать нужно{' '}
-            <b>{money(Math.round(Math.max(0, g.targetAmount - g.saved) / monthsLeft))}</b> в месяц.
-          </div>
+            {тр('До срока {0}. Чтобы успеть, откладывать нужно{1}', monthsWord(monthsLeft), ' ')}<b>{money(Math.round(Math.max(0, g.targetAmount - g.saved) / monthsLeft))}</b> {т(' в месяц.')}</div>
         )}
 
         <div style={{ marginTop: 14 }}>
-          <Toggle checked={!!g.done} onChange={(v) => patch({ done: v })} label="Цель закрыта" />
+          <Toggle checked={!!g.done} onChange={(v) => patch({ done: v })} label={т('Цель закрыта')} />
         </div>
       </Modal>
       {pick && (

@@ -1,4 +1,5 @@
 import { адресОблака, облако, облакоЕсть, type Облако } from './cloudconfig'
+import { т } from '../i18n'
 
 /*
  * Тонкий клиент к Supabase на обычном fetch.
@@ -20,6 +21,7 @@ export interface Сеансъ {
   токенъ: string
   обновленіе: string
   /** Когда истекает, в миллисекундах эпохи. */
+  /** Когда истекает, в миллисекундах эпохи. */
   доКогда: number
   id: string
   почта: string
@@ -27,6 +29,7 @@ export interface Сеансъ {
 
 const ОКНО = 60_000
 
+/** Сеансъ пора обновлять: истёк или истечёт в ближайшую минуту. */
 /** Сеансъ пора обновлять: истёк или истечёт в ближайшую минуту. */
 export const сеансъСвѣжъ = (с: Сеансъ | null): boolean =>
   !!с && с.доКогда - ОКНО > Date.now()
@@ -46,10 +49,16 @@ async function запросъ(
   try {
     return await fetch(адресОблака(путь, о), { ...прочее, headers: шапка })
   } catch (e) {
-    throw new Error('сервер недоступен: ' + (e as Error).message)
+    throw new Error(т('сервер недоступен: ') + (e as Error).message)
   }
 }
 
+/**
+ * Разбор ответа с внятной причиной.
+ *
+ * Supabase кладёт причину то в error_description, то в msg, то в message —
+ * перебираем все, иначе человѣку достаётся голый номер ошибки.
+ */
 /**
  * Разбор ответа с внятной причиной.
  *
@@ -61,13 +70,14 @@ async function ответъ(r: Response): Promise<unknown> {
   let тѣло: unknown = null
   try { тѣло = текстъ ? JSON.parse(текстъ) : null } catch { тѣло = текстъ }
   if (r.ok) return тѣло
-  const т = тѣло as Record<string, unknown> | null
+  // Не «т»: так зовётся перевод, и одноимённая переменная его перекрывала.
+  const отв = тѣло as Record<string, unknown> | null
   const причина =
-    (т?.error_description as string) ||
-    (т?.msg as string) ||
-    (т?.message as string) ||
+    (отв?.error_description as string) ||
+    (отв?.msg as string) ||
+    (отв?.message as string) ||
     (typeof тѣло === 'string' && тѣло) ||
-    `сервер ответил ${r.status}`
+    т('сервер ответил {0}', r.status)
   throw new Error(попонятнѣе(String(причина), r.status))
 }
 
@@ -77,16 +87,22 @@ async function ответъ(r: Response): Promise<unknown> {
  * Не украшение: «Invalid login credentials» человѣкъ прочтёт как «что-то
  * сломалось», а не как «пароль не тот», и полезет чинить не то.
  */
+/**
+ * Английские отговорки Supabase — по-русски.
+ *
+ * Не украшение: «Invalid login credentials» человѣкъ прочтёт как «что-то
+ * сломалось», а не как «пароль не тот», и полезет чинить не то.
+ */
 function попонятнѣе(причина: string, кодъ: number): string {
   const п = причина.toLowerCase()
-  if (п.includes('invalid login credentials')) return 'не подходит почта или пароль'
+  if (п.includes('invalid login credentials')) return т('не подходит почта или пароль')
   if (п.includes('already registered') || п.includes('already been registered')) {
-    return 'на эту почту уже заведена запись — войдите'
+    return т('на эту почту уже заведена запись — войдите')
   }
-  if (п.includes('email not confirmed')) return 'почта не подтверждена — проверьте письмо'
-  if (п.includes('password should be')) return 'пароль слишком короткий'
-  if (п.includes('rate limit') || кодъ === 429) return 'слишком часто — подождите минуту'
-  if (п.includes('row-level security')) return 'сервер не дал записать: нет приглашения'
+  if (п.includes('email not confirmed')) return т('почта не подтверждена — проверьте письмо')
+  if (п.includes('password should be')) return т('пароль слишком короткий')
+  if (п.includes('rate limit') || кодъ === 429) return т('слишком часто — подождите минуту')
+  if (п.includes('row-level security')) return т('сервер не дал записать: нет приглашения')
   return причина
 }
 
@@ -98,6 +114,7 @@ const собрать = (д: Record<string, unknown>, почта: string): Сеа
   почта,
 })
 
+/** Завести запись. Пароль сюда идёт уже выведенный, настоящего сервер не видит. */
 /** Завести запись. Пароль сюда идёт уже выведенный, настоящего сервер не видит. */
 export async function завести(почта: string, пароль: string, о: Облако = облако): Promise<Сеансъ | null> {
   const д = (await ответъ(
@@ -141,6 +158,12 @@ export async function выйти(с: Сеансъ, о: Облако = облак
  * Списка кодов клиент не видит и видеть не может: таблица закрыта наглухо,
  * а эта функция на сервере отвечает только «да» или «нет».
  */
+/**
+ * Занять приглашение. false — код не подошёл или уже занят.
+ *
+ * Списка кодов клиент не видит и видеть не может: таблица закрыта наглухо,
+ * а эта функция на сервере отвечает только «да» или «нет».
+ */
 export async function занятьПриглашеніе(с: Сеансъ, кодъ: string, о: Облако = облако): Promise<boolean> {
   const д = await ответъ(
     await запросъ('/rest/v1/rpc/claim_invite', {
@@ -175,6 +198,14 @@ export async function однаСтрока(с: Сеансъ, ярлыкъ: strin
   return д[0] ?? null
 }
 
+/**
+ * Записать строку.
+ *
+ * Слияние по ключу (user_id, path_id): вторая запись того же файла не создаёт
+ * дубля, а заменяет прежнюю. Счётчик правок растит сервер... вернее, растим
+ * мы, но от того значения, что прочли, — расхождения разбираются выше, в
+ * слое синхронизации.
+ */
 /**
  * Записать строку.
  *

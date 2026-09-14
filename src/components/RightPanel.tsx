@@ -12,7 +12,9 @@ import { balances, categoryTotals } from '../engine/stats'
 import { occurrencesInMonth } from '../engine/forecast'
 import { Spark } from './charts'
 import { личное } from '../engine/project'
+import { т, тр } from '../i18n'
 
+/** Правая панель: то, что стоит держать перед глазами, не открывая раздел. */
 /** Правая панель: то, что стоит держать перед глазами, не открывая раздел. */
 export function RightPanel({ open }: { open: boolean }) {
   const app = useApp()
@@ -61,20 +63,20 @@ export function RightPanel({ open }: { open: boolean }) {
           кнопка ≡ в полосе вкладок. Две кнопки на одно действие только
           заставляли гадать, чем они отличаются. */}
       <div className="sidebar-head">
-        <span>Сводка</span>
+        <span>{т('Сводка')}</span>
       </div>
       <div className="sidebar-body" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="card tight">
-          <div className="card-title" style={{ marginBottom: 6 }}>Этот месяц</div>
+          <div className="card-title" style={{ marginBottom: 6 }}>{т('Этот месяц')}</div>
           <div className="row">
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Потрачено</span>
+              <span className="l">{т('Потрачено')}</span>
               <span className="v amount out" style={{ fontSize: 17 }}>
                 <span className="sign">−</span><Money value={spent} />
               </span>
             </div>
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Получено</span>
+              <span className="l">{т('Получено')}</span>
               <span className="v amount in" style={{ fontSize: 17 }}>
                 <span className="sign">+</span><Money value={earned} />
               </span>
@@ -90,13 +92,12 @@ export function RightPanel({ open }: { open: boolean }) {
             />
           </div>
           <div className="faint small" style={{ marginTop: 6 }}>
-            Прошло {Math.round(progress * 100)}% месяца · по темпу выйдет {money(projected)}
-          </div>
+            {тр('Прошло {0}% месяца · по темпу выйдет {1}', Math.round(progress * 100), money(projected))}</div>
         </div>
 
         {topAdvice.length > 0 && (
           <div>
-            <div className="card-title">Требует внимания</div>
+            <div className="card-title">{т('Требует внимания')}</div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
               {topAdvice.map((a) => (
                 <div
@@ -108,8 +109,7 @@ export function RightPanel({ open }: { open: boolean }) {
                   <div style={{ fontSize: 13, fontWeight: 550, color: 'var(--text-strong)' }}>{a.title}</div>
                   {a.impactMonthly > 0 && (
                     <div className="faint small" style={{ marginTop: 3 }}>
-                      эффект ≈ {money(a.impactMonthly)}/мес
-                    </div>
+                      {тр('эффект ≈ {0}/мес', money(a.impactMonthly))}</div>
                   )}
                 </div>
               ))}
@@ -119,7 +119,7 @@ export function RightPanel({ open }: { open: boolean }) {
 
         {upcoming.length > 0 && (
           <div className="card tight">
-            <div className="card-title" style={{ marginBottom: 6 }}>Ближайшие списания</div>
+            <div className="card-title" style={{ marginBottom: 6 }}>{т('Ближайшие списания')}</div>
             {upcoming.map((u, i) => (
               <div key={i} className="row" style={{ padding: '4px 0', fontSize: 12.5 }}>
                 <span className="faint" style={{ width: 46 }}>{u.date.slice(8)}.{u.date.slice(5, 7)}</span>
@@ -132,7 +132,7 @@ export function RightPanel({ open }: { open: boolean }) {
 
         {goals.length > 0 && (
           <div className="card tight">
-            <div className="card-title" style={{ marginBottom: 8 }}>Цели</div>
+            <div className="card-title" style={{ marginBottom: 8 }}>{т('Цели')}</div>
             {goals.map((g) => {
               const saved = g.accountId ? bal.byAccount.get(g.accountId) || 0 : g.saved
               const share = g.targetAmount ? Math.min(1, saved / g.targetAmount) : 0
@@ -155,10 +155,10 @@ export function RightPanel({ open }: { open: boolean }) {
         <StandingLine />
 
         <div className="card tight">
-          <div className="card-title" style={{ marginBottom: 6 }}>Прогноз на год</div>
+          <div className="card-title" style={{ marginBottom: 6 }}>{т('Прогноз на год')}</div>
           <div className="row">
             <div style={{ flex: 1 }}>
-              <div className="faint small">Медиана через {data.settings.forecastHorizon} мес.</div>
+              <div className="faint small">{тр('Медиана через {0} мес.', data.settings.forecastHorizon)}</div>
               <div className="strong num" style={{ fontSize: 17 }}>
                 {fc.months.length ? <Money value={fc.months[fc.months.length - 1].p50} /> : '—'}
               </div>
@@ -168,11 +168,9 @@ export function RightPanel({ open }: { open: boolean }) {
           {/* Карточка целиком про будущее — и норма здесь тоже прогнозная,
               иначе рядом стоят медиана вперёд и норма назад. */}
           <div className="faint small" style={{ marginTop: 6 }}>
-            Норма сбережений {pct(fc.planSavingsRate, 1)} · риск минуса {pct(fc.riskNegative * 100)}
-          </div>
+            {тр('Норма сбережений {0} · риск минуса {1}', pct(fc.planSavingsRate, 1), pct(fc.riskNegative * 100))}</div>
           <button className="btn sm" style={{ marginTop: 10, width: '100%' }} onClick={() => app.openTab('forecast')}>
-            Открыть прогноз
-          </button>
+            {т('Открыть прогноз')}</button>
         </div>
       </div>
     </div>

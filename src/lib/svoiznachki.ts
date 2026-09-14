@@ -14,11 +14,14 @@
  */
 import { useEffect, useState } from 'react'
 import { bridge } from '../state/vault'
+import { т } from '../i18n'
 
 export const ПРИСТАВКА = 'file:'
 export const ПАПКА_ЗНАЧКОВЪ = 'icons'
 /** Сторона готового значка. Аватар в программе не крупнее 54 точек; 128 — с запасом под экраны Retina. */
+/** Сторона готового значка. Аватар в программе не крупнее 54 точек; 128 — с запасом под экраны Retina. */
 export const СТОРОНА = 128
+/** Больше этого исходник не берём: фотография в 40 МБ ради значка — ошибка, а не значок. */
 /** Больше этого исходник не берём: фотография в 40 МБ ради значка — ошибка, а не значок. */
 export const ПРЕДѢЛЪ_БАЙТЪ = 8 * 1024 * 1024
 
@@ -29,11 +32,16 @@ export const путьЗначка = (icon: string): string => icon.slice(ПРИ�
  * Куда вписать квадрат: обрезка по центру по короткой стороне. Отдельной
  * функцией — чтобы проверить арифметику без холста, которого нет в тестах.
  */
+/**
+ * Куда вписать квадрат: обрезка по центру по короткой стороне. Отдельной
+ * функцией — чтобы проверить арифметику без холста, которого нет в тестах.
+ */
 export function квадратъ(w: number, h: number): { sx: number; sy: number; s: number } {
   const s = Math.min(w, h)
   return { sx: Math.round((w - s) / 2), sy: Math.round((h - s) / 2), s }
 }
 
+/** Путь в хранилище допустим для значка: одна папка, безопасное имя, PNG. */
 /** Путь в хранилище допустим для значка: одна папка, безопасное имя, PNG. */
 export const путьЗначкаДопустимъ = (rel: string): boolean =>
   /^icons\/[\w-]+\.png$/.test(rel) && !rel.includes('..')
@@ -42,23 +50,27 @@ export const путьЗначкаДопустимъ = (rel: string): boolean =>
  * Файл → PNG 128×128 в base64 (без приставки data:).
  * Бросает понятную ошибку, если файл не картинка или слишком велик.
  */
+/**
+ * Файл → PNG 128×128 в base64 (без приставки data:).
+ * Бросает понятную ошибку, если файл не картинка или слишком велик.
+ */
 export async function подготовитьЗначокъ(файлъ: File): Promise<string> {
   if (!/^image\/(png|jpeg|webp|gif|svg\+xml)$/.test(файлъ.type)) {
-    throw new Error('Нужна картинка: PNG, JPG, WebP, GIF или SVG.')
+    throw new Error(т('Нужна картинка: PNG, JPG, WebP, GIF или SVG.'))
   }
   if (файлъ.size > ПРЕДѢЛЪ_БАЙТЪ) {
-    throw new Error('Картинка больше 8 МБ — для значка это слишком. Уменьшите её и попробуйте снова.')
+    throw new Error(т('Картинка больше 8 МБ — для значка это слишком. Уменьшите её и попробуйте снова.'))
   }
   const url = await new Promise<string>((ok, fail) => {
     const r = new FileReader()
     r.onload = () => ok(String(r.result))
-    r.onerror = () => fail(new Error('Файл не прочитался.'))
+    r.onerror = () => fail(new Error(т('Файл не прочитался.')))
     r.readAsDataURL(файлъ)
   })
   const img = await new Promise<HTMLImageElement>((ok, fail) => {
     const i = new Image()
     i.onload = () => ok(i)
-    i.onerror = () => fail(new Error('Картинка не открылась — возможно, файл повреждён.'))
+    i.onerror = () => fail(new Error(т('Картинка не открылась — возможно, файл повреждён.')))
     i.src = url
   })
   // У SVG без заданных размеров naturalWidth бывает 0 — тогда рисуем квадратом.
@@ -69,7 +81,7 @@ export async function подготовитьЗначокъ(файлъ: File): Pr
   холстъ.width = СТОРОНА
   холстъ.height = СТОРОНА
   const ctx = холстъ.getContext('2d')
-  if (!ctx) throw new Error('Не удалось подготовить картинку.')
+  if (!ctx) throw new Error(т('Не удалось подготовить картинку.'))
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
   ctx.drawImage(img, sx, sy, s, s, 0, 0, СТОРОНА, СТОРОНА)
@@ -77,6 +89,7 @@ export async function подготовитьЗначокъ(файлъ: File): Pr
   return png.slice(png.indexOf('base64,') + 7)
 }
 
+/** Кладёт готовый PNG в хранилище и возвращает значение для поля icon. */
 /** Кладёт готовый PNG в хранилище и возвращает значение для поля icon. */
 export async function сохранитьЗначокъ(base64: string): Promise<string> {
   const имя = Date.now().toString(36) + Math.random().toString(36).slice(2, 7)
@@ -86,6 +99,7 @@ export async function сохранитьЗначокъ(base64: string): Promise<
   return ПРИСТАВКА + rel
 }
 
+/** Все загруженные значки — чтобы один значок можно было дать нескольким категориям. */
 /** Все загруженные значки — чтобы один значок можно было дать нескольким категориям. */
 export async function списокЗначковъ(): Promise<string[]> {
   const files = await bridge.list(ПАПКА_ЗНАЧКОВЪ)
@@ -111,6 +125,7 @@ export function прочестьЗначокъ(icon: string): Promise<string | n
   return п
 }
 
+/** Сбросить память — после смены хранилища или замены всего содержимого. */
 /** Сбросить память — после смены хранилища или замены всего содержимого. */
 export const забытьЗначки = () => кэшъ.clear()
 

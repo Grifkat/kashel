@@ -6,6 +6,7 @@ import { humanDate } from '../lib/date'
 import { plural } from '../lib/format'
 import { awards, standing } from '../engine/honors'
 import { Znak } from '../lib/znaki'
+import { т, тр } from '../i18n'
 
 /*
  * Полоса взятыхъ наградъ.
@@ -21,7 +22,9 @@ import { Znak } from '../lib/znaki'
 
 export interface NagradyProps {
   /** Сколько знаковъ показать; остальные сворачиваются въ «ещё N». */
+  /** Сколько знаковъ показать; остальные сворачиваются въ «ещё N». */
   limit?: number
+  /** Поперечникъ знака. */
   /** Поперечникъ знака. */
   size?: number
   className?: string
@@ -64,19 +67,17 @@ export function Nagrady({ limit = 14, size = 46, className, style }: NagradyProp
     <div className={'card nagrady' + (className ? ' ' + className : '')} style={style}>
       <div className="row" style={{ marginBottom: 10 }}>
         <div className="card-title" style={{ margin: 0 }}>
-          <Icon name="sparkle" size={14} /> Отличія
-        </div>
+          <Icon name="sparkle" size={14} /> {т(' Отличія')}</div>
         <span className="spacer" />
         <span className="faint small">{st.rank}</span>
         <button className="btn sm ghost" style={{ marginLeft: 10 }} onClick={() => app.openTab('profile')}>
-          Грамота <Icon name="right" size={13} />
+          {т('Грамота ')}<Icon name="right" size={13} />
         </button>
       </div>
 
       {взятыя.length === 0 ? (
         <div className="empty" style={{ padding: '10px 0' }}>
-          Пока ни одной награды. {st.nearest ? `Ближайшая — «${st.nearest.title}»: ${st.nearest.left}.` : ''}
-        </div>
+          {тр('Пока ни одной награды. {0}', st.nearest ? т('Ближайшая — «{0}»: {1}.', st.nearest.title, st.nearest.left) : '')}</div>
       ) : (
         <>
           <div className="nagrady-strip">
@@ -87,7 +88,7 @@ export function Nagrady({ limit = 14, size = 46, className, style }: NagradyProp
                 onClick={() => app.openTab('znaki')}
                 title={
                   (a.order ? `${a.order} · ${a.title}` : a.title) +
-                  (пожалованы[a.id] ? ` — пожаловано ${humanDate(пожалованы[a.id], true)}` : '')
+                  (пожалованы[a.id] ? т(' — пожаловано {0}', humanDate(пожалованы[a.id], true)) : '')
                 }
               >
                 <Znak id={a.id} size={size} on />
@@ -100,10 +101,7 @@ export function Nagrady({ limit = 14, size = 46, className, style }: NagradyProp
             )}
           </div>
           <div className="faint small" style={{ marginTop: 10 }}>
-            {st.awarded} {plural(st.awarded, 'награда', 'награды', 'наградъ')} изъ {st.awardsTotal}
-            {взятыя.length < st.awarded && ` · ордена показаны старшей степенью`}
-            {st.nearest && ` · ближайшая — «${st.nearest.title}»: ${st.nearest.left}`}
-          </div>
+            {тр('{0} {1} изъ {2}{3}{4}', st.awarded, plural(st.awarded, 'награда', 'награды', 'наградъ'), st.awardsTotal, взятыя.length < st.awarded && т(' · ордена показаны старшей степенью'), st.nearest && т(' · ближайшая — «{0}»: {1}', st.nearest.title, st.nearest.left))}</div>
         </>
       )}
     </div>

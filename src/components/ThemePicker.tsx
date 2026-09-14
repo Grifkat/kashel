@@ -6,14 +6,16 @@ import { СвоиОформленія } from './Konstruktor'
 import { Icon } from '../lib/icons'
 import { usePrefersReducedMotion } from './anim'
 import type { AnimLevel } from '../lib/types'
+import { т, тр } from '../i18n'
 
 const ANIM: { id: AnimLevel; name: string; about: string }[] = [
-  { id: 'system', name: 'Как в системе', about: 'Следовать настройке Windows «Эффекты анимации»: включена — полные, выключена — никаких.' },
-  { id: 'off', name: 'Выключены', about: 'Ничего не движется: цифры меняются мгновенно, списки перерисовываются сразу.' },
-  { id: 'subtle', name: 'Умеренные', about: 'Короткие переходы, которые не отвлекают при вводе операций. Без украшений.' },
-  { id: 'full', name: 'Полные', about: 'Перекат цифр, пружины, плавная перестановка списков и декоративные эффекты.' },
+  { id: 'system', name: т('Как в системе'), about: т('Следовать настройке Windows «Эффекты анимации»: включена — полные, выключена — никаких.') },
+  { id: 'off', name: т('Выключены'), about: т('Ничего не движется: цифры меняются мгновенно, списки перерисовываются сразу.') },
+  { id: 'subtle', name: т('Умеренные'), about: т('Короткие переходы, которые не отвлекают при вводе операций. Без украшений.') },
+  { id: 'full', name: т('Полные'), about: т('Перекат цифр, пружины, плавная перестановка списков и декоративные эффекты.') },
 ]
 
+/** Миниатюра оформления: три цвета темы, разложенные как в самом окне. */
 /** Миниатюра оформления: три цвета темы, разложенные как в самом окне. */
 export function ThemeThumb({ theme, size = 1 }: { theme: ThemeInfo; size?: number }) {
   const [bg, panel, accent] = theme.swatch
@@ -64,7 +66,7 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
   const level = data.settings.animations
 
   return (
-    <Modal title="Оформление" icon="palette" onClose={onClose} wide>
+    <Modal title={т('Оформление')} icon="palette" onClose={onClose} wide>
       <div className="grid c3" style={{ marginBottom: 22 }}>
         {THEMES.map((t) => (
           <button
@@ -94,7 +96,7 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
         <СвоиОформленія />
       </div>
 
-      <div className="card-title">Анимации</div>
+      <div className="card-title">{т('Анимации')}</div>
       <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
         {ANIM.map((a) => (
           <span
@@ -111,18 +113,14 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
       </div>
       {systemReduced && (
         <div className="advice-card warn" style={{ marginTop: 10, padding: '10px 12px' }}>
-          Windows сейчас просит уменьшить движение — у вас выключены «Эффекты анимации»
-          (Параметры → Специальные возможности → Визуальные эффекты).
-          {level === 'system'
-            ? ' При режиме «как в системе» это значит, что анимаций не будет. Выберите «Полные», если хотите их видеть в программе несмотря на системную настройку.'
-            : ' Явный выбор выше это перебивает, так что в программе анимации работают.'}
-        </div>
+          {тр('Windows сейчас просит уменьшить движение — у вас выключены «Эффекты анимации» (Параметры → Специальные возможности → Визуальные эффекты).{0}', level === 'system'
+            ? т(' При режиме «как в системе» это значит, что анимаций не будет. Выберите «Полные», если хотите их видеть в программе несмотря на системную настройку.')
+            : т(' Явный выбор выше это перебивает, так что в программе анимации работают.'))}</div>
       )}
 
-      <div className="card-title" style={{ marginTop: 20 }}>Акцентный цвет</div>
+      <div className="card-title" style={{ marginTop: 20 }}>{т('Акцентный цвет')}</div>
       <div className="faint small" style={{ marginBottom: 8 }}>
-        При смене оформления подставляется цвет, с которым тема задумана. Можно поменять — в настройках.
-      </div>
+        {т('При смене оформления подставляется цвет, с которым тема задумана. Можно поменять — в настройках.')}</div>
       <div className="row" style={{ gap: 8 }}>
         <span
           style={{

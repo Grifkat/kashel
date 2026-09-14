@@ -24,7 +24,9 @@ import {
 } from '../lib/svoitemy'
 import { Confirm, Modal, useToast } from './ui'
 import { ThemeThumb } from './ThemePicker'
+import { т, тр } from '../i18n'
 
+/** Переменные встроенной темы — читаются с невидимого элемента с её атрибутом. */
 /** Переменные встроенной темы — читаются с невидимого элемента с её атрибутом. */
 export function токеныОсновы(base: ThemeId): Record<string, string> {
   const el = document.createElement('div')
@@ -33,14 +35,20 @@ export function токеныОсновы(base: ThemeId): Record<string, string> 
   document.body.appendChild(el)
   const cs = window.getComputedStyle(el)
   const итогъ: Record<string, string> = {}
-  for (const т of ТОКЕНЫ) {
-    const v = cs.getPropertyValue('--' + т.id).trim()
-    if (v) итогъ[т.id] = v
+  for (const тм of ТОКЕНЫ) {
+    const v = cs.getPropertyValue('--' + тм.id).trim()
+    if (v) итогъ[тм.id] = v
   }
   el.remove()
   return итогъ
 }
 
+/**
+ * Цвет из getComputedStyle → #rrggbb.
+ * Браузер отдаёт его по-разному: rgb(1, 2, 3), а смешанные через color-mix —
+ * color(srgb 0.1 0.2 0.3) с долями единицы. Второй вид сначала не
+ * разбирался, и расход на карточке показывался в читаемости прочерком.
+ */
 /**
  * Цвет из getComputedStyle → #rrggbb.
  * Браузер отдаёт его по-разному: rgb(1, 2, 3), а смешанные через color-mix —
@@ -84,10 +92,10 @@ export function КонструкторТемы({ исходная, onClose }: { 
   const { data, patchSettings } = useStore()
   const toast = useToast()
   const текущаяОснова: ThemeId = (исходная?.base ??
-    data.settings.customThemes?.find((т) => т.id === data.settings.customTheme)?.base ??
+    data.settings.customThemes?.find((тм) => тм.id === data.settings.customTheme)?.base ??
     data.settings.theme) as ThemeId
 
-  const [имя, setИмя] = useState(исходная?.name ?? 'Моя тема')
+  const [имя, setИмя] = useState(исходная?.name ?? т('Моя тема'))
   const [base, setBase] = useState<ThemeId>(текущаяОснова)
   const [режимъ, setРежимъ] = useState<'простой' | 'полный'>(исходная?.режимъ ?? 'простой')
   const [accent, setAccent] = useState(исходная?.accent ?? data.settings.accent)
@@ -108,9 +116,9 @@ export function КонструкторТемы({ исходная, onClose }: { 
 
   const смѣнитьОснову = (b: ThemeId) => {
     setBase(b)
-    const т = токеныОсновы(b)
-    setПолныя(т)
-    setПростыя(простыяИзъТокеновъ(т, accent))
+    const тм = токеныОсновы(b)
+    setПолныя(тм)
+    setПростыя(простыяИзъТокеновъ(тм, accent))
   }
   const смѣнитьРежимъ = (р: 'простой' | 'полный') => {
     if (р === режимъ) return
@@ -133,32 +141,32 @@ export function КонструкторТемы({ исходная, onClose }: { 
     const фонКарточки = цвѣтъ('.card', 'backgroundColor')
     const k = (a: string | null, b: string | null) => (a && b ? контрастъ(a, b) : null)
     setПары([
-      { что: 'Текст на карточке', k: k(цвѣтъ('.kp-text', 'color'), фонКарточки), надо: 4.5 },
-      { что: 'Приглушённый текст', k: k(цвѣтъ('.kp-muted', 'color'), фонКарточки), надо: 4.4 },
-      { что: 'Акцентные буквы', k: k(цвѣтъ('.kp-ink', 'color'), фонКарточки), надо: 3 },
-      { что: 'Буквы на главной кнопке', k: k(цвѣтъ('.btn.primary', 'color'), цвѣтъ('.btn.primary', 'backgroundColor')), надо: 4.5 },
-      { что: 'Расход на карточке', k: k(цвѣтъ('.kp-out', 'color'), фонКарточки), надо: 3 },
+      { что: т('Текст на карточке'), k: k(цвѣтъ('.kp-text', 'color'), фонКарточки), надо: 4.5 },
+      { что: т('Приглушённый текст'), k: k(цвѣтъ('.kp-muted', 'color'), фонКарточки), надо: 4.4 },
+      { что: т('Акцентные буквы'), k: k(цвѣтъ('.kp-ink', 'color'), фонКарточки), надо: 3 },
+      { что: т('Буквы на главной кнопке'), k: k(цвѣтъ('.btn.primary', 'color'), цвѣтъ('.btn.primary', 'backgroundColor')), надо: 4.5 },
+      { что: т('Расход на карточке'), k: k(цвѣтъ('.kp-out', 'color'), фонКарточки), надо: 3 },
     ])
   }, [итогъ, accent, base])
 
   const тема = (): СвояТема => ({
     id: исходная?.id ?? uid('tema'),
-    name: имя.trim() || 'Своя тема',
+    name: имя.trim() || т('Своя тема'),
     base, accent, режимъ, tokens: итогъ,
   })
 
   const сохранить = () => {
-    const т = тема()
+    const тм = тема()
     const список = data.settings.customThemes ?? []
-    patchSettings({ customThemes: [...список.filter((x) => x.id !== т.id), т], customTheme: т.id })
-    toast(`Оформление «${т.name}» сохранено и включено`)
+    patchSettings({ customThemes: [...список.filter((x) => x.id !== тм.id), тм], customTheme: тм.id })
+    toast(т('Оформление «{0}» сохранено и включено', тм.name))
     onClose()
   }
 
   const выгрузить = async () => {
-    const т = тема()
-    const путь = await bridge.saveText(`${т.name}.${РАСШИРЕНІЕ_ТЕМЫ}`, файлТемы(т))
-    if (путь !== null) toast('Файл темы сохранён')
+    const тм = тема()
+    const путь = await bridge.saveText(`${тм.name}.${РАСШИРЕНІЕ_ТЕМЫ}`, файлТемы(тм))
+    if (путь !== null) toast(т('Файл темы сохранён'))
   }
 
   const загрузить = async (файлъ: File | undefined) => {
@@ -183,28 +191,26 @@ export function КонструкторТемы({ исходная, onClose }: { 
     return s as React.CSSProperties
   }, [итогъ, accent])
 
-  const группы = [...new Set(ТОКЕНЫ.map((т) => т.group))]
+  const группы = [...new Set(ТОКЕНЫ.map((тм) => тм.group))]
 
   return (
     <Modal
-      title={исходная ? `Оформление «${исходная.name}»` : 'Своё оформление'}
+      title={исходная ? т('Оформление «{0}»', исходная.name) : т('Своё оформление')}
       icon="palette"
       wide
       onClose={onClose}
       footer={
         <>
-          {исходная && <button className="btn danger" onClick={() => setУдалить(true)}>Удалить</button>}
-          <button className="btn ghost" onClick={() => void выгрузить()} title="Сохранить тему файлом, чтобы отдать другому">
-            <Icon name="download" size={14} /> Файлом
-          </button>
-          <button className="btn ghost" onClick={() => поле.current?.click()} title="Открыть файл темы">
-            <Icon name="upload" size={14} /> Из файла
-          </button>
+          {исходная && <button className="btn danger" onClick={() => setУдалить(true)}>{т('Удалить')}</button>}
+          <button className="btn ghost" onClick={() => void выгрузить()} title={т('Сохранить тему файлом, чтобы отдать другому')}>
+            <Icon name="download" size={14} /> {т(' Файлом')}</button>
+          <button className="btn ghost" onClick={() => поле.current?.click()} title={т('Открыть файл темы')}>
+            <Icon name="upload" size={14} /> {т(' Из файла')}</button>
           <input ref={поле} type="file" accept=".json,application/json" style={{ display: 'none' }}
             onChange={(e) => void загрузить(e.target.files?.[0])} />
           <span className="spacer" />
-          <button className="btn" onClick={onClose}>Отмена</button>
-          <button className="btn primary" onClick={сохранить}>Сохранить и включить</button>
+          <button className="btn" onClick={onClose}>{т('Отмена')}</button>
+          <button className="btn primary" onClick={сохранить}>{т('Сохранить и включить')}</button>
         </>
       }
     >
@@ -212,11 +218,11 @@ export function КонструкторТемы({ исходная, onClose }: { 
         <div className="konstruktor-controls">
           <div className="grid c2" style={{ gap: 10, marginBottom: 12 }}>
             <label className="field">
-              <span className="field-label">Название</span>
+              <span className="field-label">{т('Название')}</span>
               <input type="text" value={имя} maxLength={40} onChange={(e) => setИмя(e.target.value)} />
             </label>
             <label className="field">
-              <span className="field-label">Основа</span>
+              <span className="field-label">{т('Основа')}</span>
               <select value={base} onChange={(e) => смѣнитьОснову(e.target.value as ThemeId)}>
                 {THEMES.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
@@ -226,7 +232,7 @@ export function КонструкторТемы({ исходная, onClose }: { 
           <div className="seg" style={{ marginBottom: 14 }}>
             {(['простой', 'полный'] as const).map((р) => (
               <button key={р} className={режимъ === р ? 'on' : ''} onClick={() => смѣнитьРежимъ(р)}>
-                {р === 'простой' ? 'Простой' : 'Полный'}
+                {р === 'простой' ? т('Простой') : т('Полный')}
               </button>
             ))}
           </div>
@@ -234,9 +240,9 @@ export function КонструкторТемы({ исходная, onClose }: { 
           {режимъ === 'простой' ? (
             <div className="konstruktor-list">
               {([
-                ['bg', 'Фон окна'],
-                ['panel', 'Карточки'],
-                ['text', 'Текст'],
+                ['bg', т('Фон окна')],
+                ['panel', т('Карточки')],
+                ['text', т('Текст')],
               ] as const).map(([k, n]) => (
                 <label key={k} className="field">
                   <span className="field-label">{n}</span>
@@ -244,39 +250,36 @@ export function КонструкторТемы({ исходная, onClose }: { 
                 </label>
               ))}
               <label className="field">
-                <span className="field-label">Акцент</span>
+                <span className="field-label">{т('Акцент')}</span>
                 <ПолеЦвета value={accent} onChange={setAccent} />
               </label>
               <label className="field">
-                <span className="field-label">Скругление · {Math.round(простыя.radius)} px</span>
+                <span className="field-label">{тр('Скругление · {0} px', Math.round(простыя.radius))}</span>
                 <input type="range" min={0} max={24} step={1} value={простыя.radius}
                   onChange={(e) => setПростыя((п) => ({ ...п, radius: Number(e.target.value) }))} />
               </label>
               <div className="faint small" style={{ lineHeight: 1.5 }}>
-                Рамки, наведение, приглушённый текст и остальное выводятся из этих цветов.
-                Если акцентом нельзя писать по карточке — например, жёлтым по белому, — буквы
-                возьмут цвет заголовков, а акцент останется заливкой.
-              </div>
+                {т('Рамки, наведение, приглушённый текст и остальное выводятся из этих цветов. Если акцентом нельзя писать по карточке — например, жёлтым по белому, — буквы возьмут цвет заголовков, а акцент останется заливкой.')}</div>
             </div>
           ) : (
             <div className="konstruktor-list">
               <label className="field">
-                <span className="field-label">Акцент</span>
+                <span className="field-label">{т('Акцент')}</span>
                 <ПолеЦвета value={accent} onChange={setAccent} />
               </label>
               {группы.map((г) => (
                 <div key={г}>
                   <div className="card-title" style={{ margin: '12px 0 6px' }}>{г}</div>
-                  {ТОКЕНЫ.filter((т) => т.group === г).map((т) => {
-                    const v = полныя[т.id] ?? ''
-                    const set = (nv: string) => setПолныя((п) => ({ ...п, [т.id]: nv }))
-                    const годно = !v || значеніеДопустимо(т.вид, v)
+                  {ТОКЕНЫ.filter((тм) => тм.group === г).map((тм) => {
+                    const v = полныя[тм.id] ?? ''
+                    const set = (nv: string) => setПолныя((п) => ({ ...п, [тм.id]: nv }))
+                    const годно = !v || значеніеДопустимо(тм.вид, v)
                     return (
-                      <label key={т.id} className="field" style={{ marginBottom: 8 }}>
-                        <span className="field-label">{т.name} <code className="faint">--{т.id}</code></span>
-                        {т.вид === 'color' ? (
+                      <label key={тм.id} className="field" style={{ marginBottom: 8 }}>
+                        <span className="field-label">{тм.name} <code className="faint">--{тм.id}</code></span>
+                        {тм.вид === 'color' ? (
                           <ПолеЦвета value={v} onChange={set} />
-                        ) : т.вид === 'weight' ? (
+                        ) : тм.вид === 'weight' ? (
                           <input type="range" min={300} max={800} step={50} value={parseInt(v, 10) || 500}
                             onChange={(e) => set(String(e.target.value))} />
                         ) : (
@@ -302,49 +305,48 @@ export function КонструкторТемы({ исходная, onClose }: { 
           >
             <div className="hero" style={{ marginBottom: 10 }}>
               <div className="row">
-                <span className="faint small">Итого</span>
+                <span className="faint small">{т('Итого')}</span>
                 <span className="spacer" />
-                <button className="btn sm tone-out">+ Расход</button>
-                <button className="btn sm tone-in">+ Доход</button>
+                <button className="btn sm tone-out">{т('+ Расход')}</button>
+                <button className="btn sm tone-in">{т('+ Доход')}</button>
               </div>
               <div className="hero-total num">124 500 ₽</div>
             </div>
             <div className="card" style={{ marginBottom: 10 }}>
-              <div className="card-title">Этот месяц</div>
-              <div className="kp-text">Текст карточки читается так.</div>
-              <div className="kp-muted small" style={{ color: 'var(--muted)' }}>Приглушённый — подписи и пояснения.</div>
+              <div className="card-title">{т('Этот месяц')}</div>
+              <div className="kp-text">{т('Текст карточки читается так.')}</div>
+              <div className="kp-muted small" style={{ color: 'var(--muted)' }}>{т('Приглушённый — подписи и пояснения.')}</div>
               <div className="row" style={{ gap: 14, margin: '8px 0' }}>
                 <span className="amount in num">+48 000 ₽</span>
                 <span className="amount out num kp-out">−12 350 ₽</span>
               </div>
               <div className="bar-track"><div className="bar-fill" style={{ width: '62%', background: 'var(--accent)' }} /></div>
               <div className="row" style={{ gap: 6, marginTop: 10 }}>
-                <span className="chip on">Месяц</span>
-                <span className="chip">Год</span>
-                <span className="kp-ink small" style={{ color: 'var(--accent-ink, var(--accent))', marginLeft: 'auto' }}>Все операции →</span>
+                <span className="chip on">{т('Месяц')}</span>
+                <span className="chip">{т('Год')}</span>
+                <span className="kp-ink small" style={{ color: 'var(--accent-ink, var(--accent))', marginLeft: 'auto' }}>{т('Все операции →')}</span>
               </div>
             </div>
             <div className="row" style={{ gap: 8 }}>
-              <button className="btn">Отмена</button>
-              <button className="btn primary">Сохранить</button>
+              <button className="btn">{т('Отмена')}</button>
+              <button className="btn primary">{т('Сохранить')}</button>
             </div>
           </div>
 
           <div className="konstruktor-contrast">
-            <div className="card-title" style={{ marginBottom: 6 }}>Читаемость</div>
+            <div className="card-title" style={{ marginBottom: 6 }}>{т('Читаемость')}</div>
             {пары.map((п) => (
               <div key={п.что} className="row small" style={{ gap: 8 }}>
                 <span className={'badge ' + (п.k == null ? '' : п.k >= п.надо ? 'good' : 'alert')}>
                   {п.k == null ? '—' : п.k.toFixed(1)}
                 </span>
                 <span style={{ flex: 1 }}>{п.что}</span>
-                <span className="faint">нужно {п.надо}</span>
+                <span className="faint">{тр('нужно {0}', п.надо)}</span>
               </div>
             ))}
             {пары.some((п) => п.k != null && п.k < п.надо) && (
               <div className="neg small" style={{ marginTop: 6, lineHeight: 1.5 }}>
-                Где число красное — текст будет трудно прочесть. Сохранить можно, но лучше поправить цвета.
-              </div>
+                {т('Где число красное — текст будет трудно прочесть. Сохранить можно, но лучше поправить цвета.')}</div>
             )}
           </div>
         </div>
@@ -352,8 +354,8 @@ export function КонструкторТемы({ исходная, onClose }: { 
 
       {удалить && исходная && (
         <Confirm
-          title={`Удалить оформление «${исходная.name}»?`}
-          text="Тема исчезнет из галереи. Если она сейчас включена, программа вернётся к её основе."
+          title={т('Удалить оформление «{0}»?', исходная.name)}
+          text={т('Тема исчезнет из галереи. Если она сейчас включена, программа вернётся к её основе.')}
           onConfirm={() => {
             const список = data.settings.customThemes ?? []
             patchSettings({
@@ -370,6 +372,11 @@ export function КонструкторТемы({ исходная, onClose }: { 
   )
 }
 
+/**
+ * Свои оформления в галерее: карточки собранных тем и карточка «Своё
+ * оформление». Одна на обе галереи — в окне «Оформление» и в настройках, —
+ * чтобы своя тема выбиралась и правилась одинаково отовсюду.
+ */
 /**
  * Свои оформления в галерее: карточки собранных тем и карточка «Своё
  * оформление». Одна на обе галереи — в окне «Оформление» и в настройках, —
@@ -392,33 +399,33 @@ export function СвоиОформленія({ size = 1 }: { size?: number }) {
   }
   return (
     <>
-      {свои.map((т) => {
-        const основа = THEMES.find((x) => x.id === т.base) ?? THEMES[0]
-        const вкл = data.settings.customTheme === т.id
+      {свои.map((тм) => {
+        const основа = THEMES.find((x) => x.id === тм.base) ?? THEMES[0]
+        const вкл = data.settings.customTheme === тм.id
         const превью = {
           ...основа,
-          name: т.name,
-          accent: т.accent,
-          swatch: [т.tokens.bg ?? основа.swatch[0], т.tokens.panel ?? основа.swatch[1], т.accent] as [string, string, string],
+          name: тм.name,
+          accent: тм.accent,
+          swatch: [тм.tokens.bg ?? основа.swatch[0], тм.tokens.panel ?? основа.swatch[1], тм.accent] as [string, string, string],
         }
         return (
           <div
-            key={т.id}
+            key={тм.id}
             role="button"
             tabIndex={0}
             className="svoya-tema"
-            title={`Своё оформление на основе «${основа.name}»`}
-            onClick={() => patchSettings({ customTheme: т.id })}
-            onKeyDown={(e) => { if (e.key === 'Enter') patchSettings({ customTheme: т.id }) }}
+            title={т('Своё оформление на основе «{0}»', основа.name)}
+            onClick={() => patchSettings({ customTheme: тм.id })}
+            onKeyDown={(e) => { if (e.key === 'Enter') patchSettings({ customTheme: тм.id }) }}
             style={{ ...карточка, border: '2px solid ' + (вкл ? 'var(--accent)' : 'var(--border-soft)') }}
           >
             <ThemeThumb theme={превью} size={0.85 * size} />
             <div className="row" style={{ gap: 6 }}>
-              <span className="small strong" style={{ flex: 1, minWidth: 0 }}>{т.name}</span>
+              <span className="small strong" style={{ flex: 1, minWidth: 0 }}>{тм.name}</span>
               <button
                 className="icon-btn"
-                title="Править в конструкторе"
-                onClick={(e) => { e.stopPropagation(); setОткрыта(т) }}
+                title={т('Править в конструкторе')}
+                onClick={(e) => { e.stopPropagation(); setОткрыта(тм) }}
               >
                 <Icon name="edit" size={13} />
               </button>
@@ -432,8 +439,8 @@ export function СвоиОформленія({ size = 1 }: { size?: number }) {
         style={{ ...карточка, border: '2px dashed var(--border)', alignItems: 'center', justifyContent: 'center', minHeight: 110 * size }}
       >
         <Icon name="plus" size={20} />
-        <span className="small strong">Своё оформление</span>
-        <span className="faint small" style={{ textAlign: 'center' }}>конструктор</span>
+        <span className="small strong">{т('Своё оформление')}</span>
+        <span className="faint small" style={{ textAlign: 'center' }}>{т('конструктор')}</span>
       </button>
       {открыта && <КонструкторТемы исходная={открыта === 'новая' ? undefined : открыта} onClose={() => setОткрыта(null)} />}
     </>

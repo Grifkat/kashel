@@ -1,6 +1,7 @@
 import type { Category, Money, Transaction, VaultData } from '../lib/types'
 import { addDays, addMonths, monthKey, monthRange, monthTitle, startOfMonth, today } from '../lib/date'
 import { categoryTotals, monthlySeries, tagTotals } from './stats'
+import { т } from '../i18n'
 
 // Живой запрос — простой список «ключ: значение». Намеренно без выражений:
 // блок должен читаться глазами в обычном markdown-файле.
@@ -43,19 +44,19 @@ export type QueryResult =
 
 function parsePeriod(raw: string | undefined): { from: string; to: string; label: string } {
   const now = today()
-  if (!raw) return { from: addMonths(now, -6), to: now, label: 'за 6 месяцев' }
+  if (!raw) return { from: addMonths(now, -6), to: now, label: т('за 6 месяцев') }
   const v = raw.trim().toLowerCase()
 
   const rel = v.match(/^(\d+)\s*([mдdм])/)
   if (rel) {
     const n = Number(rel[1])
     const unit = rel[2]
-    if (unit === 'd' || unit === 'д') return { from: addDays(now, -n), to: now, label: `за ${n} дн.` }
-    return { from: addMonths(now, -n), to: now, label: `за ${n} мес.` }
+    if (unit === 'd' || unit === 'д') return { from: addDays(now, -n), to: now, label: т('за {0} дн.', n) }
+    return { from: addMonths(now, -n), to: now, label: т('за {0} мес.', n) }
   }
   if (v === 'month' || v === 'месяц') return { from: startOfMonth(now), to: now, label: monthTitle(monthKey(now)) }
   if (v === 'year' || v === 'год') return { from: now.slice(0, 4) + '-01-01', to: now, label: now.slice(0, 4) }
-  if (v === 'all' || v === 'всё' || v === 'все') return { from: '1900-01-01', to: now, label: 'за всё время' }
+  if (v === 'all' || v === 'всё' || v === 'все') return { from: '1900-01-01', to: now, label: т('за всё время') }
 
   const range = v.match(/^(\d{4}-\d{2}(?:-\d{2})?)\s*\.\.\s*(\d{4}-\d{2}(?:-\d{2})?)$/)
   if (range) {
@@ -65,7 +66,7 @@ function parsePeriod(raw: string | undefined): { from: string; to: string; label
   }
   if (/^\d{4}-\d{2}$/.test(v)) return { from: v + '-01', to: lastDay(v), label: monthTitle(v) }
   if (/^\d{4}$/.test(v)) return { from: v + '-01-01', to: v + '-12-31', label: v }
-  return { from: addMonths(now, -6), to: now, label: 'за 6 месяцев' }
+  return { from: addMonths(now, -6), to: now, label: т('за 6 месяцев') }
 }
 
 function lastDay(mk: string): string {
@@ -109,7 +110,7 @@ export function runQuery(text: string, data: VaultData): QueryResult {
   try {
     spec = parseQuery(text)
   } catch (e) {
-    return { type: 'error', message: 'Не удалось разобрать запрос' }
+    return { type: 'error', message: т('Не удалось разобрать запрос') }
   }
 
   const catByName = new Map(data.categories.map((c) => [c.name.toLowerCase(), c]))
@@ -157,7 +158,7 @@ export function runQuery(text: string, data: VaultData): QueryResult {
       .slice(0, spec.limit)
       .map((t) => {
         const c = catById.get(t.categoryId)
-        return { label: c?.name ?? 'Без категории', value: t.amount, color: c?.color ?? '#7c8794', share: t.share }
+        return { label: c?.name ?? т('Без категории'), value: t.amount, color: c?.color ?? '#7c8794', share: t.share }
       })
   }
   if (spec.group === 'tag') {

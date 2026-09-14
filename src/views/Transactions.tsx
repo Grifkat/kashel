@@ -11,6 +11,7 @@ import { bridge } from '../state/vault'
 import { toCsv } from '../engine/csv'
 import { Avatar, Confirm, useToast } from '../components/ui'
 import type { Transaction } from '../lib/types'
+import { т, тр } from '../i18n'
 
 export default function Transactions({ filter }: { filter?: string }) {
   const app = useApp()
@@ -73,7 +74,7 @@ export default function Transactions({ filter }: { filter?: string }) {
 
   const exportCsv = async () => {
     const out = toCsv([
-      ['Дата', 'Тип', 'Сумма', 'Категория', 'Счёт', 'Теги', 'Комментарий'],
+      [т('Дата'), т('Тип'), т('Сумма'), т('Категория'), т('Счёт'), т('Теги'), т('Комментарий')],
       ...rows.map((t) => [
         t.date,
         t.kind === 'income' ? 'доход' : t.kind === 'expense' ? 'расход' : 'перевод',
@@ -84,8 +85,8 @@ export default function Transactions({ filter }: { filter?: string }) {
         t.note ?? '',
       ]),
     ])
-    const p = await bridge.saveText('операции.csv', out)
-    if (p) toast('Выгружено: ' + p)
+    const p = await bridge.saveText(т('операции.csv'), out)
+    if (p) toast(т('Выгружено: ') + p)
   }
 
   // Выделение работает по текущему фильтру: «выделить все» — это все строки,
@@ -110,8 +111,8 @@ export default function Transactions({ filter }: { filter?: string }) {
     deleteTransactions(doomed.map((t) => t.id))
     setUndoBuffer(doomed)
     setSel(new Set())
-    toast(`Удалено операций: ${doomed.length}`, {
-      label: 'Вернуть',
+    toast(т('Удалено операций: {0}', doomed.length), {
+      label: т('Вернуть'),
       onClick: () => {
         restoreTransactions(doomed)
         setUndoBuffer([])
@@ -121,7 +122,7 @@ export default function Transactions({ filter }: { filter?: string }) {
 
   const undo = () => {
     restoreTransactions(undoBuffer)
-    toast(`Возвращено операций: ${undoBuffer.length}`)
+    toast(т('Возвращено операций: {0}', undoBuffer.length))
     setUndoBuffer([])
   }
 
@@ -129,30 +130,24 @@ export default function Transactions({ filter }: { filter?: string }) {
     <div className="view wide">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Операции</h1>
+          <h1 className="view-title">{т('Операции')}</h1>
           <div className="view-sub">
-            {rows.length} {plural(rows.length, 'запись', 'записи', 'записей')} · доход <b className="amount in">{money(totalIncome)}</b> ·
-            расход <b className="amount out">{money(totalExpense)}</b> ·
-            итог <span className={sum >= 0 ? 'pos' : 'neg'}>{money(sum, { sign: true })}</span>
+            {тр('{0} {1} · доход ', rows.length, plural(rows.length, 'запись', 'записи', 'записей'))}<b className="amount in">{money(totalIncome)}</b> {т(' · расход ')}<b className="amount out">{money(totalExpense)}</b> {т(' · итог ')}<span className={sum >= 0 ? 'pos' : 'neg'}>{money(sum, { sign: true })}</span>
           </div>
         </div>
         <div className="row">
           {undoBuffer.length > 0 && (
-            <button className="btn" onClick={undo} title="Вернуть последний удалённый пакет">
-              <Icon name="repeat" size={15} /> Вернуть {undoBuffer.length}
-            </button>
+            <button className="btn" onClick={undo} title={т('Вернуть последний удалённый пакет')}>
+              <Icon name="repeat" size={15} /> {тр(' Вернуть {0}', undoBuffer.length)}</button>
           )}
           {sel.size > 0 && (
             <button className="btn danger" onClick={() => setConfirmBulk(true)}>
-              <Icon name="trash" size={15} /> Удалить {sel.size}
-            </button>
+              <Icon name="trash" size={15} /> {тр(' Удалить {0}', sel.size)}</button>
           )}
           <button className="btn" onClick={exportCsv}>
-            <Icon name="upload" size={15} /> Экспорт CSV
-          </button>
+            <Icon name="upload" size={15} /> {т(' Экспорт CSV')}</button>
           <button className="btn primary" onClick={() => app.editTransaction({})}>
-            <Icon name="plus" size={15} /> Добавить
-          </button>
+            <Icon name="plus" size={15} /> {т(' Добавить')}</button>
         </div>
       </div>
 
@@ -160,38 +155,37 @@ export default function Transactions({ filter }: { filter?: string }) {
         <div className="row wrap" style={{ gap: 8 }}>
           <input
             type="search"
-            placeholder="Поиск по комментарию, тегу, категории"
+            placeholder={т('Поиск по комментарию, тегу, категории')}
             value={q}
             onChange={(e) => setQ(e.target.value)}
             style={{ width: 280 }}
           />
           <div className="seg">
             {([
-              ['all', 'Все'],
-              ['expense', 'Расходы'],
-              ['income', 'Доходы'],
-              ['transfer', 'Переводы'],
+              ['all', т('Все')],
+              ['expense', т('Расходы')],
+              ['income', т('Доходы')],
+              ['transfer', т('Переводы')],
             ] as const).map(([k, t]) => (
               <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{t}</button>
             ))}
           </div>
           <select value={catId} onChange={(e) => setCatId(e.target.value)} style={{ width: 170 }}>
-            <option value="">Все категории</option>
+            <option value="">{т('Все категории')}</option>
             {data.categories.filter((c) => !c.archived).map((c) => (
               <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
             ))}
           </select>
           <select value={accId} onChange={(e) => setAccId(e.target.value)} style={{ width: 150 }}>
-            <option value="">Все счета</option>
+            <option value="">{т('Все счета')}</option>
             {data.accounts.filter((a) => !a.archived).map((a) => (
               <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
             ))}
           </select>
-          <DateField allowEmpty value={from} onChange={setFrom} style={{ width: 145 }} placeholder="с какого" />
-          <DateField allowEmpty value={to} onChange={setTo} style={{ width: 145 }} placeholder="по какое" />
+          <DateField allowEmpty value={from} onChange={setFrom} style={{ width: 145 }} placeholder={т('с какого')} />
+          <DateField allowEmpty value={to} onChange={setTo} style={{ width: 145 }} placeholder={т('по какое')} />
           <button className={'chip' + (onlyUncat ? ' on' : '')} onClick={() => setOnlyUncat((v) => !v)}>
-            без категории
-          </button>
+            {т('без категории')}</button>
           {(catId || accId || tag || q || onlyUncat) && (
             <button
               className="btn sm ghost"
@@ -203,8 +197,7 @@ export default function Transactions({ filter }: { filter?: string }) {
                 setOnlyUncat(false)
               }}
             >
-              Сбросить
-            </button>
+              {т('Сбросить')}</button>
           )}
         </div>
         {allTags.length > 0 && (
@@ -230,29 +223,24 @@ export default function Transactions({ filter }: { filter?: string }) {
               onChange={toggleAll}
               style={{ width: 15, height: 15 }}
             />
-            <span>{allSelected ? 'Снять выделение' : `Выделить все (${rows.length})`}</span>
+            <span>{allSelected ? т('Снять выделение') : т('Выделить все ({0})', rows.length)}</span>
           </label>
           {sel.size > 0 && (
             <>
               <span className="faint">·</span>
               <span className="small">
-                выбрано {sel.size}
-                {selExpense > 0 && <> · расходы <b className="amount out">{money(selExpense)}</b></>}
-                {selIncome > 0 && <> · доходы <b className="amount in">{money(selIncome)}</b></>}
-              </span>
+                {тр('выбрано {0}{1}{2}', sel.size, selExpense > 0 && <> {т(' · расходы ')}<b className="amount out">{money(selExpense)}</b></>, selIncome > 0 && <> {т(' · доходы ')}<b className="amount in">{money(selIncome)}</b></>)}</span>
               <button className="btn sm danger" onClick={() => setConfirmBulk(true)}>
-                <Icon name="trash" size={13} /> Удалить выбранные
-              </button>
+                <Icon name="trash" size={13} /> {т(' Удалить выбранные')}</button>
             </>
           )}
           <span className="spacer" />
           <span className="faint small">
-            выделение действует на текущий фильтр — сузьте его, чтобы удалить только часть
-          </span>
+            {т('выделение действует на текущий фильтр — сузьте его, чтобы удалить только часть')}</span>
         </div>
       )}
 
-      {grouped.length === 0 && <div className="empty">Ничего не найдено — попробуйте расширить период</div>}
+      {grouped.length === 0 && <div className="empty">{т('Ничего не найдено — попробуйте расширить период')}</div>}
 
       {grouped.map(([date, list]) => {
         const dayExpense = list.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0)
@@ -262,7 +250,7 @@ export default function Transactions({ filter }: { filter?: string }) {
             <div className="row" style={{ padding: '6px 10px' }}>
               <input
                 type="checkbox"
-                title="Выделить весь день"
+                title={т('Выделить весь день')}
                 checked={list.every((t) => sel.has(t.id))}
                 onChange={() => toggleDay(list)}
                 style={{ width: 15, height: 15, flex: 'none' }}
@@ -295,12 +283,12 @@ export default function Transactions({ filter }: { filter?: string }) {
                     </span>
                     <div className="tx-main" onClick={() => app.editTransaction(t)}>
                       <div className="tx-title">
-                        {t.note || c?.name || (t.kind === 'transfer' ? 'Перевод' : 'Операция')}
-                        {t.splits?.length ? <span className="badge" style={{ marginLeft: 7 }}>разбит на {t.splits.length}</span> : null}
-                        {t.recurringId ? <span className="badge" style={{ marginLeft: 7 }}>регулярный</span> : null}
+                        {t.note || c?.name || (t.kind === 'transfer' ? т('Перевод') : т('Операция'))}
+                        {t.splits?.length ? <span className="badge" style={{ marginLeft: 7 }}>{тр('разбит на {0}', t.splits.length)}</span> : null}
+                        {t.recurringId ? <span className="badge" style={{ marginLeft: 7 }}>{т('регулярный')}</span> : null}
                       </div>
                       <div className="tx-sub">
-                        {t.kind === 'transfer' ? `${acc?.name} → ${to2?.name}` : `${c?.name ?? 'без категории'} · ${acc?.name}`}
+                        {t.kind === 'transfer' ? `${acc?.name} → ${to2?.name}` : `${c?.name ?? т('без категории')} · ${acc?.name}`}
                         {t.tags.length ? ' · ' + t.tags.map((x) => '#' + x).join(' ') : ''}
                       </div>
                     </div>
@@ -315,17 +303,17 @@ export default function Transactions({ filter }: { filter?: string }) {
 
       {confirmBulk && (
         <Confirm
-          title={`Удалить ${sel.size} ${plural(sel.size, 'операцию', 'операции', 'операций')}?`}
-          confirmLabel={`Удалить ${sel.size}`}
+          title={т('Удалить {0} {1}?', sel.size, plural(sel.size, 'операцию', 'операции', 'операций'))}
+          confirmLabel={т('Удалить {0}', sel.size)}
           text={
-            `Уйдут все выбранные записи` +
+            т('Уйдут все выбранные записи') +
             (selected.length
-              ? ` за ${humanDate(selected[selected.length - 1].date, true)} — ${humanDate(selected[0].date, true)}`
+              ? т(' за {0} — {1}', humanDate(selected[selected.length - 1].date, true), humanDate(selected[0].date, true))
               : '') +
-            `: расходы на ${money(selExpense)}, доходы на ${money(selIncome)}. ` +
-            `Это изменит остатки по счетам, историю категорий и прогноз. ` +
-            `Сразу после удаления в шапке появится кнопка «Вернуть» — она действует до закрытия программы; ` +
-            `если данные важны, надёжнее сначала выгрузить их в CSV.`
+            т(': расходы на {0}, доходы на {1}. ', money(selExpense), money(selIncome)) +
+            т('Это изменит остатки по счетам, историю категорий и прогноз. ') +
+            т('Сразу после удаления в шапке появится кнопка «Вернуть» — она действует до закрытия программы; ') +
+            т('если данные важны, надёжнее сначала выгрузить их в CSV.')
           }
           onConfirm={bulkDelete}
           onClose={() => setConfirmBulk(false)}

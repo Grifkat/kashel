@@ -1,14 +1,16 @@
 import React, { useState } from 'react'
 import { Icon } from '../../lib/icons'
 import type { TextFit } from '../../lib/types'
+import { т } from '../../i18n'
 
 export const FIT_MODES: { id: TextFit; name: string; about: string }[] = [
-  { id: 'fixed', name: 'Обычный', about: 'Размер шрифта постоянный, длинный текст прокручивается' },
-  { id: 'scale', name: 'Тянуть за карточкой', about: 'Растянули карточку — текст стал крупнее' },
-  { id: 'shrink', name: 'Вписывать', about: 'Шрифт уменьшается ровно настолько, чтобы всё поместилось' },
-  { id: 'grow', name: 'Растить карточку', about: 'Кегль постоянный, высота карточки подстраивается под текст' },
+  { id: 'fixed', name: т('Обычный'), about: т('Размер шрифта постоянный, длинный текст прокручивается') },
+  { id: 'scale', name: т('Тянуть за карточкой'), about: т('Растянули карточку — текст стал крупнее') },
+  { id: 'shrink', name: т('Вписывать'), about: т('Шрифт уменьшается ровно настолько, чтобы всё поместилось') },
+  { id: 'grow', name: т('Растить карточку'), about: т('Кегль постоянный, высота карточки подстраивается под текст') },
 ]
 
+/** Обёртка вокруг выделения в textarea: **жирный**, *курсив*, <u>подчёркнутый</u>. */
 /** Обёртка вокруг выделения в textarea: **жирный**, *курсив*, <u>подчёркнутый</u>. */
 export function wrapSelection(el: HTMLTextAreaElement, before: string, after = before): string {
   const { selectionStart: s, selectionEnd: e, value } = el
@@ -26,6 +28,7 @@ export function wrapSelection(el: HTMLTextAreaElement, before: string, after = b
   return next
 }
 
+/** Префикс в начало строки: заголовки, списки, цитаты. */
 /** Префикс в начало строки: заголовки, списки, цитаты. */
 export function prefixLine(el: HTMLTextAreaElement, prefix: string): string {
   const { selectionStart: s, value } = el
@@ -49,21 +52,25 @@ interface Btn {
 }
 
 const BUTTONS: Btn[] = [
-  { id: 'h1', label: 'Заголовок', text: 'H1', apply: (el) => prefixLine(el, '# ') },
-  { id: 'h2', label: 'Подзаголовок', text: 'H2', apply: (el) => prefixLine(el, '## ') },
-  { id: 'h3', label: 'Малый заголовок', text: 'H3', apply: (el) => prefixLine(el, '### ') },
-  { id: 'b', label: 'Жирный', text: 'Ж', hint: 'Ctrl+B', apply: (el) => wrapSelection(el, '**') },
-  { id: 'i', label: 'Курсив', text: 'К', hint: 'Ctrl+I', apply: (el) => wrapSelection(el, '*') },
-  { id: 'u', label: 'Подчёркнутый', text: 'Ч', hint: 'Ctrl+U', apply: (el) => wrapSelection(el, '<u>', '</u>') },
-  { id: 's', label: 'Зачёркнутый', text: 'З', apply: (el) => wrapSelection(el, '~~') },
-  { id: 'mark', label: 'Выделить маркером', text: 'М', apply: (el) => wrapSelection(el, '==') },
-  { id: 'code', label: 'Код', text: '</>', apply: (el) => wrapSelection(el, '`') },
-  { id: 'ul', label: 'Список', icon: 'list', apply: (el) => prefixLine(el, '- ') },
-  { id: 'task', label: 'Задача', icon: 'check', apply: (el) => prefixLine(el, '- [ ] ') },
-  { id: 'quote', label: 'Цитата', text: '❝', apply: (el) => prefixLine(el, '> ') },
-  { id: 'link', label: 'Ссылка на заметку', icon: 'link', apply: (el) => wrapSelection(el, '[[', ']]') },
+  { id: 'h1', label: т('Заголовок'), text: 'H1', apply: (el) => prefixLine(el, '# ') },
+  { id: 'h2', label: т('Подзаголовок'), text: 'H2', apply: (el) => prefixLine(el, '## ') },
+  { id: 'h3', label: т('Малый заголовок'), text: 'H3', apply: (el) => prefixLine(el, '### ') },
+  { id: 'b', label: т('Жирный'), text: т('Ж'), hint: 'Ctrl+B', apply: (el) => wrapSelection(el, '**') },
+  { id: 'i', label: т('Курсив'), text: т('К'), hint: 'Ctrl+I', apply: (el) => wrapSelection(el, '*') },
+  { id: 'u', label: т('Подчёркнутый'), text: т('Ч'), hint: 'Ctrl+U', apply: (el) => wrapSelection(el, '<u>', '</u>') },
+  { id: 's', label: т('Зачёркнутый'), text: т('З'), apply: (el) => wrapSelection(el, '~~') },
+  { id: 'mark', label: т('Выделить маркером'), text: т('М'), apply: (el) => wrapSelection(el, '==') },
+  { id: 'code', label: т('Код'), text: '</>', apply: (el) => wrapSelection(el, '`') },
+  { id: 'ul', label: т('Список'), icon: 'list', apply: (el) => prefixLine(el, '- ') },
+  { id: 'task', label: т('Задача'), icon: 'check', apply: (el) => prefixLine(el, '- [ ] ') },
+  { id: 'quote', label: т('Цитата'), text: '❝', apply: (el) => prefixLine(el, '> ') },
+  { id: 'link', label: т('Ссылка на заметку'), icon: 'link', apply: (el) => wrapSelection(el, '[[', ']]') },
 ]
 
+/**
+ * Панель форматирования текстовой карточки. Кнопки вставляют обычную разметку,
+ * поэтому файл доски остаётся читаемым и совместимым с Obsidian.
+ */
 /**
  * Панель форматирования текстовой карточки. Кнопки вставляют обычную разметку,
  * поэтому файл доски остаётся читаемым и совместимым с Obsidian.
@@ -115,12 +122,12 @@ export function TextToolbar({
       ))}
 
       <span className="tool-sep" />
-      <button className="tt-btn" title="Мельче" onClick={() => onFontSize(Math.max(9, fontSize - 1))}>
-        <span style={{ fontSize: 11 }}>А</span>
+      <button className="tt-btn" title={т('Мельче')} onClick={() => onFontSize(Math.max(9, fontSize - 1))}>
+        <span style={{ fontSize: 11 }}>{т('А')}</span>
       </button>
       <span className="tt-size num">{fontSize}</span>
-      <button className="tt-btn" title="Крупнее" onClick={() => onFontSize(Math.min(48, fontSize + 1))}>
-        <span style={{ fontSize: 15 }}>А</span>
+      <button className="tt-btn" title={т('Крупнее')} onClick={() => onFontSize(Math.min(48, fontSize + 1))}>
+        <span style={{ fontSize: 15 }}>{т('А')}</span>
       </button>
 
       <span className="tool-sep" />

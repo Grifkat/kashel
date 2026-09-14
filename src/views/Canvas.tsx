@@ -19,7 +19,9 @@ import {
 import type {
   CanvasDoc, CanvasEdge, CanvasNode, CanvasNodeKind, CardStyle, EdgeArrow, Side, TextFit,
 } from '../lib/types'
+import { т } from '../i18n'
 
+/** Углы для изменения размера: буквы сторон света, как в графических редакторах. */
 /** Углы для изменения размера: буквы сторон света, как в графических редакторах. */
 type Corner = 'nw' | 'ne' | 'sw' | 'se'
 const CORNERS: Corner[] = ['nw', 'ne', 'sw', 'se']
@@ -36,19 +38,29 @@ const HISTORY_LIMIT = 60
  * значений браузер перерисовывает текст заново для каждой ступени, а 100 %
  * и 200 % вдобавок попадают в пиксели ровно.
  */
+/**
+ * Масштаб меняется только по этим ступеням. Плавный зум выглядит приятнее в
+ * момент прокрутки, но текст в карточках при произвольном коэффициенте
+ * растягивается из готового растра и мылится. На фиксированном наборе
+ * значений браузер перерисовывает текст заново для каждой ступени, а 100 %
+ * и 200 % вдобавок попадают в пиксели ровно.
+ */
 const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 2.5]
 const ZOOM_DEFAULT = 1
 
 /** Ближайшая ступень к произвольному масштабу (нужно после «вписать всё»). */
+/** Ближайшая ступень к произвольному масштабу (нужно после «вписать всё»). */
 const nearestStep = (k: number): number =>
   ZOOM_STEPS.reduce((best, s) => (Math.abs(s - k) < Math.abs(best - k) ? s : best), ZOOM_STEPS[0])
 
+/** Ступень на `dir` шагов в сторону от текущей. */
 /** Ступень на `dir` шагов в сторону от текущей. */
 const stepZoom = (k: number, dir: 1 | -1): number => {
   const i = ZOOM_STEPS.indexOf(nearestStep(k))
   return ZOOM_STEPS[Math.min(ZOOM_STEPS.length - 1, Math.max(0, i + dir))]
 }
 
+/** Наибольшая ступень, при которой содержимое ещё влезает целиком. */
 /** Наибольшая ступень, при которой содержимое ещё влезает целиком. */
 const stepBelow = (k: number): number => {
   const fit = [...ZOOM_STEPS].reverse().find((s) => s <= k)
@@ -58,6 +70,11 @@ const stepBelow = (k: number): number => {
 const opposite = (s: Side): Side =>
   s === 'left' ? 'right' : s === 'right' ? 'left' : s === 'top' ? 'bottom' : 'top'
 
+/**
+ * Клик считается «по пустому месту», если он не попал ни в карточку, ни в
+ * панель, ни в саму связь. Сравнивать target с currentTarget нельзя: сверху
+ * лежат прозрачные слои, и событие приходит на них, а не на полотно.
+ */
 /**
  * Клик считается «по пустому месту», если он не попал ни в карточку, ни в
  * панель, ни в саму связь. Сравнивать target с currentTarget нельзя: сверху
@@ -83,6 +100,7 @@ const DEFAULT_SIZE: Record<CanvasNodeKind, { w: number; h: number }> = {
 }
 
 /** Буфер обмена живёт в модуле: между досками копировать тоже нужно. */
+/** Буфер обмена живёт в модуле: между досками копировать тоже нужно. */
 let clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[] } | null = null
 
 type DragMode = 'pan' | 'marquee' | 'node' | 'resize' | 'edge' | 'edge-end'
@@ -98,6 +116,7 @@ interface DragState {
   sy: number
   ox: number
   oy: number
+  /** Исходные позиции всех перемещаемых узлов. */
   /** Исходные позиции всех перемещаемых узлов. */
   start?: Map<string, Point>
   before?: CanvasDoc
@@ -174,6 +193,7 @@ export default function CanvasView({ name }: { name?: string }) {
   const drag = useRef<DragState | null>(null)
   const space = useRef(false)
   /** Копим прокрутку: у мыши одна «щёлка» ≈ 100, у тачпада приходят крошки. */
+  /** Копим прокрутку: у мыши одна «щёлка» ≈ 100, у тачпада приходят крошки. */
   const wheelAcc = useRef(0)
   const docRef = useRef(doc)
   docRef.current = doc
@@ -189,12 +209,13 @@ export default function CanvasView({ name }: { name?: string }) {
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(
       () => void writeCanvas(file, next).catch((e) =>
-        toast('Доска не сохранена: ' + (e instanceof Error ? e.message : String(e))),
+        toast(т('Доска не сохранена: ') + (e instanceof Error ? e.message : String(e))),
       ),
       300,
     )
   }, [toast])
 
+  /** Изменение с записью в историю — всё, что можно отменить. */
   /** Изменение с записью в историю — всё, что можно отменить. */
   const commit = useCallback(
     (next: CanvasDoc, before?: CanvasDoc) => {
@@ -206,6 +227,7 @@ export default function CanvasView({ name }: { name?: string }) {
     [current, persist],
   )
 
+  /** Изменение без истории — для промежуточных состояний перетаскивания. */
   /** Изменение без истории — для промежуточных состояний перетаскивания. */
   const touch = useCallback((next: CanvasDoc) => setDoc(next), [])
 
@@ -258,20 +280,20 @@ export default function CanvasView({ name }: { name?: string }) {
   }
 
   const createCanvas = async () => {
-    let n = 'Новая доска'
+    let n = т('Новая доска')
     let i = 2
-    while (files.includes(n)) n = `Новая доска ${i++}`
+    while (files.includes(n)) n = т('Новая доска {0}', i++)
     await writeCanvas(n, { nodes: [], edges: [], cardStyle: 'rich' })
     setFiles((f) => [...f, n])
     void openCanvas(n)
-    toast(`Создана доска «${n}»`)
+    toast(т('Создана доска «{0}»', n))
   }
 
   const dropCanvas = async () => {
     await deleteCanvas(current)
     const list = await listCanvases()
     setFiles(list)
-    toast(`Доска «${current}» удалена`)
+    toast(т('Доска «{0}» удалена', current))
     if (list.length) void openCanvas(list[0])
     else {
       setCurrent('')
@@ -281,7 +303,7 @@ export default function CanvasView({ name }: { name?: string }) {
 
   // -------------------------------------------------------- данные карточек
   const from = period === '1m' ? addMonths(today(), -1) : period === '3m' ? addMonths(today(), -3) : addMonths(today(), -12)
-  const periodLabel = period === '1m' ? 'месяц' : period === '3m' ? '3 месяца' : 'год'
+  const periodLabel = period === '1m' ? 'месяц' : period === '3m' ? т('3 месяца') : 'год'
   const nodeById = useMemo(() => new Map(doc.nodes.map((n) => [n.id, n])), [doc.nodes])
   // Считаем один раз на доску: иначе каждая карточка перебирает всю историю,
   // причём на каждом кадре перетаскивания.
@@ -437,7 +459,7 @@ export default function CanvasView({ name }: { name?: string }) {
     const nodes = docRef.current.nodes.filter((n) => ids.has(n.id))
     const edges = docRef.current.edges.filter((e) => ids.has(e.fromNode) && ids.has(e.toNode))
     clipboard = { nodes, edges }
-    toast(`Скопировано узлов: ${nodes.length}`)
+    toast(т('Скопировано узлов: {0}', nodes.length))
   }, [sel, toast])
 
   const paste = useCallback(() => {
@@ -460,7 +482,7 @@ export default function CanvasView({ name }: { name?: string }) {
       edges: [...docRef.current.edges, ...edges],
     })
     setSel(new Set(nodes.map((n) => n.id)))
-    toast(`Вставлено узлов: ${nodes.length}`)
+    toast(т('Вставлено узлов: {0}', nodes.length))
   }, [commit, toast])
 
   const duplicate = useCallback(
@@ -480,6 +502,12 @@ export default function CanvasView({ name }: { name?: string }) {
    * Новое значение считается внутри setView: два события колеса могут прийти
    * в одном такте, и снаружи масштаб к этому моменту ещё старый.
    */
+  /**
+   * Меняет масштаб, оставляя точку (px, py) экрана над той же точкой доски.
+   * Без центра берём середину полотна — так работают кнопки и клавиши.
+   * Новое значение считается внутри setView: два события колеса могут прийти
+   * в одном такте, и снаружи масштаб к этому моменту ещё старый.
+   */
   const zoomWith = useCallback(
     (next: (k: number) => number, px?: number, py?: number) => {
       const r = wrapRef.current?.getBoundingClientRect()
@@ -493,6 +521,7 @@ export default function CanvasView({ name }: { name?: string }) {
     },
     [],
   )
+  /** На `dir` ступеней от текущей. */
   /** На `dir` ступеней от текущей. */
   const zoomBy = useCallback(
     (dir: 1 | -1, px?: number, py?: number) => zoomWith((k) => stepZoom(k, dir), px, py),
@@ -520,13 +549,13 @@ export default function CanvasView({ name }: { name?: string }) {
     (at: Point, connectFrom?: { id: string; side: Side }): MenuItem[] => [
       {
         id: 'text',
-        label: 'Текстовая карточка',
+        label: т('Текстовая карточка'),
         icon: 'edit',
         onClick: () => insertNode('text', at, { text: '' }, connectFrom),
       },
       {
         id: 'note',
-        label: 'Заметка из хранилища',
+        label: т('Заметка из хранилища'),
         icon: 'note',
         disabled: !notes.length,
         children: notes.map((n) => ({
@@ -538,7 +567,7 @@ export default function CanvasView({ name }: { name?: string }) {
       },
       {
         id: 'account',
-        label: 'Счёт',
+        label: т('Счёт'),
         icon: 'wallet',
         disabled: !data.accounts.length,
         children: data.accounts.filter((a) => !a.archived).map((a) => ({
@@ -549,7 +578,7 @@ export default function CanvasView({ name }: { name?: string }) {
       },
       {
         id: 'category',
-        label: 'Категория',
+        label: т('Категория'),
         icon: 'tag',
         disabled: !data.categories.length,
         children: data.categories.filter((c) => !c.archived).map((c) => ({
@@ -560,7 +589,7 @@ export default function CanvasView({ name }: { name?: string }) {
       },
       {
         id: 'goal',
-        label: 'Цель',
+        label: т('Цель'),
         icon: 'target',
         disabled: !data.goals.length,
         children: data.goals.map((g) => ({
@@ -571,7 +600,7 @@ export default function CanvasView({ name }: { name?: string }) {
       },
       {
         id: 'scenario',
-        label: 'Сценарий',
+        label: т('Сценарий'),
         icon: 'chart',
         disabled: !data.scenarios.length,
         children: data.scenarios.map((s) => ({
@@ -582,7 +611,7 @@ export default function CanvasView({ name }: { name?: string }) {
       },
       {
         id: 'query',
-        label: 'Блок-запрос',
+        label: т('Блок-запрос'),
         icon: 'donut',
         onClick: () =>
           insertNode(
@@ -602,10 +631,10 @@ export default function CanvasView({ name }: { name?: string }) {
       x: clientX,
       y: clientY,
       items: [
-        { id: 'add', label: 'Добавить', icon: 'plus', children: nodeMenuItems(at) },
-        { id: 'paste', label: 'Вставить', icon: 'copy', hint: 'Ctrl+V', disabled: !clipboard?.nodes.length, onClick: paste },
-        { id: 'all', label: 'Выделить всё', icon: 'check', hint: 'Ctrl+A', onClick: () => setSel(new Set(doc.nodes.map((n) => n.id))) },
-        { id: 'fit', label: 'Вписать всё', icon: 'fit', onClick: () => zoomToFit() },
+        { id: 'add', label: т('Добавить'), icon: 'plus', children: nodeMenuItems(at) },
+        { id: 'paste', label: т('Вставить'), icon: 'copy', hint: 'Ctrl+V', disabled: !clipboard?.nodes.length, onClick: paste },
+        { id: 'all', label: т('Выделить всё'), icon: 'check', hint: 'Ctrl+A', onClick: () => setSel(new Set(doc.nodes.map((n) => n.id))) },
+        { id: 'fit', label: т('Вписать всё'), icon: 'fit', onClick: () => zoomToFit() },
       ],
     })
   }
@@ -615,14 +644,14 @@ export default function CanvasView({ name }: { name?: string }) {
     setMenu({
       x: clientX,
       y: clientY,
-      title: many ? `Выделено узлов: ${sel.size}` : undefined,
+      title: many ? т('Выделено узлов: {0}', sel.size) : undefined,
       items: [
         ...(node.type === 'text' || node.type === 'query'
-          ? [{ id: 'edit', label: 'Редактировать', icon: 'edit', onClick: () => setEditing(node.id) }]
+          ? [{ id: 'edit', label: т('Редактировать'), icon: 'edit', onClick: () => setEditing(node.id) }]
           : []),
         {
           id: 'color',
-          label: 'Цвет',
+          label: т('Цвет'),
           icon: 'palette',
           children: [
             {
@@ -633,7 +662,7 @@ export default function CanvasView({ name }: { name?: string }) {
             },
             {
               id: 'more',
-              label: 'Все цвета и настройка ряда…',
+              label: т('Все цвета и настройка ряда…'),
               icon: 'palette',
               onClick: () => setPalette(many ? new Set(sel) : new Set([node.id])),
             },
@@ -642,7 +671,7 @@ export default function CanvasView({ name }: { name?: string }) {
         ...(node.type === 'text'
           ? [{
               id: 'fit',
-              label: 'Поведение текста',
+              label: т('Поведение текста'),
               icon: 'scale',
               children: FIT_MODES.map((m) => ({
                 id: 'fit:' + m.id,
@@ -652,14 +681,14 @@ export default function CanvasView({ name }: { name?: string }) {
               })),
             }]
           : []),
-        { id: 'dup', label: 'Дублировать', icon: 'copy', onClick: () => duplicate(node.id) },
-        { id: 'copy', label: 'Копировать', icon: 'copy', hint: 'Ctrl+C', onClick: copySelection },
+        { id: 'dup', label: т('Дублировать'), icon: 'copy', onClick: () => duplicate(node.id) },
+        { id: 'copy', label: т('Копировать'), icon: 'copy', hint: 'Ctrl+C', onClick: copySelection },
         ...(node.ref || node.file
-          ? [{ id: 'open', label: 'Открыть раздел', icon: 'arrowRight', onClick: () => openNodeTarget(node) }]
+          ? [{ id: 'open', label: т('Открыть раздел'), icon: 'arrowRight', onClick: () => openNodeTarget(node) }]
           : []),
         {
           id: 'del',
-          label: many ? `Удалить ${sel.size} узла` : 'Удалить',
+          label: many ? т('Удалить {0} узла', sel.size) : т('Удалить'),
           icon: 'trash',
           hint: 'Del',
           danger: true,
@@ -681,7 +710,7 @@ export default function CanvasView({ name }: { name?: string }) {
 
   const openNodeTarget = (n: CanvasNode) => {
     if (n.type === 'note' && n.file) app.openTab('notes', n.file)
-    else if (n.type === 'category' && n.ref) app.openTab('transactions', 'cat:' + n.ref, { title: 'Категория' })
+    else if (n.type === 'category' && n.ref) app.openTab('transactions', 'cat:' + n.ref, { title: т('Категория') })
     else if (n.type === 'account') app.openTab('accounts')
     else if (n.type === 'goal') app.openTab('goals')
     else if (n.type === 'scenario') app.openTab('forecast')
@@ -721,6 +750,11 @@ export default function CanvasView({ name }: { name?: string }) {
     setMarquee({ x: w.x, y: w.y, width: 0, height: 0 })
   }
 
+  /**
+   * Итог перетаскивания считается из координат события, а не из состояния React.
+   * Иначе последнее движение мыши, не успевшее отрисоваться до отпускания,
+   * пропадало — узел приземлялся на кадр раньше, а рамка выделяла не всё.
+   */
   /**
    * Итог перетаскивания считается из координат события, а не из состояния React.
    * Иначе последнее движение мыши, не успевшее отрисоваться до отпускания,
@@ -888,7 +922,7 @@ export default function CanvasView({ name }: { name?: string }) {
           setMenu({
             x: e.clientX,
             y: e.clientY,
-            title: 'Что здесь создать?',
+            title: т('Что здесь создать?'),
             items: nodeMenuItems(w, { id: d.id, side: d.side! }),
           })
         }
@@ -1008,14 +1042,11 @@ export default function CanvasView({ name }: { name?: string }) {
   if (!current) {
     return (
       <div className="view" style={{ maxWidth: 620, marginTop: 40 }}>
-        <h1 className="view-title">Канвас</h1>
+        <h1 className="view-title">{т('Канвас')}</h1>
         <div className="view-sub" style={{ marginBottom: 18 }}>
-          Доска, на которой рядом живут заметки, счета, категории и цели. Связи между ними —
-          стрелки: если соединить счёт с категорией, толщина покажет оборот между ними.
-        </div>
+          {т('Доска, на которой рядом живут заметки, счета, категории и цели. Связи между ними — стрелки: если соединить счёт с категорией, толщина покажет оборот между ними.')}</div>
         <button className="btn primary" onClick={createCanvas}>
-          <Icon name="plus" size={15} /> Создать первую доску
-        </button>
+          <Icon name="plus" size={15} /> {т(' Создать первую доску')}</button>
       </div>
     )
   }
@@ -1090,7 +1121,7 @@ export default function CanvasView({ name }: { name?: string }) {
                     setMenu({
                       x: ev.clientX,
                       y: ev.clientY,
-                      title: 'Связь',
+                      title: т('Связь'),
                       items: edgeMenuItems(e),
                     })
                   }}
@@ -1221,7 +1252,7 @@ export default function CanvasView({ name }: { name?: string }) {
                 <div
                   key={s}
                   className={`cnode-handle h-${s}`}
-                  title="Потяните, чтобы связать"
+                  title={т('Потяните, чтобы связать')}
                   onMouseDown={(e) => {
                     e.stopPropagation()
                     setMenu(null)
@@ -1233,7 +1264,7 @@ export default function CanvasView({ name }: { name?: string }) {
                 <div
                   key={c}
                   className={`cnode-resize r-${c}`}
-                  title="Потяните, чтобы изменить размер"
+                  title={т('Потяните, чтобы изменить размер')}
                   onMouseDown={(e) => {
                     e.stopPropagation()
                     drag.current = {
@@ -1252,12 +1283,9 @@ export default function CanvasView({ name }: { name?: string }) {
 
       {doc.nodes.length === 0 && (
         <div className="canvas-empty">
-          <div className="strong" style={{ fontSize: 16, marginBottom: 6 }}>Доска пустая</div>
+          <div className="strong" style={{ fontSize: 16, marginBottom: 6 }}>{т('Доска пустая')}</div>
           <div className="faint small" style={{ lineHeight: 1.6, maxWidth: 380 }}>
-            Двойной клик по полотну создаёт карточку. Кнопка «Добавить» сверху кладёт счёт,
-            категорию, цель или заметку. Чтобы связать две карточки, потяните за кружок на краю —
-            если отпустить на пустом месте, программа предложит, что там создать.
-          </div>
+            {т('Двойной клик по полотну создаёт карточку. Кнопка «Добавить» сверху кладёт счёт, категорию, цель или заметку. Чтобы связать две карточки, потяните за кружок на краю — если отпустить на пустом месте, программа предложит, что там создать.')}</div>
         </div>
       )}
 
@@ -1271,7 +1299,7 @@ export default function CanvasView({ name }: { name?: string }) {
             <input
               type="text"
               value={selectedEdge.label ?? ''}
-              placeholder="подпись"
+              placeholder={т('подпись')}
               onChange={(e) => patchEdge(selectedEdge.id, { label: e.target.value || undefined })}
               style={{ width: 120, padding: '3px 8px' }}
             />
@@ -1290,13 +1318,13 @@ export default function CanvasView({ name }: { name?: string }) {
               <button
                 key={a}
                 className={'icon-btn' + ((selectedEdge.arrow ?? 'end') === a ? ' active' : '')}
-                title={a === 'end' ? 'Стрелка в конце' : a === 'both' ? 'В обе стороны' : 'Без стрелки'}
+                title={a === 'end' ? т('Стрелка в конце') : a === 'both' ? т('В обе стороны') : т('Без стрелки')}
                 onClick={() => patchEdge(selectedEdge.id, { arrow: a })}
               >
                 <Icon name={a === 'end' ? 'arrowRight' : a === 'both' ? 'repeat' : 'minus'} size={15} />
               </button>
             ))}
-            <button className="icon-btn" title="Удалить связь (Del)" onClick={() => removeEdge(selectedEdge.id)}>
+            <button className="icon-btn" title={т('Удалить связь (Del)')} onClick={() => removeEdge(selectedEdge.id)}>
               <Icon name="trash" size={15} />
             </button>
           </div>
@@ -1310,10 +1338,10 @@ export default function CanvasView({ name }: { name?: string }) {
             <option key={f} value={f}>{f}</option>
           ))}
         </select>
-        <button className="icon-btn" title="Новая доска" onClick={createCanvas}>
+        <button className="icon-btn" title={т('Новая доска')} onClick={createCanvas}>
           <Icon name="plus" size={16} />
         </button>
-        <button className="icon-btn" title="Удалить доску" onClick={() => setAskDelete(true)}>
+        <button className="icon-btn" title={т('Удалить доску')} onClick={() => setAskDelete(true)}>
           <Icon name="trash" size={15} />
         </button>
         <span className="tool-sep" />
@@ -1324,18 +1352,17 @@ export default function CanvasView({ name }: { name?: string }) {
             setMenu({
               x: e.clientX,
               y: e.clientY,
-              title: 'Добавить на доску',
+              title: т('Добавить на доску'),
               items: nodeMenuItems(toWorld(r.left + r.width / 2, r.top + r.height / 2)),
             })
           }}
         >
-          <Icon name="plus" size={14} /> Добавить
-        </button>
+          <Icon name="plus" size={14} /> {т(' Добавить')}</button>
         <span className="tool-sep" />
-        <button className="icon-btn" title="Отменить (Ctrl+Z)" disabled={!past.length} onClick={undo}>
+        <button className="icon-btn" title={т('Отменить (Ctrl+Z)')} disabled={!past.length} onClick={undo}>
           <Icon name="left" size={15} />
         </button>
-        <button className="icon-btn" title="Повторить (Ctrl+Y)" disabled={!future.length} onClick={redo}>
+        <button className="icon-btn" title={т('Повторить (Ctrl+Y)')} disabled={!future.length} onClick={redo}>
           <Icon name="right" size={15} />
         </button>
         <span className="tool-sep" />
@@ -1355,7 +1382,7 @@ export default function CanvasView({ name }: { name?: string }) {
         <div className="seg">
           {(['1m', '3m', '12m'] as const).map((p) => (
             <button key={p} className={period === p ? 'on' : ''} onClick={() => setPeriod(p)}>
-              {p === '1m' ? 'месяц' : p === '3m' ? '3 мес' : 'год'}
+              {p === '1m' ? 'месяц' : p === '3m' ? т('3 мес') : 'год'}
             </button>
           ))}
         </div>
@@ -1363,27 +1390,26 @@ export default function CanvasView({ name }: { name?: string }) {
 
       {/* -------------------------------------------- нижняя панель */}
       <div className="canvas-hud" onMouseDown={(e) => e.stopPropagation()}>
-        <button className="icon-btn" title="Мельче (Ctrl+−)" disabled={view.k <= ZOOM_STEPS[0]}
+        <button className="icon-btn" title={т('Мельче (Ctrl+−)')} disabled={view.k <= ZOOM_STEPS[0]}
           onClick={() => zoomBy(-1)}>
           <Icon name="minus" size={15} />
         </button>
-        <button className="hud-zoom num" title="Вернуть 100 % (Ctrl+0)" onClick={() => zoomWith(() => ZOOM_DEFAULT)}>
+        <button className="hud-zoom num" title={т('Вернуть 100 % (Ctrl+0)')} onClick={() => zoomWith(() => ZOOM_DEFAULT)}>
           {Math.round(view.k * 100)}%
         </button>
-        <button className="icon-btn" title="Крупнее (Ctrl+=)" disabled={view.k >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
+        <button className="icon-btn" title={т('Крупнее (Ctrl+=)')} disabled={view.k >= ZOOM_STEPS[ZOOM_STEPS.length - 1]}
           onClick={() => zoomBy(1)}>
           <Icon name="plus" size={15} />
         </button>
-        <button className="icon-btn" title="Вписать всё" onClick={() => zoomToFit()}>
+        <button className="icon-btn" title={т('Вписать всё')} onClick={() => zoomToFit()}>
           <Icon name="fit" size={15} />
         </button>
         <span className="tool-sep" />
         <span className="faint small">
-          {sel.size > 0 ? `выделено ${sel.size}` : `${doc.nodes.length} узлов · ${doc.edges.length} связей`}
+          {sel.size > 0 ? `выделено ${sel.size}` : т('{0} узлов · {1} связей', doc.nodes.length, doc.edges.length)}
         </span>
         <span className="faint small" style={{ marginLeft: 8, opacity: 0.7 }}>
-          рамка — выделение · средняя кнопка или пробел — сдвиг · правый клик — меню
-        </span>
+          {т('рамка — выделение · средняя кнопка или пробел — сдвиг · правый клик — меню')}</span>
       </div>
 
       {(() => {
@@ -1420,8 +1446,8 @@ export default function CanvasView({ name }: { name?: string }) {
 
       {askDelete && (
         <Confirm
-          title={`Удалить доску «${current}»?`}
-          text={`Файл доски исчезнет из хранилища вместе с ${doc.nodes.length} узлами и ${doc.edges.length} связями. Заметки, счета и категории, на которые ссылались карточки, останутся нетронутыми — удаляется только сама схема.`}
+          title={т('Удалить доску «{0}»?', current)}
+          text={т('Файл доски исчезнет из хранилища вместе с {0} узлами и {1} связями. Заметки, счета и категории, на которые ссылались карточки, останутся нетронутыми — удаляется только сама схема.', doc.nodes.length, doc.edges.length)}
           onConfirm={() => void dropCanvas()}
           onClose={() => setAskDelete(false)}
         />
@@ -1433,7 +1459,7 @@ export default function CanvasView({ name }: { name?: string }) {
     return [
       {
         id: 'color',
-        label: 'Цвет',
+        label: т('Цвет'),
         icon: 'palette',
         children: [
           {
@@ -1446,16 +1472,16 @@ export default function CanvasView({ name }: { name?: string }) {
       },
       {
         id: 'arrow',
-        label: 'Направление',
+        label: т('Направление'),
         icon: 'arrowRight',
         children: [
-          { id: 'end', label: 'Стрелка в конце', onClick: () => patchEdge(e.id, { arrow: 'end' }) },
-          { id: 'both', label: 'В обе стороны', onClick: () => patchEdge(e.id, { arrow: 'both' }) },
-          { id: 'none', label: 'Без стрелки', onClick: () => patchEdge(e.id, { arrow: 'none' }) },
+          { id: 'end', label: т('Стрелка в конце'), onClick: () => patchEdge(e.id, { arrow: 'end' }) },
+          { id: 'both', label: т('В обе стороны'), onClick: () => patchEdge(e.id, { arrow: 'both' }) },
+          { id: 'none', label: т('Без стрелки'), onClick: () => patchEdge(e.id, { arrow: 'none' }) },
         ],
       },
-      { id: 'flow', label: e.flow ? 'Не показывать оборот' : 'Показывать оборот', icon: 'flow', onClick: () => patchEdge(e.id, { flow: !e.flow }) },
-      { id: 'del', label: 'Удалить связь', icon: 'trash', danger: true, hint: 'Del', onClick: () => removeEdge(e.id) },
+      { id: 'flow', label: e.flow ? т('Не показывать оборот') : т('Показывать оборот'), icon: 'flow', onClick: () => patchEdge(e.id, { flow: !e.flow }) },
+      { id: 'del', label: т('Удалить связь'), icon: 'trash', danger: true, hint: 'Del', onClick: () => removeEdge(e.id) },
     ]
   }
 }

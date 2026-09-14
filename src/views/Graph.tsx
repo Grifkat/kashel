@@ -9,6 +9,7 @@ import { moneyShort } from '../lib/format'
 import { categoryTotals } from '../engine/stats'
 import { Toggle } from '../components/ui'
 import { useSize } from '../components/charts'
+import { т } from '../i18n'
 
 type Kind = 'note' | 'category' | 'account' | 'goal' | 'tag'
 
@@ -38,11 +39,11 @@ const KIND_COLOR: Record<Kind, string> = {
   tag: '#4aa3e8',
 }
 const KIND_LABEL: Record<Kind, string> = {
-  note: 'Заметки',
-  category: 'Категории',
-  account: 'Счета',
-  goal: 'Цели',
-  tag: 'Теги',
+  note: т('Заметки'),
+  category: т('Категории'),
+  account: т('Счета'),
+  goal: т('Цели'),
+  tag: т('Теги'),
 }
 
 export default function GraphView() {
@@ -57,6 +58,7 @@ export default function GraphView() {
   // боковых панелей центр графа остался бы прежним.
   const [wrapRef, { w: gw, h: gh }] = useSize<HTMLDivElement>()
   const nodesRef = useRef<GNode[]>([])
+  /** Взводится, как только человек сам подвинул или приблизил граф. */
   /** Взводится, как только человек сам подвинул или приблизил граф. */
   const touched = useRef(false)
   const [, force] = useState(0)
@@ -238,6 +240,10 @@ export default function GraphView() {
    * Вписать граф в холст. Прежняя кнопка возвращала масштаб 1, а при разбросе
    * узлов в шестьсот пикселей это не влезает даже в широкую панель.
    */
+  /**
+   * Вписать граф в холст. Прежняя кнопка возвращала масштаб 1, а при разбросе
+   * узлов в шестьсот пикселей это не влезает даже в широкую панель.
+   */
   const fit = useCallback(() => {
     const ns = nodesRef.current
     if (!ns.length || !gw || !gh) {
@@ -338,7 +344,7 @@ export default function GraphView() {
       </svg>
 
       <div className="graph-legend" onMouseDown={(e) => e.stopPropagation()}>
-        <div className="card-title" style={{ marginBottom: 8 }}>Граф связей</div>
+        <div className="card-title" style={{ marginBottom: 8 }}>{т('Граф связей')}</div>
         {(Object.keys(KIND_LABEL) as Kind[]).map((k) => (
           <div key={k} className="row" style={{ gap: 8, marginBottom: 6 }}>
             <span style={{ width: 10, height: 10, borderRadius: '50%', background: KIND_COLOR[k] }} />
@@ -347,9 +353,7 @@ export default function GraphView() {
           </div>
         ))}
         <div className="faint small" style={{ marginTop: 10, width: '100%', lineHeight: 1.5 }}>
-          Размер кружка категории — сумма за полгода, толщина связи — оборот между категорией и счётом.
-          Клик открывает раздел.
-        </div>
+          {т('Размер кружка категории — сумма за полгода, толщина связи — оборот между категорией и счётом. Клик открывает раздел.')}</div>
         <button
           className="btn sm"
           style={{ marginTop: 10, width: '100%' }}
@@ -358,8 +362,7 @@ export default function GraphView() {
             fit()
           }}
         >
-          <Icon name="fit" size={13} /> Сбросить вид
-        </button>
+          <Icon name="fit" size={13} /> {т(' Сбросить вид')}</button>
       </div>
     </div>
   )

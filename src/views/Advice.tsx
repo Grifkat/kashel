@@ -11,6 +11,7 @@ import { adviceKindTitle, type Advice, type AdviceKind, type Severity } from '..
 import { useToast } from '../components/ui'
 import { личное } from '../engine/project'
 import { Besjeda } from '../components/Besjeda'
+import { т, тр } from '../i18n'
 
 const SEV_ICON: Record<Severity, string> = { alert: 'warn', warn: 'warn', info: 'bulb', good: 'check' }
 const KIND_ICON: Record<AdviceKind, string> = {
@@ -53,7 +54,7 @@ export default function AdviceView() {
         upsertCategory({ ...c, plan: Math.ceil(norm / 50000) * 50000 })
         n++
       }
-      toast(`Лимиты проставлены: ${n}`)
+      toast(т('Лимиты проставлены: {0}', n))
       app.openTab('budget')
       return
     }
@@ -79,11 +80,11 @@ export default function AdviceView() {
         adjusts.push({ categoryId: b.categoryId, factor: Math.max(0, 1 - cut / Math.max(1, b.base)) })
         need -= cut
       }
-      if (need > 0) toast(`За счёт необязательных трат набирается не всё: не хватает ${money(need)}`)
+      if (need > 0) toast(т('За счёт необязательных трат набирается не всё: не хватает {0}', money(need)))
     }
     const sc = {
       id: uid('sc'),
-      name: 'Из совета: ' + a.title.slice(0, 40),
+      name: т('Из совета: ') + a.title.slice(0, 40),
       incomeFactor: Number(p.incomeFactor ?? 1),
       adjusts,
       events: [],
@@ -91,7 +92,7 @@ export default function AdviceView() {
       note: a.title,
     }
     upsertScenario(sc)
-    toast('Сценарий создан — открываю прогноз')
+    toast(т('Сценарий создан — открываю прогноз'))
     app.openTab('forecast')
   }
 
@@ -99,11 +100,9 @@ export default function AdviceView() {
     <div className="view">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Советы</h1>
+          <h1 className="view-title">{т('Советы')}</h1>
           <div className="view-sub">
-            Считается локально по вашей истории. Суммарный потенциал найденного —{' '}
-            <b className="pos">{money(totalImpact)} в месяц</b> ({money(totalImpact * 12)} в год)
-          </div>
+            {тр('Считается локально по вашей истории. Суммарный потенциал найденного —{0}', ' ')}<b className="pos">{тр('{0} в месяц', money(totalImpact))}</b> {тр(' ({0} в год)', money(totalImpact * 12))}</div>
         </div>
       </div>
 
@@ -113,8 +112,7 @@ export default function AdviceView() {
 
       <div className="row wrap" style={{ gap: 7, marginBottom: 16, marginTop: 16 }}>
         <span className={'chip' + (kind === 'all' ? ' on' : '')} onClick={() => setKind('all')}>
-          Все ({advice.length})
-        </span>
+          {тр('Все ({0})', advice.length)}</span>
         {counts.map(({ k, n }) => (
           <span key={k} className={'chip' + (kind === k ? ' on' : '')} onClick={() => setKind(k)}>
             {adviceKindTitle(k)} ({n})
@@ -124,8 +122,7 @@ export default function AdviceView() {
 
       {!list.length && (
         <div className="empty">
-          В этой группе замечаний нет — по имеющимся данным всё в порядке.
-        </div>
+          {т('В этой группе замечаний нет — по имеющимся данным всё в порядке.')}</div>
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -146,9 +143,9 @@ export default function AdviceView() {
                   <h3 className="advice-title" style={{ margin: 0 }}>{a.title}</h3>
                   <span className="badge">{adviceKindTitle(a.kind)}</span>
                   {a.impactMonthly > 0 && (
-                    <span className="badge good">≈ {money(a.impactMonthly)}/мес</span>
+                    <span className="badge good">{тр('≈ {0}/мес', money(a.impactMonthly))}</span>
                   )}
-                  <span className="badge">усилия: {a.effort}</span>
+                  <span className="badge">{тр('усилия: {0}', a.effort)}</span>
                 </div>
                 <div className="advice-body" style={{ marginTop: 6 }}>{a.body}</div>
                 {a.evidence.length > 0 && (
@@ -165,8 +162,7 @@ export default function AdviceView() {
                     </button>
                     {a.impactMonthly > 0 && (
                       <span className="faint small">
-                        за 5 лет это {money(a.impactMonthly * 60)}
-                      </span>
+                        {тр('за 5 лет это {0}', money(a.impactMonthly * 60))}</span>
                     )}
                   </div>
                 )}
@@ -177,14 +173,9 @@ export default function AdviceView() {
       </div>
 
       <div className="advice-card info" style={{ marginTop: 20 }}>
-        <div className="advice-title">Как это считается</div>
+        <div className="advice-title">{т('Как это считается')}</div>
         <div className="advice-body">
-          Никаких обращений в интернет: движок берёт ваши операции, строит по каждой категории
-          устойчивую норму (медиана последних месяцев), тренд и разброс, сверяет текущий темп с этой нормой
-          и проверяет два десятка правил — от забытых подписок до концентрации дохода в одном источнике.
-          Цифры в советах — это ваши же деньги, пересчитанные в месячный и годовой масштаб;
-          именно в нём мелкие регулярные траты становятся заметными.
-        </div>
+          {т('Никаких обращений в интернет: движок берёт ваши операции, строит по каждой категории устойчивую норму (медиана последних месяцев), тренд и разброс, сверяет текущий темп с этой нормой и проверяет два десятка правил — от забытых подписок до концентрации дохода в одном источнике. Цифры в советах — это ваши же деньги, пересчитанные в месячный и годовой масштаб; именно в нём мелкие регулярные траты становятся заметными.')}</div>
       </div>
     </div>
   )

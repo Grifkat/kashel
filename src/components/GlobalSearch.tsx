@@ -8,12 +8,14 @@ import { listNotes, readNote } from '../state/vault'
 import { humanDate } from '../lib/date'
 import { money } from '../lib/format'
 import type { Transaction } from '../lib/types'
+import { т } from '../i18n'
 
 interface NoteHit {
   title: string
   line: string
 }
 
+/** Ctrl+Shift+F — сквозной поиск по операциям, заметкам и справочникам. */
 /** Ctrl+Shift+F — сквозной поиск по операциям, заметкам и справочникам. */
 export function GlobalSearch({ initial, onClose }: { initial: string; onClose: () => void }) {
   const app = useApp()
@@ -49,7 +51,7 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
     if (needle.length < 2) return []
     const out: NoteHit[] = []
     for (const n of notes) {
-      if (n.title.toLowerCase().includes(needle)) out.push({ title: n.title, line: 'совпадение в названии' })
+      if (n.title.toLowerCase().includes(needle)) out.push({ title: n.title, line: т('совпадение в названии') })
       for (const line of n.body.split('\n')) {
         if (line.toLowerCase().includes(needle)) {
           out.push({ title: n.title, line: line.trim().slice(0, 120) })
@@ -68,21 +70,21 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
   const catById = new Map(data.categories.map((c) => [c.id, c]))
 
   return (
-    <Modal title="Поиск по всему" icon="search" onClose={onClose} wide>
+    <Modal title={т('Поиск по всему')} icon="search" onClose={onClose} wide>
       <input
         type="search"
         autoFocus
         value={q}
-        placeholder="Слово в комментарии, тег, название категории или заметки"
+        placeholder={т('Слово в комментарии, тег, название категории или заметки')}
         onChange={(e) => setQ(e.target.value)}
         style={{ fontSize: 16, padding: '9px 13px', marginBottom: 16 }}
       />
 
-      {needle.length < 2 && <div className="empty">Введите хотя бы два символа</div>}
+      {needle.length < 2 && <div className="empty">{т('Введите хотя бы два символа')}</div>}
 
       {catHits.length > 0 && (
         <>
-          <div className="card-title">Категории</div>
+          <div className="card-title">{т('Категории')}</div>
           <div className="row wrap" style={{ gap: 7, marginBottom: 16 }}>
             {catHits.map((c) => (
               <span
@@ -102,7 +104,7 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
 
       {noteHits.length > 0 && (
         <>
-          <div className="card-title">Заметки</div>
+          <div className="card-title">{т('Заметки')}</div>
           <div style={{ marginBottom: 16 }}>
             {noteHits.map((n, i) => (
               <div
@@ -126,7 +128,7 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
 
       {txHits.length > 0 && (
         <>
-          <div className="card-title">Операции</div>
+          <div className="card-title">{т('Операции')}</div>
           {txHits.map((t) => {
             const c = t.categoryId ? catById.get(t.categoryId) : undefined
             return (
@@ -140,9 +142,9 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
               >
                 <Avatar icon={c?.icon} color={c?.color} size="sm" />
                 <div className="tx-main">
-                  <div className="tx-title">{t.note || c?.name || 'Операция'}</div>
+                  <div className="tx-title">{t.note || c?.name || т('Операция')}</div>
                   <div className="tx-sub">
-                    {humanDate(t.date)} · {c?.name ?? 'без категории'} {t.tags.map((x) => '#' + x).join(' ')}
+                    {humanDate(t.date)} · {c?.name ?? т('без категории')} {t.tags.map((x) => '#' + x).join(' ')}
                   </div>
                 </div>
                 <div className={'num ' + (t.kind === 'income' ? 'pos' : '')}>
@@ -156,7 +158,7 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
       )}
 
       {needle.length >= 2 && !txHits.length && !noteHits.length && !catHits.length && (
-        <div className="empty">Ничего не нашлось</div>
+        <div className="empty">{т('Ничего не нашлось')}</div>
       )}
     </Modal>
   )

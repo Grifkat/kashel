@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { Icon } from '../lib/icons'
 import { bridge, isDesktop } from '../state/vault'
 import { useStore, type VaultFailure } from '../state/store'
+import { т, тр } from '../i18n'
 
 /*
  * Экран «хранилище не открылось». На его месте была вечная заставка: ни
@@ -16,9 +17,9 @@ import { useStore, type VaultFailure } from '../state/store'
  *    поверх настоящих.
  */
 const СОВЕТ: Record<VaultFailure['stage'], string> = {
-  path: 'Программа не смогла узнать, где лежит хранилище.',
-  read: 'Файлы хранилища на месте, но прочитать их не вышло.',
-  create: 'Программа сочла хранилище новым и не смогла его создать.',
+  path: т('Программа не смогла узнать, где лежит хранилище.'),
+  read: т('Файлы хранилища на месте, но прочитать их не вышло.'),
+  create: т('Программа сочла хранилище новым и не смогла его создать.'),
 }
 
 export function VaultFailureScreen({ info }: { info: VaultFailure }) {
@@ -32,7 +33,7 @@ export function VaultFailureScreen({ info }: { info: VaultFailure }) {
       await fn()
       setNote('')
     } catch (e) {
-      setNote('Не вышло: ' + (e instanceof Error ? e.message : String(e)))
+      setNote(т('Не вышло: ') + (e instanceof Error ? e.message : String(e)))
     }
   }
 
@@ -40,15 +41,13 @@ export function VaultFailureScreen({ info }: { info: VaultFailure }) {
     <div className="splash">
       <div className="card" style={{ maxWidth: 560, width: 'min(560px, 90vw)' }}>
         <div className="card-title">
-          <Icon name="warn" size={14} /> Не удалось открыть хранилище
-        </div>
+          <Icon name="warn" size={14} /> {т(' Не удалось открыть хранилище')}</div>
         <div className="muted" style={{ lineHeight: 1.6 }}>
-          {СОВЕТ[info.stage]} Файлы на диске не тронуты — программа просто не смогла до них добраться.
-        </div>
+          {тр('{0} Файлы на диске не тронуты — программа просто не смогла до них добраться.', СОВЕТ[info.stage])}</div>
         {/* Путь моноширинно и с переносом: чаще всего человек увидит на нём
             прямые слэши или чужую букву диска и поймёт всё сам. */}
         <div className="faint small" style={{ ...mono, marginTop: 10, wordBreak: 'break-all' }}>
-          {info.path || 'путь неизвестен'}
+          {info.path || т('путь неизвестен')}
         </div>
         <div style={{ ...mono, fontSize: 13, color: 'var(--faint)', marginTop: 6, wordBreak: 'break-word' }}>
           {info.message.slice(0, 300)}
@@ -56,26 +55,22 @@ export function VaultFailureScreen({ info }: { info: VaultFailure }) {
 
         <div className="row wrap" style={{ marginTop: 14, gap: 8 }}>
           {isDesktop && (
-            <button className="btn primary" onClick={() => void run('Выбираю папку', () => store.chooseVault())}>
-              <Icon name="folder" size={14} /> Выбрать папку хранилища
-            </button>
+            <button className="btn primary" onClick={() => void run(т('Выбираю папку'), () => store.chooseVault())}>
+              <Icon name="folder" size={14} /> {т(' Выбрать папку хранилища')}</button>
           )}
           {/* Для причин, которые проходят сами: сетевой диск не успел
               подключиться, файл держал антивирус, облако синхронизировалось. */}
-          <button className="btn" onClick={() => void run('Пробую снова', () => store.retryBoot())}>
-            <Icon name="repeat" size={14} /> Попробовать снова
-          </button>
+          <button className="btn" onClick={() => void run(т('Пробую снова'), () => store.retryBoot())}>
+            <Icon name="repeat" size={14} /> {т(' Попробовать снова')}</button>
           {isDesktop && (
             <button
               className="btn ghost"
-              onClick={() => void run('Открываю папку', async () => { await bridge.revealVault() })}
+              onClick={() => void run(т('Открываю папку'), async () => { await bridge.revealVault() })}
             >
-              <Icon name="folder" size={14} /> Открыть папку хранилища
-            </button>
+              <Icon name="folder" size={14} /> {т(' Открыть папку хранилища')}</button>
           )}
           <button className="btn ghost" onClick={() => window.location.reload()}>
-            <Icon name="repeat" size={14} /> Перезагрузить окно
-          </button>
+            <Icon name="repeat" size={14} /> {т(' Перезагрузить окно')}</button>
         </div>
 
         {note && <div className="small faint" style={{ marginTop: 10 }}>{note}</div>}

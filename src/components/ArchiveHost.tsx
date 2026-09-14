@@ -9,6 +9,7 @@ import {
 } from '../engine/archive'
 import { Modal, Tbl, useToast } from './ui'
 import { Boundary } from './Boundary'
+import { т, тр } from '../i18n'
 
 /*
  * Один хозяин на всю программу: и кнопки в настройках, и меню «Файл», и
@@ -18,7 +19,9 @@ import { Boundary } from './Boundary'
 
 interface ArchiveApi {
   /** Сохранить всё содержимое программы в файл. */
+  /** Сохранить всё содержимое программы в файл. */
   save(): Promise<void>
+  /** Выбрать файл вручную и предложить загрузку. */
   /** Выбрать файл вручную и предложить загрузку. */
   pick(): Promise<void>
   busy: string
@@ -28,15 +31,16 @@ const Ctx = createContext<ArchiveApi | null>(null)
 
 export const useArchive = (): ArchiveApi => {
   const v = useContext(Ctx)
-  if (!v) throw new Error('useArchive вне провайдера')
+  if (!v) throw new Error(т('useArchive вне провайдера'))
   return v
 }
 
 /** Вес файла в мегабайтах — по нему сразу видно, влезет ли он в письмо. */
+/** Вес файла в мегабайтах — по нему сразу видно, влезет ли он в письмо. */
 export function fileSize(chars: number): string {
   const mb = chars / 1024 / 1024
-  if (mb >= 1) return `${mb.toFixed(1).replace('.', ',')} МБ`
-  return `${Math.max(1, Math.round(chars / 1024))} КБ`
+  if (mb >= 1) return т('{0} МБ', mb.toFixed(1).replace('.', ','))
+  return т('{0} КБ', Math.max(1, Math.round(chars / 1024)))
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e))
@@ -62,19 +66,20 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
   dataRef.current = data
 
   const save = useCallback(async () => {
-    setBusy('Собираю архив…')
+    setBusy(т('Собираю архив…'))
     try {
       const archive = await buildArchive(dataRef.current)
       const text = archiveText(archive)
       const at = await bridge.saveText(archiveFileName(), text, { bom: false, filters: ARCHIVE_FILTERS })
-      if (at) toast(`Сохранено: ${at} · ${fileSize(text.length)}`)
+      if (at) toast(т('Сохранено: {0} · {1}', at, fileSize(text.length)))
     } catch (e) {
-      toast('Не удалось собрать архив: ' + errText(e))
+      toast(т('Не удалось собрать архив: ') + errText(e))
     } finally {
       setBusy('')
     }
   }, [toast])
 
+  /** Разбирает текст файла и показывает, что внутри, до всякой записи. */
   /** Разбирает текст файла и показывает, что внутри, до всякой записи. */
   const offer = useCallback(
     (text: string, name: string) => {
@@ -98,19 +103,24 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
    * нынешнее состояние в backups/ таким же архивом: вернуться можно будет
    * той же кнопкой «Открыть».
    */
+  /**
+   * Загрузка заменяет хранилище целиком, поэтому первым делом складывает
+   * нынешнее состояние в backups/ таким же архивом: вернуться можно будет
+   * той же кнопкой «Открыть».
+   */
   const load = useCallback(
     async (archive: Archive) => {
       setIncoming(null)
-      setBusy('Сохраняю резервную копию…')
+      setBusy(т('Сохраняю резервную копию…'))
       try {
         const backup = backupPath()
         await bridge.write(backup, archiveText(await buildArchive(dataRef.current)))
 
-        setBusy('Очищаю прежнее хранилище…')
+        setBusy(т('Очищаю прежнее хранилище…'))
         await wipeSpaceFiles()
         await wipeAttachments()
 
-        setBusy('Раскладываю новое…')
+        setBusy(т('Раскладываю новое…'))
         const report = await applyArchive(archive)
         // Настройки внешнего вида и профиль остаются свои: в архиве они лежат,
         // но чужая тема и чужой день зарплаты пользователю не нужны.
@@ -119,18 +129,18 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
         app.resetWorkspace()
         const n = archive.data.transactions.length
         toast(
-          `Хранилище загружено: ${n} ${plural(n, 'операция', 'операции', 'операций')}, ` +
+          т('Хранилище загружено: {0} {1}, ', n, plural(n, 'операция', 'операции', 'операций')) +
             `${report.notes} ${plural(report.notes, 'заметка', 'заметки', 'заметок')}, ` +
             `${report.canvases} ${plural(report.canvases, 'доска', 'доски', 'досок')}. ` +
-            `Копия прежнего — ${backup}`,
+            т('Копия прежнего — {0}', backup),
         )
         if (report.failed.length) {
           const shown = report.failed.slice(0, 3).join(', ')
           const rest = report.failed.length - 3
-          toast(`Не удалось записать: ${shown}${rest > 0 ? ` и ещё ${rest}` : ''}`)
+          toast(т('Не удалось записать: {0}{1}', shown, rest > 0 ? т(' и ещё {0}', rest) : ''))
         }
       } catch (e) {
-        toast('Загрузка прервалась: ' + errText(e))
+        toast(т('Загрузка прервалась: ') + errText(e))
       } finally {
         setBusy('')
       }
@@ -147,7 +157,7 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
       else if (e.kind === 'file' && e.file) {
         void bridge.readArchive?.(e.file).then((f) => {
           if (f) offer(f.text, f.name)
-          else toast('Не удалось прочитать файл: ' + e.file)
+          else toast(т('Не удалось прочитать файл: ') + e.file)
         })
       }
     })
@@ -174,37 +184,36 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
       <Boundary level="window">{children}</Boundary>
       {incoming && (
         <Modal
-          title="Загрузить хранилище из файла?"
+          title={т('Загрузить хранилище из файла?')}
           icon="upload"
           onClose={() => setIncoming(null)}
           footer={
             <>
-              <button className="btn" onClick={() => setIncoming(null)}>Отмена</button>
+              <button className="btn" onClick={() => setIncoming(null)}>{т('Отмена')}</button>
               <button className="btn primary" onClick={() => void load(incoming.archive)}>
-                Заменить и загрузить
-              </button>
+                {т('Заменить и загрузить')}</button>
             </>
           }
         >
           <div className="faint small" style={{ marginBottom: 12 }}>
             {incoming.file} · {fileSize(incoming.bytes)}
             {incoming.archive.exportedAt &&
-              ` · выгружен ${new Date(incoming.archive.exportedAt).toLocaleString('ru-RU')}`}
+              т(' · выгружен {0}', new Date(incoming.archive.exportedAt).toLocaleString('ru-RU'))}
           </div>
 
-          <div className="card-title">Что внутри</div>
+          <div className="card-title">{т('Что внутри')}</div>
           <Tbl style={{ marginBottom: 14 }}>
             <tbody>
               {([
-                ['Операции', incoming.archive.counts.transactions, data.transactions.length],
-                ['Счета', incoming.archive.counts.accounts, data.accounts.length],
-                ['Категории', incoming.archive.counts.categories, data.categories.length],
-                ['Регулярные платежи', incoming.archive.counts.recurring, data.recurring.length],
-                ['Цели', incoming.archive.counts.goals, data.goals.length],
-                ['Сценарии', incoming.archive.counts.scenarios, data.scenarios.length],
-                ['Заметки', incoming.archive.counts.notes, null],
-                ['Канвасы', incoming.archive.counts.canvases, null],
-                ['Фото чеков', incoming.archive.counts.attachments, null],
+                [т('Операции'), incoming.archive.counts.transactions, data.transactions.length],
+                [т('Счета'), incoming.archive.counts.accounts, data.accounts.length],
+                [т('Категории'), incoming.archive.counts.categories, data.categories.length],
+                [т('Регулярные платежи'), incoming.archive.counts.recurring, data.recurring.length],
+                [т('Цели'), incoming.archive.counts.goals, data.goals.length],
+                [т('Сценарии'), incoming.archive.counts.scenarios, data.scenarios.length],
+                [т('Заметки'), incoming.archive.counts.notes, null],
+                [т('Канвасы'), incoming.archive.counts.canvases, null],
+                [т('Фото чеков'), incoming.archive.counts.attachments, null],
               ] as [string, number, number | null][]).map(([label, next, now]) => (
                 <tr key={label}>
                   <td>{label}</td>
@@ -219,21 +228,12 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
 
           {incoming.dropped > 0 && (
             <div className="advice-card warn" style={{ padding: '10px 12px', marginBottom: 12 }}>
-              В файле {incoming.dropped}{' '}
-              {plural(incoming.dropped, 'повреждённая запись', 'повреждённые записи', 'повреждённых записей')} —
-              {' '}{plural(incoming.dropped, 'она будет пропущена', 'они будут пропущены', 'они будут пропущены')}.
-              Чаще всего это операции без даты.
-            </div>
+              {тр('В файле {0}{1}{2} —{3}{4}. Чаще всего это операции без даты.', incoming.dropped, ' ', plural(incoming.dropped, 'повреждённая запись', 'повреждённые записи', 'повреждённых записей'), ' ', plural(incoming.dropped, 'она будет пропущена', 'они будут пропущены', 'они будут пропущены'))}</div>
           )}
 
           <div className="advice-card info" style={{ padding: '10px 12px' }}>
             <div className="advice-body" style={{ lineHeight: 1.6 }}>
-              Всё нынешнее содержимое хранилища будет заменено содержимым файла — вместе с
-              заметками, досками и чеками. Перед заменой программа сложит текущее состояние
-              в <code>backups/</code> отдельным архивом, так что откатиться можно будет через
-              «Файл» → «Открыть…». Оформление, акцентный цвет и финансовый профиль останутся
-              вашими: в файле они есть, но не применяются.
-            </div>
+              {т('Всё нынешнее содержимое хранилища будет заменено содержимым файла — вместе с заметками, досками и чеками. Перед заменой программа сложит текущее состояние в ')}<code>backups/</code> {т(' отдельным архивом, так что откатиться можно будет через «Файл» → «Открыть…». Оформление, акцентный цвет и финансовый профиль останутся вашими: в файле они есть, но не применяются.')}</div>
           </div>
         </Modal>
       )}

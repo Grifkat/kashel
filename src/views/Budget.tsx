@@ -10,8 +10,9 @@ import { StackBar } from '../components/charts'
 import { Avatar, MoneyInput, Tbl, useToast } from '../components/ui'
 import type { Bucket, Category, Money } from '../lib/types'
 import { личное } from '../engine/project'
+import { т, тр } from '../i18n'
 
-const BUCKET_TITLE: Record<Bucket, string> = { needs: 'Надо', wants: 'Хочу', savings: 'В будущее' }
+const BUCKET_TITLE: Record<Bucket, string> = { needs: т('Надо'), wants: т('Хочу'), savings: т('В будущее') }
 const BUCKET_COLOR: Record<Bucket, string> = { needs: '#4aa3e8', wants: '#e8833a', savings: '#4cc46a' }
 const TARGET: Record<Bucket, number> = { needs: 50, wants: 30, savings: 20 }
 
@@ -63,10 +64,11 @@ export default function Budget() {
     .sort((a, b) => (b.plan || b.spent) - (a.plan || a.spent))
 
   /** Автоплан: обязательное по факту, «хочу» ужимаем до ориентира, остаток — в цели. */
+  /** Автоплан: обязательное по факту, «хочу» ужимаем до ориентира, остаток — в цели. */
   const autoPlan = () => {
     const target = fc.avgIncome
     if (!target) {
-      toast('Недостаточно истории доходов для автоплана')
+      toast(т('Недостаточно истории доходов для автоплана'))
       return
     }
     const keys = fc.bases
@@ -83,15 +85,15 @@ export default function Budget() {
         changed++
       }
     }
-    toast(`Лимиты пересобраны: ${changed} ${changed === 1 ? 'категория' : 'категорий'}`)
+    toast(т('Лимиты пересобраны: {0} {1}', changed, changed === 1 ? 'категория' : 'категорий'))
   }
 
   return (
     <div className="view">
       <div className="view-head">
         <div>
-          <h1 className="view-title">Бюджет</h1>
-          <div className="view-sub">Лимиты по категориям и раскладка дохода</div>
+          <h1 className="view-title">{т('Бюджет')}</h1>
+          <div className="view-sub">{т('Лимиты по категориям и раскладка дохода')}</div>
         </div>
         <div className="row">
           <button className="icon-btn" onClick={() => setAnchor((a) => addMonths(a, -1))}>
@@ -101,38 +103,37 @@ export default function Budget() {
           <button className="icon-btn" onClick={() => setAnchor((a) => addMonths(a, 1))}>
             <Icon name="right" size={15} />
           </button>
-          <button className="btn" onClick={autoPlan} title="Пересчитать лимиты по вашей истории">
-            <Icon name="sparkle" size={15} /> Автоплан
-          </button>
+          <button className="btn" onClick={autoPlan} title={т('Пересчитать лимиты по вашей истории')}>
+            <Icon name="sparkle" size={15} /> {т(' Автоплан')}</button>
         </div>
       </div>
 
       {/* ---------------------------------------------------- 50/30/20 */}
       <div className="grid c2" style={{ marginBottom: 16 }}>
         <div className="card">
-          <div className="card-title"><Icon name="scale" size={14} /> Раскладка дохода</div>
+          <div className="card-title"><Icon name="scale" size={14} /> {т(' Раскладка дохода')}</div>
           <div className="row" style={{ marginBottom: 12 }}>
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Доход за месяц</span>
+              <span className="l">{т('Доход за месяц')}</span>
               <span className="v amount in"><span className="sign">+</span>{money(income)}</span>
-              {!income && <span className="d faint">беру средний: {money(fc.avgIncome)}</span>}
+              {!income && <span className="d faint">{тр('беру средний: {0}', money(fc.avgIncome))}</span>}
             </div>
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Расход</span>
+              <span className="l">{т('Расход')}</span>
               <span className="v amount out"><span className="sign">−</span>{money(expense)}</span>
-              {isCurrent && <span className="d faint">по темпу {money(Math.round(expense / Math.max(0.05, progress)))}</span>}
+              {isCurrent && <span className="d faint">{тр('по темпу {0}', money(Math.round(expense / Math.max(0.05, progress))))}</span>}
             </div>
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Остаётся</span>
+              <span className="l">{т('Остаётся')}</span>
               <span className={'v ' + (baseIncome - expense >= 0 ? 'pos' : 'neg')}>{money(baseIncome - expense, { sign: true })}</span>
             </div>
           </div>
           <StackBar
             height={16}
             slices={[
-              { label: 'Надо', value: byBucket.needs, color: BUCKET_COLOR.needs },
-              { label: 'Хочу', value: byBucket.wants, color: BUCKET_COLOR.wants },
-              { label: 'В будущее', value: Math.max(0, baseIncome - expense), color: BUCKET_COLOR.savings },
+              { label: т('Надо'), value: byBucket.needs, color: BUCKET_COLOR.needs },
+              { label: т('Хочу'), value: byBucket.wants, color: BUCKET_COLOR.wants },
+              { label: т('В будущее'), value: Math.max(0, baseIncome - expense), color: BUCKET_COLOR.savings },
             ]}
           />
           <div className="row" style={{ marginTop: 12, gap: 16 }}>
@@ -147,67 +148,59 @@ export default function Budget() {
                   </div>
                   <div className="num strong" style={{ fontSize: 17 }}>{pct(cur)}</div>
                   <div className={'small ' + (Math.abs(diff) < 5 ? 'faint' : diff > 0 && b !== 'savings' ? 'neg' : 'pos')}>
-                    ориентир {TARGET[b]}% · {diff > 0 ? '+' : ''}{Math.round(diff)} п.п.
-                  </div>
+                    {тр('ориентир {0}% · {1}{2} п.п.', TARGET[b], diff > 0 ? '+' : '', Math.round(diff))}</div>
                 </div>
               )
             })}
           </div>
           <div className="faint small" style={{ marginTop: 10, lineHeight: 1.55 }}>
-            50/30/20 — не закон, а быстрый способ увидеть перекос. Если «надо» стабильно выше 60%,
-            бюджет негибкий: в плохой месяц резать будет нечего.
-          </div>
+            {т('50/30/20 — не закон, а быстрый способ увидеть перекос. Если «надо» стабильно выше 60%, бюджет негибкий: в плохой месяц резать будет нечего.')}</div>
         </div>
 
         <div className="card">
-          <div className="card-title"><Icon name="target" size={14} /> Сколько уже расписано</div>
+          <div className="card-title"><Icon name="target" size={14} /> {т(' Сколько уже расписано')}</div>
           <div className="row" style={{ marginBottom: 10 }}>
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Сумма лимитов</span>
+              <span className="l">{т('Сумма лимитов')}</span>
               <span className="v">{money(planned)}</span>
             </div>
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Без лимита</span>
+              <span className="l">{т('Без лимита')}</span>
               <span className="v">{cats.filter((c) => !c.plan).length}</span>
-              <span className="d faint">категорий</span>
+              <span className="d faint">{т('категорий')}</span>
             </div>
             <div className="stat" style={{ flex: 1 }}>
-              <span className="l">Свободно от лимитов</span>
+              <span className="l">{т('Свободно от лимитов')}</span>
               <span className={'v ' + (baseIncome - planned >= 0 ? 'pos' : 'neg')}>{money(baseIncome - planned, { sign: true })}</span>
             </div>
           </div>
           {planned > baseIncome && baseIncome > 0 && (
             <div className="advice-card warn" style={{ padding: '10px 12px' }}>
-              Сумма лимитов на {money(planned - baseIncome)} больше типичного дохода. Такой план
-              невыполним по определению — либо лимиты завышены, либо доход должен вырасти.
-            </div>
+              {тр('Сумма лимитов на {0} больше типичного дохода. Такой план невыполним по определению — либо лимиты завышены, либо доход должен вырасти.', money(planned - baseIncome))}</div>
           )}
           <div className="row" style={{ marginTop: 12, gap: 8 }}>
             <button className="btn sm" onClick={() => app.openTab('goals')}>
-              <Icon name="target" size={13} /> Цели
-            </button>
+              <Icon name="target" size={13} /> {т(' Цели')}</button>
             <button className="btn sm" onClick={() => app.openTab('advice')}>
-              <Icon name="bulb" size={13} /> Что можно улучшить
-            </button>
+              <Icon name="bulb" size={13} /> {т(' Что можно улучшить')}</button>
             <button className="btn sm" onClick={() => app.openTab('forecast')}>
-              <Icon name="chart" size={13} /> Прогноз
-            </button>
+              <Icon name="chart" size={13} /> {т(' Прогноз')}</button>
           </div>
         </div>
       </div>
 
       {/* ---------------------------------------------------- лимиты */}
       <div className="card">
-        <div className="card-title"><Icon name="list" size={14} /> Категории и лимиты</div>
+        <div className="card-title"><Icon name="list" size={14} /> {т(' Категории и лимиты')}</div>
         <Tbl>
           <thead>
             <tr>
-              <th>Категория</th>
-              <th className="col-opt">Роль</th>
-              <th className="r">Потрачено</th>
-              {isCurrent && <th className="r col-opt">Прогноз месяца</th>}
-              <th className="r">Лимит</th>
-              <th className="w-impl">Исполнение</th>
+              <th>{т('Категория')}</th>
+              <th className="col-opt">{т('Роль')}</th>
+              <th className="r">{т('Потрачено')}</th>
+              {isCurrent && <th className="r col-opt">{т('Прогноз месяца')}</th>}
+              <th className="r">{т('Лимит')}</th>
+              <th className="w-impl">{т('Исполнение')}</th>
             </tr>
           </thead>
           <tbody>
@@ -257,11 +250,11 @@ export default function Budget() {
                           />
                         </div>
                         <div className={'small ' + (over ? 'neg' : 'faint')} style={{ marginTop: 3 }}>
-                          {over ? `перерасход ${money((isCurrent ? projected : spent) - plan)}` : `${Math.round(use * 100)}% лимита`}
+                          {over ? `перерасход ${money((isCurrent ? projected : spent) - plan)}` : т('{0}% лимита', Math.round(use * 100))}
                         </div>
                       </>
                     ) : (
-                      <span className="faint small">лимит не задан</span>
+                      <span className="faint small">{т('лимит не задан')}</span>
                     )}
                   </td>
                 </tr>
