@@ -2,6 +2,7 @@ import React from 'react'
 import { useStore } from '../state/store'
 import { THEMES, type ThemeInfo } from '../lib/themes'
 import { Modal } from './ui'
+import { СвоиОформленія } from './Konstruktor'
 import { Icon } from '../lib/icons'
 import { usePrefersReducedMotion } from './anim'
 import type { AnimLevel } from '../lib/types'
@@ -57,7 +58,8 @@ export function ThemeThumb({ theme, size = 1 }: { theme: ThemeInfo; size?: numbe
 
 export function ThemePicker({ onClose }: { onClose: () => void }) {
   const { data, patchSettings } = useStore()
-  const cur = data.settings.theme
+  // Пока включена своя тема, ни одна встроенная не отмечается выбранной.
+  const cur = data.settings.customTheme ? null : data.settings.theme
   const systemReduced = usePrefersReducedMotion()
   const level = data.settings.animations
 
@@ -67,7 +69,7 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
         {THEMES.map((t) => (
           <button
             key={t.id}
-            onClick={() => patchSettings({ theme: t.id, accent: t.accent })}
+            onClick={() => patchSettings({ theme: t.id, accent: t.accent, customTheme: undefined })}
             style={{
               textAlign: 'left',
               background: 'transparent',
@@ -89,6 +91,7 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
             <div className="faint small" style={{ lineHeight: 1.45 }}>{t.about}</div>
           </button>
         ))}
+        <СвоиОформленія />
       </div>
 
       <div className="card-title">Анимации</div>

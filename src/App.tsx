@@ -19,6 +19,7 @@ import { PomodoroProvider, clock, usePomodoro } from './components/PomodoroHost'
 import { Boundary } from './components/Boundary'
 import { VaultFailureScreen } from './components/VaultFailure'
 import { themeById, counterpart } from './lib/themes'
+import { применитьТокены } from './lib/svoitemy'
 import Dashboard from './views/Dashboard'
 import Transactions from './views/Transactions'
 import Categories from './views/Categories'
@@ -167,7 +168,18 @@ export default function App() {
 
   useEffect(() => {
     const root = document.documentElement
-    root.dataset.theme = data.settings.theme
+    /*
+     * Своя тема — это основа плюс свои переменные поверх. Основа ставится
+     * атрибутом, как обычная тема: от неё берутся характерные правила
+     * разметки (градиент шапки, буквы на кнопках). Переменные — на корень.
+     */
+    const своя = data.settings.customTheme
+      ? data.settings.customThemes?.find((т) => т.id === data.settings.customTheme)
+      : undefined
+    root.dataset.theme = своя ? своя.base : data.settings.theme
+    применитьТокены(root, своя ? своя.tokens : null)
+    if (своя?.tokens['accent-text']) root.dataset.accentText = ''
+    else delete root.dataset.accentText
     root.dataset.anim = animLevel
     root.dataset.density = data.settings.density
     root.dataset.reading = data.settings.readingFont
@@ -183,8 +195,8 @@ export default function App() {
       tray: data.settings.tray ?? true,
       dateFormat: data.settings.dateFormat ?? 'ru',
     })
-    root.style.setProperty('--accent', data.settings.accent)
-  }, [data.settings.theme, animLevel, data.settings.accent, data.settings.density, data.settings.readingFont])
+    root.style.setProperty('--accent', своя ? своя.accent : data.settings.accent)
+  }, [data.settings.theme, data.settings.customTheme, data.settings.customThemes, animLevel, data.settings.accent, data.settings.density, data.settings.readingFont])
 
   const openTab = useCallback<AppApi['openTab']>((view, arg, opts) => {
     const paneIdx = opts?.pane ?? focusPane
@@ -540,10 +552,15 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
       <div className="ribbon-spacer" />
       <button
         className="ribbon-btn"
-        title={`Оформление: ${themeById(store.data.settings.theme).name}. Клик — галерея, средняя кнопка — светлая/тёмная`}
+        title={`Оформление: ${
+          store.data.settings.customThemes?.find((т) => т.id === store.data.settings.customTheme)?.name ??
+          themeById(store.data.settings.theme).name
+        }. Клик — галерея, средняя кнопка — светлая/тёмная`}
         onClick={onTheme}
         onAuxClick={(e) => {
-          if (e.button === 1) store.patchSettings({ theme: counterpart(store.data.settings.theme) })
+          // Светлость переключается у встроенной темы; своя при этом снимается,
+          // иначе переключатель менял бы невидимую основу и казался сломанным.
+          if (e.button === 1) store.patchSettings({ theme: counterpart(store.data.settings.theme), customTheme: undefined })
         }}
       >
         <Icon name={themeById(store.data.settings.theme).mode === 'dark' ? 'moon' : 'sun'} size={17} />

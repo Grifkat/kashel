@@ -1803,3 +1803,41 @@ kbd {
   .gramota .gramota-head { flex-wrap: wrap; }
   .gramota-rank { font-size: 20px; }
 }
+
+/* =================================================== конструктор оформления
+   Слева настройки с прокруткой, справа предпросмотр, который не уезжает при
+   прокрутке длинного полного режима: смотреть на результат надо всё время,
+   пока крутишь цвета. */
+.konstruktor {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+.konstruktor-controls { max-height: 62vh; overflow: auto; padding-right: 6px; }
+.konstruktor-side { position: sticky; top: 0; display: grid; gap: 12px; }
+.konstruktor-list { display: grid; gap: 10px; }
+.konstruktor-preview {
+  background-color: var(--bg);
+  background-image: var(--bg-image);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+  font-family: var(--font);
+}
+.konstruktor-contrast { display: grid; gap: 5px; }
+/* В предпросмотре цвета меняются мгновенно: у кнопок и полей стоят плавные
+   переходы, и читаемость мерилась бы по цвету на полпути — у главной кнопки
+   выходило 5.1 вместо настоящих 14. */
+.konstruktor-preview, .konstruktor-preview * { transition: none !important; }
+input.invalid { border-color: var(--alert) !important; }
+@container view (max-width: 720px) { .konstruktor { grid-template-columns: 1fr; } }
+
+/* Буквы на акцентной заливке из своей темы. У встроенных тем их задаёт
+   правило основы (у «Пикми» — белые), и оно перебило бы переменную; поэтому
+   при заданной переменной правило сильнее. Атрибут ставит App — только для
+   своей темы, у встроенных всё как было. */
+[data-accent-text] .btn.primary,
+[data-accent-text] .datepop-day.sel,
+[data-accent-text] .qa-pin.on { color: var(--accent-text) !important; }

@@ -17,6 +17,7 @@ import type { Goal, Recurring, Reminder, Scenario, Task, Transaction } from '../
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../src/engine/goals'
 import { квадратъ, путьЗначкаДопустимъ, этоСвойЗначокъ } from '../src/lib/svoiznachki'
 import { parseArchive } from '../src/engine/archive'
+import { вывестиТокены, значеніеДопустимо, контрастъ, очиститьТокены, простыяИзъТокеновъ, разобратьФайлТемы } from '../src/lib/svoitemy'
 import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
 import {
@@ -1890,6 +1891,70 @@ async function шифрованіе() {
  * тема съ украшеніемъ въ углу споткнётся о ту же строку.
  */
 /*
+ * Конструктор оформления: логика без окна.
+ *
+ * Простой режим обязан выдавать читаемую тему из любых разумных цветов — в
+ * том числе из трудных, вроде жёлтого акцента на белом. Файл темы приходит
+ * от другого человека, поэтому ссылки в сеть и мусор из него не проходят.
+ */
+function конструкторъТемъ() {
+  console.log('\n— конструктор оформления —')
+  const свѣтлая = вывестиТокены({ bg: '#f4f4f5', panel: '#ffffff', text: '#26262a', accent: '#ffd700', radius: 12 })
+  check('светлая: текст читается', контрастъ(свѣтлая.text, свѣтлая.panel) >= 7, контрастъ(свѣтлая.text, свѣтлая.panel).toFixed(2))
+  check('светлая: приглушённый с запасом', контрастъ(свѣтлая.muted, свѣтлая.panel) >= 5, контрастъ(свѣтлая.muted, свѣтлая.panel).toFixed(2))
+  check('жёлтым по белому не пишет — буквы берут цвет заголовков',
+    свѣтлая['accent-ink'] === свѣтлая['text-strong'], свѣтлая['accent-ink'])
+  check('на жёлтой кнопке буквы тёмные', контрастъ(свѣтлая['accent-text'], '#ffd700') >= 7, свѣтлая['accent-text'])
+  check('скругление карточек крупнее кнопок', свѣтлая['radius-lg'] === '19px' && свѣтлая.radius === '12px')
+
+  const тёмная = вывестиТокены({ bg: '#1a1b1e', panel: '#26272b', text: '#dcdde1', accent: '#4cc46a', radius: 8 })
+  check('тёмная: приглушённый с запасом', контрастъ(тёмная.muted, тёмная.panel) >= 5, контрастъ(тёмная.muted, тёмная.panel).toFixed(2))
+  check('читаемый акцент идёт буквами как есть', тёмная['accent-ink'] === '#4cc46a')
+
+  const розовая = вывестиТокены({ bg: '#fdf4f8', panel: '#ffffff', text: '#4f3d55', accent: '#6a1b9a', radius: 14 })
+  check('на тёмном акценте буквы белые', розовая['accent-text'] === '#ffffff')
+
+  const туда = { bg: '#101214', panel: '#1c1f24', text: '#e0e0e0', accent: '#ff7a00', radius: 10 }
+  const обратно = простыяИзъТокеновъ(вывестиТокены(туда), туда.accent)
+  check('простой → полный → простой без потерь', JSON.stringify(обратно) === JSON.stringify(туда), JSON.stringify(обратно))
+
+  // Проверка значений
+  check('url в сеть не проходит', !значеніеДопустимо('text', 'url(https://evil.example/x.png)'))
+  check('даже спрятанный внутри градиента', !значеніеДопустимо('text', 'linear-gradient(red, blue), url(//evil.example/a)'))
+  check('встроенная data:image проходит', значеніеДопустимо('text', 'url("data:image/png;base64,AAAA")'))
+  check('image-set с адресом тоже не проходит — это тоже запрос в сеть',
+    !значеніеДопустимо('text', 'image-set("https://evil.example/a.png" 1x)') && !значеніеДопустимо('text', 'image-set("//evil.example/a.png" 1x)'))
+  check('обычная подсветка из градиентов проходит',
+    значеніеДопустимо('text', 'radial-gradient(900px 560px at 8% -10%, rgba(255, 215, 0, 0.1), transparent 62%)'))
+  check('точка с запятой не проходит', !значеніеДопустимо('color', '#fff; background: red'))
+  check('цвета: hex и rgba да, слово нет', значеніеДопустимо('color', '#1a1b1e') && значеніеДопустимо('color', 'rgba(30, 36, 64, 0.55)') && !значеніеДопустимо('color', 'expression(alert)'))
+  check('размер: 12px да, 12 и 12em нет', значеніеДопустимо('px', '12px') && !значеніеДопустимо('px', '12') && !значеніеДопустимо('px', '12em'))
+  check('разрядка: −0.03em да, «em» нет', значеніеДопустимо('em', '-0.03em') && !значеніеДопустимо('em', 'em'))
+
+  const чистыя = очиститьТокены({ bg: '#000000', 'bg-image': 'url(https://x.y/z)', lol: '#fff', radius: 'много' })
+  check('чистка оставляет только годное и известное', JSON.stringify(чистыя) === JSON.stringify({ bg: '#000000' }), JSON.stringify(чистыя))
+
+  // Файл темы
+  const знаю = (id: string) => THEMES.some((t) => t.id === id)
+  let n = 0
+  const новый = () => 'новая' + ++n
+  const хорошій = разобратьФайлТемы(
+    JSON.stringify({ kashel: 'tema', version: 1, name: 'Моя', base: 'pickme', accent: '#ffd700', режимъ: 'простой',
+      tokens: { bg: '#f4f4f5', 'bg-image': 'url(https://evil.example/p.png)', text: '#26262a' } }),
+    знаю, новый,
+  )
+  check('файл темы разбирается', хорошій.ok)
+  if (хорошій.ok) {
+    check('получает новый id, а не чужой', хорошій.тема.id === 'новая1')
+    check('ссылка в сеть из файла отброшена', !('bg-image' in хорошій.тема.tokens) && хорошій.тема.tokens.bg === '#f4f4f5')
+  }
+  const чужаяОснова = разобратьФайлТемы(JSON.stringify({ kashel: 'tema', base: 'нетакойтемы', tokens: {} }), знаю, новый)
+  check('неизвестная основа заменяется на «Обсидиан»', чужаяОснова.ok && чужаяОснова.тема.base === 'obsidian')
+  check('не JSON — понятная ошибка', !разобратьФайлТемы('{это не json', знаю, новый).ok)
+  check('чужой JSON — не тема', !разобратьФайлТемы('{"kashel":"vault"}', знаю, новый).ok)
+}
+
+/*
  * Свои значки.
  *
  * Сама обработка картинки идёт на холсте, которого в Node нет, — её
@@ -2250,6 +2315,7 @@ async function завершить() {
   недѣля()
   пополненіеЦѣлей()
   своиЗначки()
+  конструкторъТемъ()
   await полнаяВыгрузкаПровѣрка()
   await шифрованіе()
   console.log(`\nПровалено проверок: ${fail.length}`)

@@ -12,6 +12,10 @@ import { ICON_GROUPS, isCatalogIcon } from '../lib/catalog'
 import { springOf, useAnimLevel } from './anim'
 
 // ------------------------------------------------------------------ модалка
+/** Открытые окна по порядку открытия — чтобы Escape закрывал только верхнее. */
+const стопкаОконъ: number[] = []
+let счётчикъОконъ = 0
+
 export function Modal({
   title,
   icon,
@@ -27,6 +31,17 @@ export function Modal({
   onClose: () => void
   wide?: boolean
 }) {
+  const мой = useRef(0)
+  if (!мой.current) мой.current = ++счётчикъОконъ
+  useEffect(() => {
+    const id = мой.current
+    стопкаОконъ.push(id)
+    return () => {
+      const i = стопкаОконъ.lastIndexOf(id)
+      if (i >= 0) стопкаОконъ.splice(i, 1)
+    }
+  }, [])
+
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -40,6 +55,12 @@ export function Modal({
          * Поймано тестом. Слои помечают себя data-escape-layer.
          */
         if (document.querySelector('[data-escape-layer]')) return
+        /*
+         * Окно поверх окна (конструктор поверх галереи, подтверждение поверх
+         * правки): Escape закрывает только верхнее. Слушают все, и нижнее,
+         * открытое раньше, срабатывало бы первым — унося с собой и верхнее.
+         */
+        if (стопкаОконъ[стопкаОконъ.length - 1] !== мой.current) return
         e.stopPropagation()
         onClose()
       }

@@ -310,6 +310,8 @@ export type ReadingFont = 'ui' | 'serif'
  * только с воскресенья или понедельника; теперь с любого дня — например, с
  * собственного выходного.
  */
+import type { СвояТема } from './svoitemy'
+
 export type ДеньНедѣли = 0 | 1 | 2 | 3 | 4 | 5 | 6
 
 export interface Settings {
@@ -325,6 +327,10 @@ export interface Settings {
   monteCarloRuns: number
   /** С какого дня начинается неделя: 0 — воскресенье, 1 — понедельник … 6 — суббота. */
   firstDayOfWeek: ДеньНедѣли
+  /** Свои оформления, собранные в конструкторе. */
+  customThemes?: СвояТема[]
+  /** Какая своя тема сейчас включена; пусто — встроенная из theme. */
+  customTheme?: string
   /** Помидор: сколько минут работать и сколько отдыхать. */
   pomodoro: { work: number; rest: number }
   /**

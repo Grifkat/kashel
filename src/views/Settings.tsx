@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { СвоиОформленія } from '../components/Konstruktor'
 import { порядокъДней, WEEKDAYS_FULL } from '../lib/date'
 import type { ДеньНедѣли } from '../lib/types'
 import { useApp } from '../App'
@@ -60,11 +61,11 @@ export default function SettingsView() {
               <button
                 key={t.id}
                 title={t.about}
-                onClick={() => patchSettings({ theme: t.id, accent: t.accent })}
+                onClick={() => patchSettings({ theme: t.id, accent: t.accent, customTheme: undefined })}
                 style={{
                   textAlign: 'left',
                   background: 'transparent',
-                  border: '2px solid ' + (data.settings.theme === t.id ? 'var(--accent)' : 'var(--border-soft)'),
+                  border: '2px solid ' + (!data.settings.customTheme && data.settings.theme === t.id ? 'var(--accent)' : 'var(--border-soft)'),
                   borderRadius: 'var(--radius-lg)',
                   padding: 8,
                   cursor: 'pointer',
@@ -77,6 +78,7 @@ export default function SettingsView() {
                 <span className="small strong">{t.name}</span>
               </button>
             ))}
+            <СвоиОформленія size={0.9} />
           </div>
           <div className="faint small" style={{ marginBottom: 16, lineHeight: 1.5 }}>
             {THEMES.find((t) => t.id === data.settings.theme)?.about}

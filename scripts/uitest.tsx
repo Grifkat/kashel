@@ -1048,6 +1048,91 @@ async function rightPanel() {
 }
 
 /*
+ * Конструктор оформления.
+ *
+ * Собираем свою тему в простом режиме, сохраняем — переменные ложатся на
+ * корень, в галерее появляется карточка. Выбор встроенной темы свою снимает
+ * и переменные убирает. И отдельно — окно поверх окна: конструктор,
+ * открытый из галереи «Оформление», закрывается по Escape один, галерея
+ * под ним остаётся.
+ */
+async function конструкторъОформленія() {
+  console.log('\n— конструктор оформления —')
+  await open('Настройки')
+  const новая = document.querySelector('.svoya-tema-new') as any
+  check('в галерее есть «Своё оформление»', !!новая)
+  click(новая)
+  await wait(400)
+  const окно = () => [...document.querySelectorAll('.modal')].find((м) => м.querySelector('.konstruktor')) as HTMLElement | undefined
+  check('конструктор открылся', !!окно())
+  const превью = () => окно()?.querySelector('.konstruktor-preview') as HTMLElement | null
+  check('предпросмотр с настоящей карточкой и кнопкой', !!превью()?.querySelector('.card') && !!превью()?.querySelector('.btn.primary'))
+
+  const setInput = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!
+  const вписать = async (подпись: string, v: string) => {
+    const поле = [...(окно()?.querySelectorAll('.konstruktor-list label.field') ?? [])]
+      .find((l) => (l.querySelector('span')?.textContent || '').startsWith(подпись))?.querySelector('input[type="text"]') as any
+    /*
+     * Поля конструктора живут в портале, и старый путь ввода React в этой
+     * оснастке (загружен раньше jsdom) до них не доходит — ни событием
+     * input, ни фокусом с нажатием. Поэтому, как с редактором канваса,
+     * зовём обработчик поля напрямую: он получает то же значение, что от
+     * набора с клавиатуры.
+     */
+    setInput.call(поле, v)
+    const пропсы = поле[Object.keys(поле).find((k) => k.startsWith('__reactProps')) as string]
+    пропсы?.onChange?.({ target: поле, currentTarget: поле })
+    await wait(80)
+  }
+  await вписать('Фон окна', '#f4f4f5')
+  await вписать('Карточки', '#ffffff')
+  await вписать('Текст', '#26262a')
+  await вписать('Акцент', '#ffd700')
+  await wait(200)
+  check('предпросмотр получил цвета', превью()?.style.getPropertyValue('--bg') === '#f4f4f5' && превью()?.style.getPropertyValue('--accent') === '#ffd700',
+    `${превью()?.style.getPropertyValue('--bg')} ${превью()?.style.getPropertyValue('--accent')}`)
+  check('а само окно — ещё нет', document.documentElement.style.getPropertyValue('--bg') !== '#f4f4f5')
+  check('жёлтым по белому не пишет: акцентные буквы — цвет заголовков',
+    превью()?.style.getPropertyValue('--accent-ink') !== '#ffd700' && !!превью()?.style.getPropertyValue('--accent-ink'))
+
+  click([...(окно()?.querySelectorAll('.modal-foot .btn') ?? [])].find((б) => (б.textContent || '').includes('Сохранить и включить')))
+  await wait(600)
+  const root = document.documentElement
+  check('конструктор закрылся', !окно())
+  check('своя тема включилась — переменные на корне', root.style.getPropertyValue('--bg') === '#f4f4f5', root.style.getPropertyValue('--bg'))
+  check('и буквы на акценте заданы', root.hasAttribute('data-accent-text'))
+  const сохранено = (await loadVault()).settings
+  check('тема сохранилась в настройках', (сохранено.customThemes ?? []).length === 1 && сохранено.customTheme === сохранено.customThemes?.[0].id)
+  check('в галерее карточка своей темы', document.querySelectorAll('.svoya-tema').length === 1)
+
+  // --- окно поверх окна
+  const ribbonTheme = [...document.querySelectorAll('.ribbon-btn')].find((б) => (б.getAttribute('title') || '').startsWith('Оформление')) as any
+  check('кнопка в ленте называет свою тему', /Моя тема/.test(ribbonTheme?.getAttribute('title') || ''), ribbonTheme?.getAttribute('title')?.slice(0, 30))
+  click(ribbonTheme)
+  await wait(400)
+  const галерея = () => [...document.querySelectorAll('.modal')].find((м) => /Анимации/.test(м.textContent || '') && !м.querySelector('.konstruktor'))
+  check('галерея «Оформление» открылась', !!галерея())
+  click(галерея()?.querySelector('.svoya-tema .icon-btn'))
+  await wait(400)
+  check('поверх неё — конструктор', !!окно() && !!галерея())
+  key('Escape')
+  await wait(400)
+  check('Escape закрыл только конструктор', !окно() && !!галерея())
+  key('Escape')
+  await wait(400)
+  check('второй Escape — галерею', !галерея())
+
+  // --- встроенная тема снимает свою
+  await open('Настройки')
+  const обсидианъ = [...document.querySelectorAll('.view button')].find((б) => (б.textContent || '').trim() === 'Обсидиан') as any
+  click(обсидианъ)
+  await wait(400)
+  check('встроенная тема сняла свою', !(await loadVault()).settings.customTheme)
+  check('и убрала её переменные с корня', root.style.getPropertyValue('--bg') === '' && !root.hasAttribute('data-accent-text'),
+    root.style.getPropertyValue('--bg'))
+}
+
+/*
  * Пополнение цели из окна.
  *
  * Ровно то, что не работало у человека: «Пополнить» открывало форму перевода
@@ -1780,6 +1865,7 @@ async function main() {
   await пончикъ()
   await недѣляИКалендарикъ()
   await пополненіеЦѣли()
+  await конструкторъОформленія()
   await themes()
   await cardGlare()
   await canvasBoard()
