@@ -56,11 +56,11 @@ export function RightPanel({ open }: { open: boolean }) {
 
   return (
     <div className="rightbar">
+      {/* Кнопки «скрыть» здѣсь нет: правую панель прячет и возвращает одна
+          кнопка ≡ в полосе вкладок. Две кнопки на одно действие только
+          заставляли гадать, чем они отличаются. */}
       <div className="sidebar-head">
         <span>Сводка</span>
-        <button className="icon-btn" onClick={app.toggleRight} title="Скрыть (Ctrl+I)">
-          <Icon name="right" size={14} />
-        </button>
       </div>
       <div className="sidebar-body" style={{ padding: 12, display: 'flex', flexDirection: 'column', gap: 14 }}>
         <div className="card tight">

@@ -61,6 +61,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
   height: 100%;
   background: var(--bg);
 }
+/*
+ * Каждая часть окна прибита к своей колонке.
+ *
+ * Без этого сетка раскладывает детей по порядку, и спрятанная левая панель
+ * (display: none) из порядка выпадает: основная область съезжает в её узкую
+ * колонку «auto» и сжимается до двухсот точек, а правая панель занимает
+ * место основной. Проверено вживую — именно это и выглядело как «всё
+ * сломалось». Прибитые колонки просто схлопываются до нуля, когда пусты.
+ */
+.app > .ribbon { grid-column: 1; grid-row: 1; }
+.app > .sidebar { grid-column: 2; grid-row: 1; }
+.app > .main { grid-column: 3; grid-row: 1; }
+.app > .rightbar { grid-column: 4; grid-row: 1; }
 
 .ribbon {
   grid-row: 1 / 2;
@@ -153,6 +166,52 @@ button, input, select, textarea { font: inherit; color: inherit; }
   font-weight: 600;
   color: var(--faint);
 }
+
+/*
+ * Сворачиваемая группа.
+ *
+ * Заголовок — кнопка во всю ширину: попасть в мелкую стрелку мышью труднее,
+ * чем в строку. Стрелка поворачивается, а не меняется на другую, — глаз
+ * читает поворот как «то же самое, но закрыто».
+ *
+ * Высота анимируется через строки сетки 0fr → 1fr: так содержимое плавно
+ * сворачивается без замера высоты в JS. Пункты при этом остаются в
+ * разметке — клавиатура до них не доходит благодаря inert.
+ */
+button.nav-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  border: none;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--faint);
+  transition: color var(--tr);
+}
+button.nav-group:hover { color: var(--muted); }
+button.nav-group .nav-chev {
+  margin-left: auto;
+  opacity: 0;
+  transition: transform 180ms ease, opacity var(--tr);
+}
+.sidebar-body:hover button.nav-group .nav-chev,
+button.nav-group:focus-visible .nav-chev,
+.nav-block.svernuta button.nav-group .nav-chev { opacity: 1; }
+.nav-block.svernuta button.nav-group .nav-chev { transform: rotate(-90deg); }
+
+.nav-items {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows 220ms ease;
+}
+.nav-items > div { min-height: 0; overflow: hidden; }
+.nav-block.svernuta .nav-items { grid-template-rows: 0fr; }
 
 .main {
   display: flex;

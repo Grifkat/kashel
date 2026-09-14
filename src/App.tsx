@@ -505,6 +505,17 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
 
   return (
     <div className="ribbon">
+      {/* Единственная кнопка левой панели — и в ленте, а не на самой панели:
+          кнопка, которая прячется вместе с тем, что прячет, вернуть его уже
+          не может. Так и было: свернул — и развернуть нечем. */}
+      <button
+        className="ribbon-btn"
+        title={app.sidebarOpen ? 'Скрыть левую панель (Ctrl+B)' : 'Показать левую панель (Ctrl+B)'}
+        aria-pressed={app.sidebarOpen}
+        onClick={app.toggleSidebar}
+      >
+        <Icon name={app.sidebarOpen ? 'left' : 'right'} size={17} />
+      </button>
       {/* Подсказка называет дату, когда она не сегодняшняя: с ленты не
           видно, какой период открыт на вкладке. */}
       <button
@@ -556,6 +567,9 @@ function Sidebar() {
   const app = useApp()
   const { data } = useStore()
   const обновленіе = useЕстьОбновленіе()
+  // Хук стоит выше раннего выхода: иначе при скрытии панели число хуков
+  // менялось бы между отрисовками, и React ронял бы окно.
+  const [свёрнуты, поставитьСвёрнуты] = useСвёрнутыеГруппы()
   if (!app.sidebarOpen) return <div className="sidebar hidden" />
 
   const groups: { title: string; items: ViewId[] }[] = [
@@ -576,35 +590,89 @@ function Sidebar() {
     tasks: (data.tasks ?? []).filter((t) => !t.done).length,
   }
 
+  const всеСвёрнуты = groups.every((g) => свёрнуты.has(g.title))
+
   return (
     <div className="sidebar">
+      {/* Кнопки «скрыть панель» здѣсь больше нет: она живёт в ленте слева,
+          одна на панель и всегда на виду. Прежняя стрелка прятала панель
+          вместе с собой, и вернуть её можно было только Ctrl+B. */}
       <div className="sidebar-head">
         <ShinyText speed={7}>Кошель</ShinyText>
-        <button className="icon-btn" title="Скрыть панель (Ctrl+B)" onClick={app.toggleSidebar}>
-          <Icon name="left" size={14} />
+        <button
+          className="icon-btn"
+          title={всеСвёрнуты ? 'Развернуть все группы' : 'Свернуть все группы'}
+          onClick={() => поставитьСвёрнуты(всеСвёрнуты ? new Set() : new Set(groups.map((g) => g.title)))}
+        >
+          <Icon name={всеСвёрнуты ? 'down' : 'up'} size={14} />
         </button>
       </div>
       <div className="sidebar-body">
-        {groups.map((g) => (
-          <div key={g.title}>
-            <div className="nav-group">{g.title}</div>
-            {g.items.map((v) => (
+        {groups.map((g) => {
+          const свёрнута = свёрнуты.has(g.title)
+          return (
+            <div key={g.title} className={'nav-block' + (свёрнута ? ' svernuta' : '')}>
               <button
-                key={v}
-                className={'nav-item' + (app.activeTab?.view === v && !app.activeTab?.arg ? ' active' : '')}
-                onClick={() => app.openTab(v)}
+                className="nav-group"
+                aria-expanded={!свёрнута}
+                onClick={() => {
+                  const н = new Set(свёрнуты)
+                  if (свёрнута) н.delete(g.title)
+                  else н.add(g.title)
+                  поставитьСвёрнуты(н)
+                }}
               >
-                <Icon name={VIEW_META[v].icon} size={15} />
-                <span>{VIEW_META[v].title}</span>
-                {counts[v] != null && <span className="count">{counts[v]}</span>}
-                {v === 'settings' && обновленіе && <span className="nav-dot" title="Есть новая версия" />}
+                {g.title}
+                <span className="nav-chev"><Icon name="down" size={12} /></span>
               </button>
-            ))}
-          </div>
-        ))}
+              <div className="nav-items">
+                {/* inert: свёрнутые пункты остаются в разметке ради плавной
+                    анимации, но Tab по ним ходить не должен. */}
+                <div {...(свёрнута ? { inert: '' } : {})}>
+                  {g.items.map((v) => (
+                    <button
+                      key={v}
+                      className={'nav-item' + (app.activeTab?.view === v && !app.activeTab?.arg ? ' active' : '')}
+                      onClick={() => app.openTab(v)}
+                    >
+                      <Icon name={VIEW_META[v].icon} size={15} />
+                      <span>{VIEW_META[v].title}</span>
+                      {counts[v] != null && <span className="count">{counts[v]}</span>}
+                      {v === 'settings' && обновленіе && <span className="nav-dot" title="Есть новая версия" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )
+}
+
+/*
+ * Какие группы свёрнуты — помнится между запусками.
+ *
+ * Хранится в localStorage, а не в хранилище: это привычка окна, а не данные
+ * о деньгах, и уезжать вместе с ними в облако на другой компьютер ей незачем.
+ */
+const ГДѢ_СВЁРНУТЫ = 'kashel:свёрнутыеГруппы'
+
+function useСвёрнутыеГруппы(): [Set<string>, (н: Set<string>) => void] {
+  const [свёрнуты, setСвёрнуты] = useState<Set<string>>(() => {
+    try {
+      const сырое = localStorage.getItem(ГДѢ_СВЁРНУТЫ)
+      return new Set(сырое ? (JSON.parse(сырое) as string[]) : [])
+    } catch {
+      return new Set()
+    }
+  })
+  const поставить = useCallback((н: Set<string>) => {
+    setСвёрнуты(н)
+    try { localStorage.setItem(ГДѢ_СВЁРНУТЫ, JSON.stringify([...н])) } catch { /* приватное окно */ }
+  }, [])
+  return [свёрнуты, поставить]
 }
 
 // ---------------------------------------------------------------- вьюхи

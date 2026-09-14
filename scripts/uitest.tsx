@@ -934,6 +934,71 @@ async function rightPanel() {
   check('содержимое панели на месте', text().includes('Сводка'))
   check('переключение обошлось без ошибок', renderErrors.length === before,
     renderErrors.slice(before).map((e) => e.slice(0, 80)).join(' | '))
+
+  /*
+   * Одна кнопка на панель.
+   *
+   * Прежде «Сводку» прятали две кнопки — ≡ в полосе вкладок и › в шапке самой
+   * панели, — и человѣкъ спрашивал, чем они отличаются. Ничем. Остаётся ≡:
+   * она видна и при скрытой панели, а значит, ею же панель и возвращается.
+   */
+  check('в шапке «Сводки» своей кнопки скрытия нет',
+    document.querySelectorAll('.rightbar .sidebar-head button').length === 0)
+}
+
+/*
+ * Левая панель: скрыть и вернуть.
+ *
+ * Прежняя кнопка скрытия жила на самой панели и пропадала вместе с ней —
+ * вернуть панель было нечем, кроме Ctrl+B, о котором никто не знает.
+ * Раскладку окна (что основная область не съезжает в узкую колонку) jsdom
+ * не мерит — это стережёт самопроверка по правилам CSS.
+ */
+async function leftPanel() {
+  console.log('\n— левая панель —')
+  await open('Дашборд')
+  const тумблеръ = () =>
+    [...document.querySelectorAll('.ribbon-btn')].find((b) => /левую панель/.test(b.getAttribute('title') || '')) as any
+
+  check('кнопка левой панели в ленте', !!тумблеръ(), тумблеръ()?.getAttribute('title'))
+  check('на самой панели кнопки скрытия нет',
+    ![...document.querySelectorAll('.sidebar .sidebar-head button')].some((b) => /Скрыть/.test(b.getAttribute('title') || '')))
+
+  const before = renderErrors.length
+  click(тумблеръ())
+  await wait(300)
+  check('панель скрылась', !!document.querySelector('.sidebar.hidden'))
+  check('а кнопка вернуть осталась на виду', !!тумблеръ(), тумблеръ()?.getAttribute('title'))
+
+  click(тумблеръ())
+  await wait(300)
+  check('панель вернулась', !!document.querySelector('.sidebar:not(.hidden) .nav-item'))
+  check('без ошибок отрисовки', renderErrors.length === before)
+
+  // --- группы
+  localStorage.removeItem('kashel:свёрнутыеГруппы')
+  const заголовокъ = (имя: string) =>
+    [...document.querySelectorAll('button.nav-group')].find((b) => (b.textContent || '').includes(имя)) as any
+  const блокъ = (имя: string) => заголовокъ(имя)?.closest('.nav-block')
+
+  click(заголовокъ('Анализ'))
+  await wait(250)
+  check('«Анализ» свернулся', блокъ('Анализ')?.classList.contains('svernuta') === true)
+  check('остальные открыты', !блокъ('Учёт')?.classList.contains('svernuta'))
+  check('пункты свёрнутой группы недоступны с клавиатуры',
+    блокъ('Анализ')?.querySelector('.nav-items > div')?.hasAttribute('inert') === true)
+  check('и это запомнено', (localStorage.getItem('kashel:свёрнутыеГруппы') || '').includes('Анализ'))
+
+  const всеКнопка = () => document.querySelector('.sidebar .sidebar-head .icon-btn') as any
+  click(всеКнопка())
+  await wait(250)
+  const всѣ = [...document.querySelectorAll('.nav-block')]
+  check('«свернуть все» свернула все', всѣ.length === 5 && всѣ.every((b) => b.classList.contains('svernuta')), String(всѣ.length))
+  check('и кнопка теперь разворачивает', /Развернуть/.test(всеКнопка()?.getAttribute('title') || ''))
+
+  click(всеКнопка())
+  await wait(250)
+  check('«развернуть все» развернула все', [...document.querySelectorAll('.nav-block')].every((b) => !b.classList.contains('svernuta')))
 }
 
 /** Оформление: галерея открывается, все шесть тем применяются к корню документа. */
@@ -1429,6 +1494,7 @@ async function main() {
   await updates()
   await besjeda()
   await rightPanel()
+  await leftPanel()
   await themes()
   await cardGlare()
   await canvasBoard()
