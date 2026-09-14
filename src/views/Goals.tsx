@@ -12,6 +12,7 @@ import { addMonths, diffMonths, humanDate, today } from '../lib/date'
 import { balances } from '../engine/stats'
 import { Avatar, ColorPicker, Confirm, Field, IconPicker, Modal, MoneyInput, Toggle, useToast } from '../components/ui'
 import type { Goal } from '../lib/types'
+import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../engine/goals'
 
 export default function Goals() {
   const app = useApp()
@@ -20,6 +21,7 @@ export default function Goals() {
   const toast = useToast()
   const [edit, setEdit] = useState<Goal | null>(null)
   const [del, setDel] = useState<Goal | null>(null)
+  const [пополнить, setПополнить] = useState<{ goal: Goal; suggested: number } | null>(null)
 
   const bal = balances(data.accounts, data.transactions)
   const free = fc.avgNet
@@ -137,20 +139,11 @@ export default function Goals() {
               )}
 
               <div className="row" style={{ marginTop: 12, gap: 6 }}>
-                {!g.done && need != null && (
-                  <button
-                    className="btn sm"
-                    onClick={() =>
-                      app.editTransaction({
-                        kind: 'transfer',
-                        amount: need,
-                        toAccountId: g.accountId,
-                        goalId: g.id,
-                        note: 'В цель: ' + g.name,
-                      })
-                    }
-                  >
-                    <Icon name="plus" size={13} /> Пополнить на {money(need)}
+                {/* Кнопка есть у любой открытой цели, а не только у цели со
+                    сроком: цель «без срока» тоже копится. */}
+                {!g.done && left > 0 && (
+                  <button className="btn sm" onClick={() => setПополнить({ goal: g, suggested: Math.min(need ?? left, left) })}>
+                    <Icon name="plus" size={13} /> {need != null ? `Пополнить на ${money(Math.min(need, left))}` : 'Пополнить'}
                   </button>
                 )}
                 <button className="btn sm ghost" onClick={() => upsertGoal({ ...g, done: !g.done })}>
@@ -182,6 +175,10 @@ export default function Goals() {
           }}
         />
       )}
+      {пополнить && (
+        <ПополнениеЦели goal={пополнить.goal} suggested={пополнить.suggested} onClose={() => setПополнить(null)} />
+      )}
+
       {del && (
         <Confirm
           title={`Удалить цель «${del.name}»?`}
@@ -191,6 +188,93 @@ export default function Goals() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Окно «Пополнить цель».
+ *
+ * Прежде кнопка открывала форму перевода со счёта на счёт — и у цели без
+ * счёта перевести было некуда: форма требовала второй счёт и не давала
+ * сохранить. Пополнить цель было нельзя вовсе.
+ */
+function ПополнениеЦели({ goal, suggested, onClose }: { goal: Goal; suggested: number; onClose: () => void }) {
+  const { data, upsertGoal, upsertCategory, addTransaction } = useStore()
+  const toast = useToast()
+  const привязана = !!goal.accountId
+  const счётЦели = data.accounts.find((a) => a.id === goal.accountId)
+  const источники = data.accounts.filter((a) => !a.archived && a.id !== goal.accountId)
+  const [сумма, setСумма] = useState<number>(suggested)
+  const [дата, setДата] = useState(today())
+  const [списать, setСписать] = useState(привязана)
+  const [счётъ, setСчётъ] = useState(источники.find((a) => !a.project)?.id ?? источники[0]?.id ?? '')
+
+  const планъ = планъПополненія(goal, сумма, дата, списать ? { счётъ } : null, data.categories.some((c) => c.id === СТАТЬЯ_ЦЕЛЕЙ.id))
+  const можно = !!(планъ.цель || планъ.операція)
+
+  const сохранить = () => {
+    if (!можно) return
+    if (планъ.статья) upsertCategory(планъ.статья)
+    if (планъ.цель) upsertGoal(планъ.цель)
+    if (планъ.операція) addTransaction(планъ.операція)
+    toast(`Цель «${goal.name}» пополнена на ${money(сумма)}`)
+    onClose()
+  }
+
+  return (
+    <Modal
+      title={`Пополнить цель «${goal.name}»`}
+      icon="target"
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn" onClick={onClose}>Отмена</button>
+          <button className="btn primary" disabled={!можно} onClick={сохранить}>Пополнить</button>
+        </>
+      }
+    >
+      <div className="grid c2">
+        <Field label="Сумма">
+          <MoneyInput value={сумма || undefined} onChange={(v) => setСумма(v)} />
+        </Field>
+        <Field label="Дата">
+          <DateField value={дата} onChange={setДата} />
+        </Field>
+      </div>
+
+      {привязана ? (
+        <>
+          <div className="faint small" style={{ margin: '10px 0', lineHeight: 1.55 }}>
+            Эта цель — счёт «{счётЦели?.name}»: сколько на нём лежит, столько и накоплено. Поэтому деньги
+            переводятся на него с другого счёта, иначе цифры цели и счёта разойдутся.
+          </div>
+          <Field label="Откуда">
+            <select value={счётъ} onChange={(e) => setСчётъ(e.target.value)} disabled={!источники.length}>
+              {источники.map((a) => <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>)}
+            </select>
+          </Field>
+          {!источники.length && <div className="neg small">Другого счёта нет — переводить неоткуда.</div>}
+        </>
+      ) : (
+        <>
+          <div style={{ margin: '12px 0 8px' }}>
+            <Toggle checked={списать} onChange={setСписать} label="Вычесть эти деньги со счёта" />
+          </div>
+          {списать && (
+            <>
+              <Field label="С какого счёта">
+                <select value={счётъ} onChange={(e) => setСчётъ(e.target.value)} disabled={!источники.length}>
+                  {источники.map((a) => <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>)}
+                </select>
+              </Field>
+              <div className="faint small" style={{ marginTop: 6, lineHeight: 1.55 }}>
+                Со счёта спишется {money(сумма || 0)} расходом по статье «Цели» — в тратах месяца это будет видно.
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </Modal>
   )
 }
 

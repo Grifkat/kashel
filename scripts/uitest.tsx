@@ -1032,6 +1032,61 @@ async function rightPanel() {
 }
 
 /*
+ * Пополнение цели из окна.
+ *
+ * Ровно то, что не работало у человека: «Пополнить» открывало форму перевода
+ * со счёта на счёт, и цель без счёта пополнить было нечем.
+ */
+async function пополненіеЦѣли() {
+  console.log('\n— пополнение цели —')
+  const окно = () => document.querySelector('.modal')
+  const кнопкаЦели = (имя: string) => {
+    const карточка = [...document.querySelectorAll('.view .card')].find((к) => к.querySelector('.strong')?.textContent === имя)
+    return [...(карточка?.querySelectorAll('.btn') ?? [])].find((б) => (б.textContent || '').includes('Пополнить')) as any
+  }
+  const подтвердить = async () => {
+    click([...(окно()?.querySelectorAll('.modal-foot .btn') ?? [])].find((б) => (б.textContent || '').trim() === 'Пополнить'))
+    await wait(1300)
+  }
+
+  // --- цель без счёта: ровно случай со скриншота
+  await open('Цели')
+  const безъСчёта = 'Подушка безопасности'
+  const было = (await loadVault()).goals.find((г) => г.name === безъСчёта)!
+  const операцийБыло = (await loadVault()).transactions.length
+  check('у цели без счёта есть «Пополнить»', !!кнопкаЦели(безъСчёта))
+  click(кнопкаЦели(безъСчёта))
+  await wait(400)
+  check('открылось окно пополнения, а не форма перевода',
+    /Пополнить цель/.test(окно()?.textContent || '') && !/На счёт/.test(окно()?.textContent || ''))
+  const тумблеръ = [...(окно()?.querySelectorAll('button.row') ?? [])].find((б) => (б.textContent || '').includes('Вычесть')) as any
+  check('есть галочка «Вычесть со счёта»', !!тумблеръ)
+  click(тумблеръ)
+  await wait(200)
+  check('после галочки появился выбор счёта', /С какого счёта/.test(окно()?.textContent || ''))
+  await подтвердить()
+  check('окно закрылось', !окно())
+  const стало = await loadVault()
+  const цель = стало.goals.find((г) => г.id === было.id)
+  check('цель выросла', (цель?.saved ?? 0) > (было.saved ?? 0), `${было.saved} → ${цель?.saved}`)
+  const расходъ = стало.transactions.find((т) => т.goalId === было.id && т.kind === 'expense')
+  check('появился расход по статье «Цели»', !!расходъ && расходъ.categoryId === 'cat_goals')
+  check('и сама статья «Цели» появилась', стало.categories.some((к) => к.id === 'cat_goals'))
+  check('ровно одна новая операция', стало.transactions.length === операцийБыло + 1, `${операцийБыло} → ${стало.transactions.length}`)
+
+  // --- цель со счётом: перевод на её счёт, без формы операции
+  await open('Цели')
+  const соСчётомъ = 'Челяба фонд'
+  const фондъ = стало.goals.find((г) => г.name === соСчётомъ)!
+  click(кнопкаЦели(соСчётомъ))
+  await wait(400)
+  check('цель со счётом: спрашивает, откуда перевести', /Откуда/.test(окно()?.textContent || ''))
+  await подтвердить()
+  check('появился перевод на счёт цели',
+    (await loadVault()).transactions.some((т) => т.goalId === фондъ.id && т.kind === 'transfer' && т.toAccountId === фондъ.accountId))
+}
+
+/*
  * Неделя с любого дня: настройка меняет календарик в поле даты.
  *
  * Выбираем среду в настройках и открываем календарик в окне операции: шапка
@@ -1708,6 +1763,7 @@ async function main() {
   await значкиВъСпискахъ()
   await пончикъ()
   await недѣляИКалендарикъ()
+  await пополненіеЦѣли()
   await themes()
   await cardGlare()
   await canvasBoard()
