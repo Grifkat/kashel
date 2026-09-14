@@ -282,12 +282,11 @@ export function TransactionModal({
                   }}
                 >
                   <Avatar icon={c.icon} color={c.color} />
-                  {/* Длинное название переносится по словам: «Благотворительность»
-                      прежде обрезалась на полуслове. */}
-                  <span style={{
-                    fontSize: 11.5, textAlign: 'center', lineHeight: 1.15,
-                    overflowWrap: 'anywhere', hyphens: 'auto',
-                  }}>{c.name}</span>
+                  {/* Перенос здѣсь уже был прописан, но не работал: плитка — это
+                      .btn, у кнопок white-space: nowrap, и он наследовался
+                      подписью. «Татьяна. Режиссура и страницы» уезжала на
+                      соседнюю плитку. Полное имя — во всплывающей подсказке. */}
+                  <span className="tile-name" title={c.name}>{c.name}</span>
                 </button>
               ))}
               {cats.length > 11 && (

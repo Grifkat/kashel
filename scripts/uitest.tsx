@@ -13,6 +13,7 @@ import { Boundary } from '../src/components/Boundary'
 import { applyArchive, archiveText, buildArchive, parseArchive } from '../src/engine/archive'
 import { bridge, listCanvases, listNotes, loadVault, readCanvas, saveCore, saveTransactions, writeCanvas } from '../src/state/vault'
 import { Obnovlenie, попроситьПроверку } from '../src/components/Obnovlenie'
+import { Donut } from '../src/components/charts'
 import { addMonths, endOfMonth, humanDate, MONTHS_SHORT, parseISO, relDate, today } from '../src/lib/date'
 import type { VaultData } from '../src/lib/types'
 
@@ -947,6 +948,55 @@ async function rightPanel() {
 }
 
 /*
+ * Пончик: выделенный кусок помещается в рисунок и выделяется по наведению.
+ *
+ * Раньше радиус считался впритык к краю, выделенный кусок толстел на 6 точек
+ * и срезался границей SVG. Раскладку jsdom не мерит, но атрибуты SVG — числа,
+ * и геометрию можно проверить честно: наружный край выделенного куска
+ * r + ширина/2 не больше половины рисунка.
+ */
+async function пончикъ() {
+  console.log('\n— пончик —')
+  const holder = document.createElement('div')
+  document.body.appendChild(holder)
+  const r = createRoot(holder)
+  let наведено: string | undefined = 'ещё не было'
+  r.render(
+    <Donut
+      size={250}
+      thickness={34}
+      slices={[
+        { id: 'а', label: 'Аренда', value: 3500000, color: '#8b0000' },
+        { id: 'б', label: 'Продукты', value: 1800000, color: '#e8b83a' },
+        { id: 'в', label: 'Досуг', value: 900000, color: '#d4569f' },
+      ]}
+      onHover={(id) => { наведено = id }}
+    />,
+  )
+  await wait(80)
+  const svg = holder.querySelector('svg')!
+  const s0 = Number(svg.getAttribute('width'))
+  const куски = [...holder.querySelectorAll('circle')].filter((c) => (c.getAttribute('stroke') || '').startsWith('#'))
+  check('куски нарисованы', куски.length === 3)
+
+  куски[0].dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true }))
+  await wait(60)
+  const рад = Number(куски[0].getAttribute('r'))
+  const шир = Number(куски[0].getAttribute('stroke-width'))
+  check('кусок под курсором потолстел', шир > 34, String(шир))
+  check('и не вылез за рисунок', рад + шир / 2 <= s0 / 2 + 0.01, `край ${рад + шир / 2} из ${s0 / 2}`)
+  check('остальные приглушены', куски.slice(1).every((c) => (c as any).style.opacity === '0.35'))
+  check('наведение сообщено наружу', наведено === 'а', String(наведено))
+
+  куски[0].dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true }))
+  await wait(60)
+  check('увёл курсор — выделение снято', Number(куски[0].getAttribute('stroke-width')) === 34 && наведено === undefined)
+
+  r.unmount()
+  holder.remove()
+}
+
+/*
  * В выпадающих списках нет служебных имён значков.
  *
  * Было «shopping-basket Продукты» — человек принял это за перевод. Проверяется
@@ -1512,6 +1562,7 @@ async function main() {
   await rightPanel()
   await leftPanel()
   await значкиВъСпискахъ()
+  await пончикъ()
   await themes()
   await cardGlare()
   await canvasBoard()

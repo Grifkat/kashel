@@ -39,6 +39,9 @@ export default function Dashboard() {
   const [accountId, setAccountId] = useState<string>('__all__')
   const [pickAccount, setPickAccount] = useState(false)
   const [activeCat, setActiveCat] = useState<string | undefined>()
+  // Кусок под курсором показывается в середине сразу, не дожидаясь щелчка.
+  const [hoverCat, setHoverCat] = useState<string | undefined>()
+  const centerCat = hoverCat ?? activeCat
   // null — диалога нет; иначе какая из двух кнопок его открыла.
   const [confirmWipe, setConfirmWipe] = useState<'expense' | 'income' | 'all' | null>(null)
   // Удалённый пакет держим в памяти сеанса, чтобы промах можно было отменить.
@@ -324,6 +327,7 @@ export default function Dashboard() {
             thickness={34}
             activeId={activeCat}
             onSelect={setActiveCat}
+            onHover={setHoverCat}
             center={
               <div>
                 {sumSide === 0 ? (
@@ -333,10 +337,10 @@ export default function Dashboard() {
                 ) : (
                   <>
                     <div className="num" style={{ fontSize: 25, fontWeight: 650, color: 'var(--text-strong)' }}>
-                      {hidden ? '••••' : <Money value={activeCat ? totals.find((t) => t.categoryId === activeCat)?.amount ?? 0 : sumSide} />}
+                      {hidden ? '••••' : <Money value={centerCat ? totals.find((t) => t.categoryId === centerCat)?.amount ?? 0 : sumSide} />}
                     </div>
                     <div className="faint small">
-                      {activeCat ? catById.get(activeCat)?.name : side === 'expense' ? 'расходы' : 'доходы'}
+                      {centerCat ? catById.get(centerCat)?.name : side === 'expense' ? 'расходы' : 'доходы'}
                     </div>
                   </>
                 )}

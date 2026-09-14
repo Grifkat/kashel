@@ -182,7 +182,7 @@ export function QuickAdd({
                 onClick={() => setPickedCat(categoryId === c.id ? undefined : c.id)}
               >
                 <Avatar icon={c.icon} color={c.color} />
-                <span className="qa-tile-name">{c.name}</span>
+                <span className="qa-tile-name" title={c.name}>{c.name}</span>
               </button>
               {allCats && (
                 <button

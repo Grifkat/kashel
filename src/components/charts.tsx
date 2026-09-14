@@ -43,12 +43,23 @@ export interface Slice {
   color: string
 }
 
+/*
+ * На сколько точек толстеет выделенный кусок.
+ *
+ * Запас под эту толщину обязан быть заложен в радиус. Раньше радиус считался
+ * впритык к краю рисунка, выделенный кусок вырастал на 6 точек — и его
+ * наружный край срезался границей SVG. Именно это и было видно на дашборде:
+ * тёмно-красный кусок «Аренды» обрубался справа.
+ */
+const ВЫРОСТЪ = 8
+
 export function Donut({
   slices,
   size = 240,
   thickness = 30,
   center,
   onSelect,
+  onHover,
   activeId,
 }: {
   slices: Slice[]
@@ -56,16 +67,28 @@ export function Donut({
   thickness?: number
   center?: React.ReactNode
   onSelect?: (id: string | undefined) => void
+  /** Кусок под курсором — чтобы середина могла показать его сумму сразу, без щелчка. */
+  onHover?: (id: string | undefined) => void
   activeId?: string
 }) {
   const [ref, box] = useSize<HTMLDivElement>()
+  const [подъКурсоромъ, setПодъКурсоромъ] = useState<string | undefined>()
   // size — это «не больше», а не «ровно столько»: в узкой колонке бублик
   // ужимается, но не мельче 120px, иначе дырка с суммой схлопывается.
   const s0 = box.w ? Math.max(120, Math.min(size, box.w)) : size
   const th = Math.max(12, thickness * (s0 / size))
   const total = slices.reduce((s, x) => s + x.value, 0)
-  const r = (s0 - th) / 2
+  // Наружный край выделенного куска: r + (th + ВЫРОСТЪ) / 2 — должен
+  // уместиться в половину рисунка, иначе его срежет граница.
+  const r = (s0 - th - ВЫРОСТЪ) / 2
   const c = s0 / 2
+  // Наведение важнее щелчка, пока курсор на рисунке: так выделение
+  // откликается сразу, а выбранный щелчком кусок возвращается, когда уводишь.
+  const выдѣленъ = подъКурсоромъ ?? activeId
+  const навести = (id: string | undefined) => {
+    setПодъКурсоромъ(id)
+    onHover?.(id)
+  }
   let offset = 0
 
   return (
@@ -86,16 +109,18 @@ export function Donut({
               r={r}
               fill="none"
               stroke={s.color}
-              strokeWidth={activeId && activeId === s.id ? th + 6 : th}
+              strokeWidth={выдѣленъ && выдѣленъ === s.id ? th + ВЫРОСТЪ : th}
               pathLength={100}
               strokeDasharray={`${dash} ${100 - dash}`}
               strokeDashoffset={-offset}
               style={{
                 cursor: onSelect ? 'pointer' : 'default',
-                opacity: activeId && activeId !== s.id ? 0.35 : 1,
-                transition: 'opacity 120ms ease, stroke-width 120ms ease',
+                opacity: выдѣленъ && выдѣленъ !== s.id ? 0.35 : 1,
+                transition: 'opacity 180ms ease, stroke-width 180ms ease',
               }}
               onClick={() => onSelect?.(activeId === s.id ? undefined : s.id)}
+              onMouseEnter={() => навести(s.id)}
+              onMouseLeave={() => навести(undefined)}
             />
           )
           offset += share

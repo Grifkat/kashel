@@ -1046,14 +1046,29 @@ kbd {
 }
 .qa-tile-btn:hover { background: var(--hover); }
 .qa-tile.on .qa-tile-btn { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+/*
+ * Подпись под значком в плитке категории.
+ *
+ * Две строки с многоточием, а не одна: имена вроде «Татьяна. Режиссура и
+ * страницы» в одну строку плитки шириной 84 точки не влезают никак, а
+ * обрезанное на первом слове «Татьяна…» не отличить от других «Татьян».
+ *
+ * white-space: normal обязателен — плитка часто .btn, а у кнопок nowrap
+ * наследуется подписью и молча отключает перенос.
+ */
+.tile-name,
 .qa-tile-name {
   font-size: 11.5px;
   line-height: 1.2;
   text-align: center;
   max-width: 100%;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  hyphens: auto;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
 /* Кнопка «закрепить» появляется только в развёрнутом списке: в свёрнутом
