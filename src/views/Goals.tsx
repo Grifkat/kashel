@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { сЗначкомъ } from '../lib/catalog'
 import { Money } from '../components/anim'
@@ -229,7 +230,7 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
             <MoneyInput value={g.targetAmount || undefined} onChange={(v) => patch({ targetAmount: v })} />
           </Field>
           <Field label="Срок">
-            <input type="date" value={g.targetDate ?? ''} onChange={(e) => patch({ targetDate: e.target.value })} />
+            <DateField allowEmpty value={g.targetDate ?? ''} onChange={(v) => patch({ targetDate: v || undefined })} />
           </Field>
         </div>
 

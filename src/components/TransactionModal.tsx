@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { DateField } from './DateField'
 import { сЗначкомъ } from '../lib/catalog'
 import type { Money, Split, Transaction, TxKind } from '../lib/types'
 import { useStore } from '../state/store'
@@ -324,7 +325,7 @@ export function TransactionModal({
               {humanDate(x.d, false)} · {x.l}
             </button>
           ))}
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} style={{ width: 160 }} />
+          <DateField value={date} onChange={setDate} style={{ width: 160 }} />
         </div>
 
         <div className="grid c2">

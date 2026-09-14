@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { сЗначкомъ } from '../lib/catalog'
 import { Amount, useAnimatedList } from '../components/anim'
 import { useApp } from '../App'
@@ -186,8 +187,8 @@ export default function Transactions({ filter }: { filter?: string }) {
               <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
             ))}
           </select>
-          <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 145 }} />
-          <input type="date" value={to} onChange={(e) => setTo(e.target.value)} style={{ width: 145 }} />
+          <DateField allowEmpty value={from} onChange={setFrom} style={{ width: 145 }} placeholder="с какого" />
+          <DateField allowEmpty value={to} onChange={setTo} style={{ width: 145 }} placeholder="по какое" />
           <button className={'chip' + (onlyUncat ? ' on' : '')} onClick={() => setOnlyUncat((v) => !v)}>
             без категории
           </button>

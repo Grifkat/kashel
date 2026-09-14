@@ -11,7 +11,7 @@ export interface Period {
 
 export type PeriodKind = 'day' | 'week' | 'month' | 'year' | 'custom'
 
-export function makePeriod(kind: PeriodKind, anchor: string, firstDay: 0 | 1 = 1, custom?: { from: string; to: string }): Period {
+export function makePeriod(kind: PeriodKind, anchor: string, firstDay: number = 1, custom?: { from: string; to: string }): Period {
   switch (kind) {
     case 'day':
       return { kind, anchor, from: anchor, to: anchor, label: labelDay(anchor) }
@@ -35,7 +35,7 @@ export function makePeriod(kind: PeriodKind, anchor: string, firstDay: 0 | 1 = 1
   }
 }
 
-export function shiftPeriod(p: Period, dir: -1 | 1, firstDay: 0 | 1 = 1): Period {
+export function shiftPeriod(p: Period, dir: -1 | 1, firstDay: number = 1): Period {
   switch (p.kind) {
     case 'day':
       return makePeriod('day', addDays(p.anchor, dir), firstDay)
@@ -107,7 +107,7 @@ export interface PrevPeriod {
   days: number
 }
 
-export function comparablePrev(p: Period, firstDay: 0 | 1 = 1, now: string = today()): PrevPeriod {
+export function comparablePrev(p: Period, firstDay: number = 1, now: string = today()): PrevPeriod {
   const prev = shiftPeriod(p, -1, firstDay)
   const whole = { from: prev.from, to: prev.to, label: prev.label, partial: false, days: diffDays(prev.from, prev.to) + 1 }
   // Период целиком в прошлом или ещё не начался — сравниваем как есть.

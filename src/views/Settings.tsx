@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { порядокъДней, WEEKDAYS_FULL } from '../lib/date'
+import type { ДеньНедѣли } from '../lib/types'
 import { useApp } from '../App'
 import { isDesktop, useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -134,12 +136,18 @@ export default function SettingsView() {
             <span style={{ flex: 1 }}>Скрывать баланс</span>
             <Toggle checked={data.settings.hideBalance} onChange={(v) => patchSettings({ hideBalance: v })} />
           </div>
+          {/* Любой день, а не только понедельник или воскресенье: неделю
+              удобно начинать и с собственного выходного. Меняет все календари
+              разом — сетку года, календарь задач, выбор даты и периоды. */}
           <div className="row" style={{ marginBottom: 12 }}>
-            <span style={{ flex: 1 }}>Неделя начинается с понедельника</span>
-            <Toggle
-              checked={data.settings.firstDayOfWeek === 1}
-              onChange={(v) => patchSettings({ firstDayOfWeek: v ? 1 : 0 })}
-            />
+            <span style={{ flex: 1 }}>Неделя начинается с</span>
+            <select
+              value={data.settings.firstDayOfWeek ?? 1}
+              onChange={(e) => patchSettings({ firstDayOfWeek: Number(e.target.value) as ДеньНедѣли })}
+              style={{ maxWidth: 170 }}
+            >
+              {порядокъДней(1).map((i) => <option key={i} value={i}>{WEEKDAYS_FULL[i]}</option>)}
+            </select>
           </div>
 
           <div className="row" style={{ marginBottom: 6 }}>

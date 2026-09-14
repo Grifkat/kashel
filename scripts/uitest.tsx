@@ -14,7 +14,7 @@ import { applyArchive, archiveText, buildArchive, parseArchive } from '../src/en
 import { bridge, listCanvases, listNotes, loadVault, readCanvas, saveCore, saveTransactions, writeCanvas } from '../src/state/vault'
 import { Obnovlenie, попроситьПроверку } from '../src/components/Obnovlenie'
 import { Donut } from '../src/components/charts'
-import { addMonths, endOfMonth, humanDate, MONTHS_SHORT, parseISO, relDate, today } from '../src/lib/date'
+import { addMonths, endOfMonth, humanDate, MONTHS_SHORT, numericDate, parseISO, relDate, today } from '../src/lib/date'
 import type { VaultData } from '../src/lib/types'
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -751,9 +751,11 @@ async function entryDateFollowsPeriod() {
   await wait(500)
   const card = byText('.modal', 'Новая операция')
   check('карточка операции открылась', !!card)
-  const dateField = card?.querySelector('input[type="date"]') as any
+  // Поле даты теперь своё и показывает дату так, как её читает человек
+  // (14.09.2026), а не в ISO — поэтому сравниваем с тем же видом.
+  const dateField = card?.querySelector('.datefield input') as any
   check('в поле даты стоит дата периода, а не сегодняшняя',
-    dateField?.value === prevEnd, dateField?.value + ', сегодня ' + today())
+    dateField?.value === numericDate(prevEnd), dateField?.value + ', сегодня ' + today())
 
   click(byText('.modal-foot .btn', 'Отмена'))
   await wait(400)
@@ -967,6 +969,66 @@ async function rightPanel() {
    */
   check('в шапке «Сводки» своей кнопки скрытия нет',
     document.querySelectorAll('.rightbar .sidebar-head button').length === 0)
+}
+
+/*
+ * Неделя с любого дня: настройка меняет календарик в поле даты.
+ *
+ * Выбираем среду в настройках и открываем календарик в окне операции: шапка
+ * обязана начинаться со «Ср», первая клетка — быть средой. Escape закрывает
+ * только календарик, а не окно операции под ним.
+ */
+async function недѣляИКалендарикъ() {
+  console.log('\n— неделя и календарик —')
+  await open('Настройки')
+  const выборъ = [...document.querySelectorAll('.view select')].find((с) =>
+    [...(с as HTMLSelectElement).options].some((о) => о.textContent === 'среда') && (с as HTMLSelectElement).options.length === 7,
+  ) as HTMLSelectElement | undefined
+  check('в настройках выбор любого дня', !!выборъ)
+  if (!выборъ) return
+  const setSelect = Object.getOwnPropertyDescriptor(dom.window.HTMLSelectElement.prototype, 'value')!.set!
+  setSelect.call(выборъ, '3')
+  выборъ.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+  await wait(300)
+
+  await open('Операции')
+  click(document.querySelector('.tx-row .tx-main'))
+  await wait(500)
+  const поле = document.querySelector('.modal .datefield') as HTMLElement | null
+  check('в окне операции своё поле даты', !!поле)
+  click(поле?.querySelector('.datefield-btn'))
+  await wait(250)
+  const поп = document.querySelector('.datepop')
+  const шапка = [...(поп?.querySelectorAll('.datepop-wd') ?? [])].map((е) => е.textContent).join(' ')
+  check('календарик открылся', !!поп)
+  check('неделя в нём со среды', шапка === 'Ср Чт Пт Сб Вс Пн Вт', шапка)
+  // Первая клетка — среда. Число её не скажет, а дата в заголовке месяца
+  // и сетка из 42 клеток — да: проверяем через саму сетку.
+  check('в сетке шесть недель', (поп?.querySelectorAll('.datepop-day').length ?? 0) === 42)
+
+  const день = [...(поп?.querySelectorAll('.datepop-day:not(.other)') ?? [])].find((б) => б.textContent === '17') as any
+  click(день)
+  await wait(250)
+  check('выбор дня ставит дату в поле', /^17\./.test((поле?.querySelector('input') as HTMLInputElement)?.value || ''),
+    (поле?.querySelector('input') as HTMLInputElement)?.value)
+  check('и календарик закрылся', !document.querySelector('.datepop'))
+
+  click(поле?.querySelector('.datefield-btn'))
+  await wait(200)
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  await wait(250)
+  check('Escape закрыл календарик', !document.querySelector('.datepop'))
+  check('а окно операции осталось', !!document.querySelector('.modal .datefield'))
+
+  click(byText('.modal-foot .btn', 'Отмена'))
+  await wait(300)
+  // Возвращаем понедельник, чтобы остальные проверки шли с привычной неделей.
+  await open('Настройки')
+  const выборъ2 = [...document.querySelectorAll('.view select')].find((с) => (с as HTMLSelectElement).options.length === 7 &&
+    [...(с as HTMLSelectElement).options].some((о) => о.textContent === 'среда')) as HTMLSelectElement
+  setSelect.call(выборъ2, '1')
+  выборъ2.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+  await wait(300)
 }
 
 /*
@@ -1585,6 +1647,7 @@ async function main() {
   await leftPanel()
   await значкиВъСпискахъ()
   await пончикъ()
+  await недѣляИКалендарикъ()
   await themes()
   await cardGlare()
   await canvasBoard()

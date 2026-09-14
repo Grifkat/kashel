@@ -1,8 +1,9 @@
 import React, { useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, plural, uid } from '../lib/format'
-import { addMonths, daysInMonth, humanDate, monthKey, monthTitle, parseISO, today, WEEKDAYS } from '../lib/date'
+import { addMonths, daysInMonth, humanDate, monthKey, monthTitle, parseISO, today, WEEKDAYS, порядокъДней } from '../lib/date'
 import { isCatalogIcon, сЗначкомъ } from '../lib/catalog'
 import { Confirm, Field, Modal, MoneyInput, useToast } from '../components/ui'
 import { clock, usePomodoro } from '../components/PomodoroHost'
@@ -232,7 +233,7 @@ function Календарь({ onEdit, sel, setSel }: {
   const дней = daysInMonth(год, первый)
   const firstDay = data.settings.firstDayOfWeek
   const сдвиг = (new Date(год, первый, 1).getDay() - firstDay + 7) % 7
-  const шапка = firstDay === 1 ? [...WEEKDAYS.slice(1), WEEKDAYS[0]] : WEEKDAYS
+  const шапка = порядокъДней(firstDay).map((i) => WEEKDAYS[i])
 
   const наДень = sel ? sortTasks(tasksOn(data, sel)) : []
 
@@ -479,7 +480,7 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
 
         <div className="grid c2">
           <Field label="Срок">
-            <input type="date" value={t.due ?? ''} onChange={(e) => patch({ due: e.target.value || undefined })} />
+            <DateField allowEmpty value={t.due ?? ''} onChange={(v) => patch({ due: v || undefined })} />
           </Field>
           <Field label="Список">
             <select value={t.listId ?? ''} onChange={(e) => patch({ listId: e.target.value || undefined })}>

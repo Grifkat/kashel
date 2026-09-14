@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { Money, Num } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -363,12 +364,11 @@ export default function Forecast() {
             <div className="card-title" style={{ marginTop: 16 }}>Разовые события</div>
             {scenario.events.map((e) => (
               <div key={e.id} className="row" style={{ gap: 7, marginBottom: 6 }}>
-                <input
-                  type="date"
+                <DateField
                   value={e.date}
                   style={{ width: 140 }}
-                  onChange={(ev) =>
-                    setScenario((s) => ({ ...s, events: s.events.map((x) => (x.id === e.id ? { ...x, date: ev.target.value } : x)) }))
+                  onChange={(v) =>
+                    setScenario((s) => ({ ...s, events: s.events.map((x) => (x.id === e.id ? { ...x, date: v } : x)) }))
                   }
                 />
                 <input

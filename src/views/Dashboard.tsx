@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { GradientText, Reveal } from '../components/effects'
 import { Amount, Money, useAnimatedList } from '../components/anim'
 import { useApp, useTabId } from '../App'
@@ -296,21 +297,19 @@ export default function Dashboard() {
         </div>
         {period.kind === 'custom' && (
           <div className="row" style={{ gap: 6 }}>
-            <input
-              type="date"
+            <DateField
               value={period.from}
               style={{ width: 150 }}
-              onChange={(e) =>
-                setPeriod((p) => makePeriod('custom', p.anchor, data.settings.firstDayOfWeek, { from: e.target.value, to: p.to }))
+              onChange={(v) =>
+                setPeriod((p) => makePeriod('custom', p.anchor, data.settings.firstDayOfWeek, { from: v, to: p.to }))
               }
             />
             <span className="faint">—</span>
-            <input
-              type="date"
+            <DateField
               value={period.to}
               style={{ width: 150 }}
-              onChange={(e) =>
-                setPeriod((p) => makePeriod('custom', p.anchor, data.settings.firstDayOfWeek, { from: p.from, to: e.target.value }))
+              onChange={(v) =>
+                setPeriod((p) => makePeriod('custom', p.anchor, data.settings.firstDayOfWeek, { from: p.from, to: v }))
               }
             />
           </div>

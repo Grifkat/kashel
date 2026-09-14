@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -352,10 +353,10 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
           </Field>
         )}
         <Field label="Начало">
-          <input type="date" value={r.startDate} onChange={(e) => patch({ startDate: e.target.value })} />
+          <DateField value={r.startDate} onChange={(v) => patch({ startDate: v })} />
         </Field>
         <Field label="Окончание" hint="Пусто — бессрочно">
-          <input type="date" value={r.endDate ?? ''} onChange={(e) => patch({ endDate: e.target.value || undefined })} />
+          <DateField allowEmpty value={r.endDate ?? ''} onChange={(v) => patch({ endDate: v || undefined })} />
         </Field>
       </div>
 

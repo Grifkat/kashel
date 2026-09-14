@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { Money } from '../components/anim'
 import { useApp } from '../App'
@@ -226,7 +227,7 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
               <input type="number" value={a.credit.termMonths} onChange={(e) => patch({ credit: { ...a.credit!, termMonths: Number(e.target.value) } })} />
             </Field>
             <Field label="Дата начала">
-              <input type="date" value={a.credit.startDate} onChange={(e) => patch({ credit: { ...a.credit!, startDate: e.target.value } })} />
+              <DateField value={a.credit.startDate} onChange={(v) => patch({ credit: { ...a.credit!, startDate: v } })} />
             </Field>
             <Field label="День платежа">
               <input type="number" min={1} max={31} value={a.credit.paymentDay} onChange={(e) => patch({ credit: { ...a.credit!, paymentDay: Number(e.target.value) } })} />
@@ -246,7 +247,7 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
               </select>
             </Field>
             <Field label="Вернуть до">
-              <input type="date" value={a.debt.dueDate ?? ''} onChange={(e) => patch({ debt: { ...a.debt!, dueDate: e.target.value } })} />
+              <DateField allowEmpty value={a.debt.dueDate ?? ''} onChange={(v) => patch({ debt: { ...a.debt!, dueDate: v } })} />
             </Field>
           </div>
         )}

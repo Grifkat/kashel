@@ -4,7 +4,7 @@ import { useApp } from '../App'
 import { Icon } from '../lib/icons'
 import { Znak } from '../lib/znaki'
 import { money, plural } from '../lib/format'
-import { humanDate } from '../lib/date'
+import { humanDate, порядокъДней } from '../lib/date'
 import {
   awards, BRANCH_NAMES, currentQuests, RANKS, standing, titles, traits, quests,
   xpBreakdown, XP_STEPS,
@@ -167,7 +167,8 @@ export default function Profile() {
               title="Этотъ день недѣли въ серію не считается"
             >
               <option value="">безъ выходного</option>
-              {ДНИ.map((д, i) => <option key={д} value={i}>{д}</option>)}
+              {/* По порядку недели из настроек, а не всегда с воскресенья. */}
+              {порядокъДней(data.settings.firstDayOfWeek ?? 1).map((i) => <option key={i} value={i}>{ДНИ[i]}</option>)}
             </select>
             <span className="faint small">
               {серія.todayDone ? 'сегодня записано' : 'сегодня записи ещё нѣтъ'}

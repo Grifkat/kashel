@@ -8,6 +8,15 @@ export const MONTHS_GEN = [
 ]
 export const MONTHS_SHORT = ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек']
 export const WEEKDAYS = ['Вс', 'Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб']
+export const WEEKDAYS_FULL = ['воскресенье', 'понедельник', 'вторник', 'среда', 'четверг', 'пятница', 'суббота']
+
+/**
+ * Дни недели в том порядке, в каком их показывать: от выбранного первого.
+ * Одно правило на все календари — до этого каждое место разворачивало
+ * неделю само, и одно (выходной в «Серии») не разворачивало вовсе.
+ */
+export const порядокъДней = (firstDay: number): number[] =>
+  Array.from({ length: 7 }, (_, i) => (i + firstDay) % 7)
 
 /** YYYY-MM-DD в локальной зоне, без сюрпризов toISOString. */
 export function iso(d: Date): string {
@@ -43,7 +52,7 @@ export function addMonths(s: string, n: number): string {
 
 export const daysInMonth = (y: number, m: number): number => new Date(y, m + 1, 0).getDate()
 
-export function startOfWeek(s: string, firstDay: 0 | 1 = 1): string {
+export function startOfWeek(s: string, firstDay: number = 1): string {
   const d = parseISO(s)
   const shift = (d.getDay() - firstDay + 7) % 7
   d.setDate(d.getDate() - shift)

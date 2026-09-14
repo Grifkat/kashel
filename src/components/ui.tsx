@@ -29,6 +29,16 @@ export function Modal({
   useEffect(() => {
     const h = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
+        /*
+         * Если поверх окна открыт свой слой — календарик у поля даты,
+         * меню, — Escape сначала закрывает его, а окно не трогает.
+         *
+         * Окно слушает window в фазе захвата, то есть раньше всех, и
+         * слой просто не успевал перехватить клавишу: Escape в календарике
+         * закрывал заодно и окно операции со всем, что в нём вписано.
+         * Поймано тестом. Слои помечают себя data-escape-layer.
+         */
+        if (document.querySelector('[data-escape-layer]')) return
         e.stopPropagation()
         onClose()
       }

@@ -86,7 +86,8 @@
   color-scheme: dark;
 }
 
-[data-theme='graphite'] .btn.primary { color: #0a0a0a; }
+[data-theme='graphite'] .btn.primary,
+[data-theme='graphite'] .datepop-day.sel { color: #0a0a0a; }
 [data-theme='graphite'] .hero { background: var(--panel); }
 
 /* --------------------------------------------------------------- Стекло */
@@ -156,6 +157,7 @@
 }
 
 [data-theme='neon'] .btn.primary { box-shadow: var(--glow); color: #04120c; }
+[data-theme='neon'] .datepop-day.sel { color: #04120c; }
 [data-theme='neon'] .hero {
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 14%, var(--panel)), var(--panel));
   border-color: color-mix(in srgb, var(--accent) 35%, var(--border));
@@ -307,7 +309,9 @@
  * акцент и на розовом читается грязно.
  */
 [data-theme='pickme'] .btn.primary,
-[data-theme='pickmenoch'] .btn.primary { color: #fff; }
+[data-theme='pickmenoch'] .btn.primary,
+[data-theme='pickme'] .datepop-day.sel,
+[data-theme='pickmenoch'] .datepop-day.sel { color: #fff; }
 
 [data-theme='pickme'] .hero,
 [data-theme='pickmenoch'] .hero {
@@ -514,7 +518,8 @@ body {
 }
 
 /* Чёрным по жёлтому: белое на жёлтом не читается вовсе. */
-[data-theme='znamya'] .btn.primary { color: #17170f; }
+[data-theme='znamya'] .btn.primary,
+[data-theme='znamya'] .datepop-day.sel { color: #17170f; }
 
 /* ------------------------------------------------------- Знамя дневное */
 /*
@@ -562,7 +567,8 @@ body {
 }
 
 /* Чёрным по жёлтому — единственная читаемая пара в этих цветах. */
-[data-theme='znamyaden'] .btn.primary { color: #111114; }
+[data-theme='znamyaden'] .btn.primary,
+[data-theme='znamyaden'] .datepop-day.sel { color: #111114; }
 
 /*
  * Кнопка прихода в шапке.
@@ -615,7 +621,8 @@ body {
   color-scheme: light;
 }
 
-[data-theme='trikolor'] .btn.primary { color: #ffffff; }
+[data-theme='trikolor'] .btn.primary,
+[data-theme='trikolor'] .datepop-day.sel { color: #ffffff; }
 
 /* ------------------------------------------------------ Триколор ночной */
 /*
@@ -653,4 +660,5 @@ body {
   color-scheme: dark;
 }
 
-[data-theme='trikolornoch'] .btn.primary { color: #0e1424; }
+[data-theme='trikolornoch'] .btn.primary,
+[data-theme='trikolornoch'] .datepop-day.sel { color: #0e1424; }

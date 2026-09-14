@@ -9,7 +9,8 @@ import { parseQuick, describeDraft } from '../src/engine/parse'
 import { parseCsv, guessColumns, buildPreview, parseAmountCell, parseDateCell } from '../src/engine/csv'
 import { balances, categoryMonthly, categoryTotals, comparablePrev, entryDate, makePeriod, monthlySeries, yearSummary, type PeriodKind } from '../src/engine/stats'
 import { DIGIT_SEP, groupDigits, money, toMinor, uid } from '../src/lib/format'
-import { addDays, addMonths, diffDays, monthKey, parseISO, today } from '../src/lib/date'
+import { addDays, addMonths, diffDays, monthKey, parseISO, startOfWeek, today, порядокъДней } from '../src/lib/date'
+import { разобратьДату, сеткаМесяца } from '../src/components/DateField'
 import { ICON_GROUPS, isCatalogIcon, сЗначкомъ } from '../src/lib/catalog'
 import { DEFAULT_CATEGORIES } from '../src/state/defaults'
 import type { Recurring, Reminder, Scenario, Task, Transaction } from '../src/lib/types'
@@ -1886,6 +1887,75 @@ async function шифрованіе() {
  * тема съ украшеніемъ въ углу споткнётся о ту же строку.
  */
 /*
+ * Неделя с любого дня и своё поле даты.
+ *
+ * Раньше неделя начиналась только с воскресенья или понедельника, а выходной
+ * в «Серии» и браузерный календарик настройку не слушали вовсе. Проверяется
+ * для всех семи дней, а не для двух привычных: ошибка на сдвиге «+7 % 7»
+ * как раз прячется на среде и субботе.
+ */
+function недѣля() {
+  console.log('\n— неделя с любого дня —')
+  const дата = '2026-09-14' // понедельник
+  let всёСошлось = true
+  const промахи: string[] = []
+  for (let fd = 0; fd < 7; fd++) {
+    const нач = startOfWeek(дата, fd)
+    const д = parseISO(нач)
+    const внутри = нач <= дата && дата <= addDays(нач, 6)
+    if (д.getDay() !== fd || !внутри) { всёСошлось = false; промахи.push(`${fd}: ${нач}`) }
+  }
+  check('начало недели верно для всех семи дней', всёСошлось, промахи.join(', '))
+
+  check('порядок дней начинается с выбранного', порядокъДней(3).join('') === '3456012')
+  check('и всегда семь разных', new Set(порядокъДней(5)).size === 7)
+
+  const среда = makePeriod('week', дата, 3)
+  check('неделя со среды: от среды до вторника',
+    parseISO(среда.from).getDay() === 3 && parseISO(среда.to).getDay() === 2 && diffDays(среда.from, среда.to) === 6,
+    `${среда.from} — ${среда.to}`)
+
+  // Сетка календарика: шесть недель, первая клетка — выбранный день недели,
+  // и первое число месяца в ней есть.
+  let сеткаВерна = true
+  for (let fd = 0; fd < 7; fd++) {
+    const с = сеткаМесяца('2026-02', fd)
+    if (с.length !== 42 || parseISO(с[0]).getDay() !== fd || !с.includes('2026-02-01') || !с.includes('2026-02-28')) сеткаВерна = false
+  }
+  check('сетка месяца верна для всех семи дней', сеткаВерна)
+
+  // Разбор вписанной руками даты.
+  check('14.09.2026', разобратьДату('14.09.2026', 'ru') === '2026-09-14')
+  check('короткая 5.3.26', разобратьДату('5.3.26', 'ru') === '2026-03-05')
+  check('ISO', разобратьДату('2026-12-01', 'ru') === '2026-12-01')
+  check('через дробь по-американски месяц первым', разобратьДату('09/14/2026', 'us') === '2026-09-14')
+  check('через дробь по-русски день первым', разобратьДату('14/09/2026', 'ru') === '2026-09-14')
+  check('31 февраля не принимается', разобратьДату('31.02.2026', 'ru') === null)
+  check('мусор не принимается', разобратьДату('завтра', 'ru') === null && разобратьДату('', 'ru') === null)
+
+  // Браузерный календарик не должен вернуться: он настройку недели не слушает.
+  const fs = require('node:fs') as typeof import('node:fs')
+  const path = require('node:path') as typeof import('node:path')
+  const родныя: string[] = []
+  const обойти = (дир: string) => {
+    for (const е of fs.readdirSync(дир, { withFileTypes: true })) {
+      const полный = path.join(дир, е.name)
+      if (е.isDirectory()) обойти(полный)
+      else if (/\.tsx$/.test(е.name)) {
+        fs.readFileSync(полный, 'utf8').split('\n').forEach((с, i) => {
+          // Строки примечаний пропускаем: там «<input type="date">» упомянут,
+          // чтобы объяснить, почему его больше нет.
+          if (/^\s*(\*|\/\*|\/\/)/.test(с)) return
+          if (/<input[^>]*type="date"/.test(с) || /^\s*type="date"\s*$/.test(с)) родныя.push(`${path.relative(process.cwd(), полный)}:${i + 1}`)
+        })
+      }
+    }
+  }
+  обойти(path.join(process.cwd(), 'src'))
+  check('браузерных полей даты в программе нет', родныя.length === 0, родныя.join(', '))
+}
+
+/*
  * Подпись значка в текстовых пунктах.
  *
  * Въ спискахъ выходило «shopping-basket Продукты»: служебное имя значка изъ
@@ -2089,6 +2159,7 @@ void завершить()
 async function завершить() {
   оформленіе()
   подписиЗначковъ()
+  недѣля()
   await полнаяВыгрузкаПровѣрка()
   await шифрованіе()
   console.log(`\nПровалено проверок: ${fail.length}`)

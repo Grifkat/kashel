@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { DateField } from '../components/DateField'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, toMinor, uid } from '../lib/format'
@@ -227,7 +228,7 @@ function ReminderModal({
       {r.kind === 'date' ? (
         <div className="grid c2">
           <Field label="Когда">
-            <input type="date" value={r.date ?? today()} onChange={(e) => patch({ date: e.target.value })} />
+            <DateField value={r.date ?? today()} onChange={(v) => patch({ date: v })} />
           </Field>
           <Field label="Повторять">
             <select value={r.repeat ?? 'once'} onChange={(e) => patch({ repeat: e.target.value as ReminderRepeat })}>

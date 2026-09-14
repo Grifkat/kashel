@@ -305,6 +305,13 @@ export type Density = 'compact' | 'normal' | 'roomy'
 /** Чем набирать длинный текст заметок: тем же гротеском или шрифтом с засечками. */
 export type ReadingFont = 'ui' | 'serif'
 
+/**
+ * День недели в JS-счёте: 0 — воскресенье. Раньше неделя могла начинаться
+ * только с воскресенья или понедельника; теперь с любого дня — например, с
+ * собственного выходного.
+ */
+export type ДеньНедѣли = 0 | 1 | 2 | 3 | 4 | 5 | 6
+
 export interface Settings {
   theme: ThemeId
   animations: AnimLevel
@@ -316,7 +323,8 @@ export interface Settings {
   hideBalance: boolean
   forecastHorizon: number
   monteCarloRuns: number
-  firstDayOfWeek: 0 | 1
+  /** С какого дня начинается неделя: 0 — воскресенье, 1 — понедельник … 6 — суббота. */
+  firstDayOfWeek: ДеньНедѣли
   /** Помидор: сколько минут работать и сколько отдыхать. */
   pomodoro: { work: number; rest: number }
   /**
