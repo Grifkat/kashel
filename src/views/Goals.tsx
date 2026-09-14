@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import { Money } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -235,7 +236,7 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
           <select value={g.accountId ?? ''} onChange={(e) => patch({ accountId: e.target.value || undefined })}>
             <option value="">Без счёта — веду вручную</option>
             {data.accounts.filter((a) => !a.archived).map((a) => (
-              <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+              <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
             ))}
           </select>
         </Field>

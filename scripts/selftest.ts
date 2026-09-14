@@ -10,7 +10,7 @@ import { parseCsv, guessColumns, buildPreview, parseAmountCell, parseDateCell } 
 import { balances, categoryMonthly, categoryTotals, comparablePrev, entryDate, makePeriod, monthlySeries, yearSummary, type PeriodKind } from '../src/engine/stats'
 import { DIGIT_SEP, groupDigits, money, toMinor, uid } from '../src/lib/format'
 import { addDays, addMonths, diffDays, monthKey, parseISO, today } from '../src/lib/date'
-import { ICON_GROUPS, isCatalogIcon } from '../src/lib/catalog'
+import { ICON_GROUPS, isCatalogIcon, сЗначкомъ } from '../src/lib/catalog'
 import { DEFAULT_CATEGORIES } from '../src/state/defaults'
 import type { Recurring, Reminder, Scenario, Task, Transaction } from '../src/lib/types'
 import { dueReminders, nextDate } from '../src/engine/reminders'
@@ -1885,6 +1885,44 @@ async function шифрованіе() {
  * Провѣряется не одна тема, а всѣ стили разомъ: запретъ общій, и слѣдующая
  * тема съ украшеніемъ въ углу споткнётся о ту же строку.
  */
+/*
+ * Подпись значка в текстовых пунктах.
+ *
+ * Въ спискахъ выходило «shopping-basket Продукты»: служебное имя значка изъ
+ * каталога попадало въ подпись, и человѣкъ принялъ это за переводъ на
+ * англійскій. Провѣряется и сама подпись, и то, что въ исходникахъ больше
+ * нигдѣ не склеиваютъ значокъ съ именемъ руками, мимо общаго правила.
+ */
+function подписиЗначковъ() {
+  console.log('\n— подписи значковъ —')
+  check('значокъ изъ каталога въ подпись не идётъ', сЗначкомъ('shopping-basket', 'Продукты') === 'Продукты')
+  check('старое эмодзи остаётся', сЗначкомъ('🍎', 'Продукты') === '🍎 Продукты')
+  check('незнакомое латинское имя тоже не идётъ', сЗначкомъ('some-new-icon', 'Такси') === 'Такси')
+  check('ссылка на загруженный файлъ не идётъ', сЗначкомъ('file:icons/a1.png', 'Кафе') === 'Кафе')
+  check('безъ значка — просто имя', сЗначкомъ(undefined, 'Дом') === 'Дом')
+
+  const fs = require('node:fs') as typeof import('node:fs')
+  const path = require('node:path') as typeof import('node:path')
+  const виновники: string[] = []
+  const обойти = (дир: string) => {
+    for (const е of fs.readdirSync(дир, { withFileTypes: true })) {
+      const полный = path.join(дир, е.name)
+      if (е.isDirectory()) обойти(полный)
+      else if (/\.tsx?$/.test(е.name)) {
+        const строки = fs.readFileSync(полный, 'utf8').split('\n')
+        строки.forEach((с, i) => {
+          // {x.icon} {x.name} въ разметкѣ или `${x.icon} ${x.name}` въ строкѣ
+          if (/\{\w+\.icon\}\s*\{\w+\.name\}/.test(с) || /\$\{\w+\.icon\}\s*\$\{\w+\.name\}/.test(с)) {
+            виновники.push(`${path.relative(process.cwd(), полный)}:${i + 1}`)
+          }
+        })
+      }
+    }
+  }
+  обойти(path.join(process.cwd(), 'src'))
+  check('въ исходникахъ значокъ съ именемъ руками не склеиваютъ', виновники.length === 0, виновники.join(', '))
+}
+
 function оформленіе() {
   console.log('\n— оформленіе —')
   const fs = require('node:fs') as typeof import('node:fs')
@@ -2022,6 +2060,7 @@ void завершить()
 
 async function завершить() {
   оформленіе()
+  подписиЗначковъ()
   await полнаяВыгрузкаПровѣрка()
   await шифрованіе()
   console.log(`\nПровалено проверок: ${fail.length}`)

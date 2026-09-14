@@ -3,7 +3,7 @@ import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, plural, uid } from '../lib/format'
-import { isCatalogIcon } from '../lib/catalog'
+import { isCatalogIcon, сЗначкомъ } from '../lib/catalog'
 import { addMonths, humanDate, monthKey, today } from '../lib/date'
 import { occurrencesInMonth } from '../engine/forecast'
 import { findRepeats } from '../engine/repeats'
@@ -246,8 +246,6 @@ export default function RecurringView() {
  * рисовать его нечем, и оно печаталось бы текстом рядом с названием.
  * Свой смайлик человека показываем как есть.
  */
-const значок = (icon: string) => (isCatalogIcon(icon) ? '' : icon + ' ')
-
 function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: (r: Recurring) => void; onClose: () => void }) {
   const { data } = useStore()
   const [r, setR] = useState<Recurring>(value)
@@ -311,7 +309,7 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
         <Field label="Счёт">
           <select value={r.accountId} onChange={(e) => patch({ accountId: e.target.value })}>
             {data.accounts.filter((a) => !a.archived).map((a) => (
-              <option key={a.id} value={a.id}>{значок(a.icon)}{a.name}</option>
+              <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
             ))}
           </select>
         </Field>
@@ -321,7 +319,7 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
               <option value="">— выберите —</option>
               {options.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {значок(c.icon)}{c.name}
+                  {сЗначкомъ(c.icon, c.name)}
                   {c.archived ? ' (в архиве)' : c.kind !== r.kind ? ' (другой вид)' : ''}
                 </option>
               ))}
@@ -333,7 +331,7 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
             <select value={r.toAccountId ?? ''} onChange={(e) => patch({ toAccountId: e.target.value || undefined })}>
               <option value="">—</option>
               {data.accounts.filter((a) => !a.archived && a.id !== r.accountId).map((a) => (
-                <option key={a.id} value={a.id}>{значок(a.icon)}{a.name}</option>
+                <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
               ))}
             </select>
           </Field>

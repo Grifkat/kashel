@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import type { Money, Split, Transaction, TxKind } from '../lib/types'
 import { useStore } from '../state/store'
 import { PALETTE } from '../lib/emoji'
@@ -241,7 +242,7 @@ export function TransactionModal({
             <Field label={kind === 'transfer' ? 'Со счёта' : 'Счёт'}>
               <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                 {data.accounts.filter((a) => !a.archived).map((a) => (
-                  <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                  <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
                 ))}
               </select>
             </Field>
@@ -252,7 +253,7 @@ export function TransactionModal({
                 <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
                   <option value="">—</option>
                   {data.accounts.filter((a) => !a.archived && a.id !== accountId).map((a) => (
-                    <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                    <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
                   ))}
                 </select>
               </Field>
@@ -383,7 +384,7 @@ export function TransactionModal({
                   style={{ width: 200 }}
                 >
                   {cats.map((c) => (
-                    <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                    <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
                   ))}
                 </select>
                 <MoneyInput

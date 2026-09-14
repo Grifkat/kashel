@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -148,7 +149,7 @@ export default function ImportView() {
                 <Field label="Импортировать на счёт">
                   <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
                     {data.accounts.filter((a) => !a.archived).map((a) => (
-                      <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+                      <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
                     ))}
                   </select>
                 </Field>
@@ -224,7 +225,7 @@ export default function ImportView() {
                         {data.categories
                           .filter((c) => !c.archived && c.kind === (r.amount > 0 ? 'income' : 'expense'))
                           .map((c) => (
-                            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+                            <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
                           ))}
                       </select>
                     </td>
@@ -271,7 +272,7 @@ function RulesEditor() {
             style={{ width: 200 }}
           >
             {data.categories.filter((c) => !c.archived).map((c) => (
-              <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+              <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
             ))}
           </select>
           <button className="icon-btn" onClick={() => setImportRules(data.importRules.filter((x) => x.id !== r.id))}>
@@ -292,7 +293,7 @@ function RulesEditor() {
         <select value={catId} onChange={(e) => setCatId(e.target.value)} style={{ width: 200 }}>
           <option value="">выберите категорию</option>
           {data.categories.filter((c) => !c.archived).map((c) => (
-            <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+            <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
           ))}
         </select>
         <button

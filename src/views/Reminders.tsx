@@ -3,7 +3,7 @@ import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, toMinor, uid } from '../lib/format'
 import { humanDate, today } from '../lib/date'
-import { isCatalogIcon } from '../lib/catalog'
+import { isCatalogIcon, сЗначкомъ } from '../lib/catalog'
 import { Confirm, Field, Modal, MoneyInput, Tbl, Toggle, useToast } from '../components/ui'
 import { playFile, playTone, SOUNDS } from '../lib/sound'
 import { readAttachmentBase64, saveAttachment, bridge } from '../state/vault'
@@ -280,7 +280,7 @@ function ReminderModal({
                     <option value="">Любая с лимитом</option>
                     {data.categories.filter((c) => !c.archived && c.plan).map((c) => (
                       <option key={c.id} value={c.id}>
-                        {isCatalogIcon(c.icon) ? '' : c.icon + ' '}{c.name}
+                        {сЗначкомъ(c.icon, c.name)}
                       </option>
                     ))}
                   </select>

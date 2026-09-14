@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import { useApp, VIEW_META, type ViewId } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -119,11 +120,11 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
 
     const entities: Cmd[] = [
       ...store.data.accounts.filter((a) => !a.archived).map((a) => ({
-        id: 'acc:' + a.id, section: 'Счета', title: `${a.icon} ${a.name}`, icon: 'wallet',
+        id: 'acc:' + a.id, section: 'Счета', title: сЗначкомъ(a.icon, a.name), icon: 'wallet',
         run: () => app.openTab('accounts'),
       })),
       ...store.data.categories.filter((c) => !c.archived).map((c) => ({
-        id: 'cat:' + c.id, section: 'Категории', title: `${c.icon} ${c.name}`, icon: 'tag',
+        id: 'cat:' + c.id, section: 'Категории', title: сЗначкомъ(c.icon, c.name), icon: 'tag',
         run: () => app.openTab('transactions', 'cat:' + c.id, { title: c.name }),
       })),
     ]

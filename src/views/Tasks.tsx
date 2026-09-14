@@ -3,7 +3,7 @@ import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, plural, uid } from '../lib/format'
 import { addMonths, daysInMonth, humanDate, monthKey, monthTitle, parseISO, today, WEEKDAYS } from '../lib/date'
-import { isCatalogIcon } from '../lib/catalog'
+import { isCatalogIcon, сЗначкомъ } from '../lib/catalog'
 import { Confirm, Field, Modal, MoneyInput, useToast } from '../components/ui'
 import { clock, usePomodoro } from '../components/PomodoroHost'
 import { playTone } from '../lib/sound'
@@ -535,7 +535,7 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
                 <select value={t.categoryId ?? ''} onChange={(e) => patch({ categoryId: e.target.value || undefined })}>
                   <option value="">—</option>
                   {cats.map((c) => (
-                    <option key={c.id} value={c.id}>{isCatalogIcon(c.icon) ? '' : c.icon + ' '}{c.name}</option>
+                    <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
                   ))}
                 </select>
               </Field>
@@ -543,7 +543,7 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
                 <select value={t.accountId ?? ''} onChange={(e) => patch({ accountId: e.target.value || undefined })}>
                   <option value="">По умолчанию</option>
                   {data.accounts.filter((a) => !a.archived).map((a) => (
-                    <option key={a.id} value={a.id}>{isCatalogIcon(a.icon) ? '' : a.icon + ' '}{a.name}</option>
+                    <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
                   ))}
                 </select>
               </Field>

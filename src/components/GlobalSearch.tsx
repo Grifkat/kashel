@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Avatar, Modal } from './ui'
@@ -92,7 +93,7 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
                   app.openTab('transactions', 'cat:' + c.id, { title: c.name })
                 }}
               >
-                {c.icon} {c.name}
+                {сЗначкомъ(c.icon, c.name)}
               </span>
             ))}
           </div>

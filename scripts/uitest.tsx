@@ -947,6 +947,22 @@ async function rightPanel() {
 }
 
 /*
+ * В выпадающих списках нет служебных имён значков.
+ *
+ * Было «shopping-basket Продукты» — человек принял это за перевод. Проверяется
+ * на живом списке фильтра в «Операциях»: имя значка из каталога не должно
+ * стоять ни в одном пункте.
+ */
+async function значкиВъСпискахъ() {
+  console.log('\n— значки в списках —')
+  await open('Операции')
+  const пункты = [...document.querySelectorAll('.view select option')].map((o) => (o.textContent || '').trim())
+  const сЛатиницей = пункты.filter((т) => /^[a-z][a-z0-9-]+ /.test(т))
+  check('списки нашлись', пункты.length > 10, `${пункты.length} пунктов`)
+  check('ни в одном пункте нет имени значка', сЛатиницей.length === 0, сЛатиницей.slice(0, 3).join(' | '))
+}
+
+/*
  * Левая панель: скрыть и вернуть.
  *
  * Прежняя кнопка скрытия жила на самой панели и пропадала вместе с ней —
@@ -1495,6 +1511,7 @@ async function main() {
   await besjeda()
   await rightPanel()
   await leftPanel()
+  await значкиВъСпискахъ()
   await themes()
   await cardGlare()
   await canvasBoard()

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -502,7 +503,7 @@ export default function CanvasView({ name }: { name?: string }) {
         disabled: !data.accounts.length,
         children: data.accounts.filter((a) => !a.archived).map((a) => ({
           id: 'acc:' + a.id,
-          label: `${a.icon} ${a.name}`,
+          label: сЗначкомъ(a.icon, a.name),
           onClick: () => insertNode('account', at, { ref: a.id, color: a.color }, connectFrom),
         })),
       },
@@ -513,7 +514,7 @@ export default function CanvasView({ name }: { name?: string }) {
         disabled: !data.categories.length,
         children: data.categories.filter((c) => !c.archived).map((c) => ({
           id: 'cat:' + c.id,
-          label: `${c.icon} ${c.name}`,
+          label: сЗначкомъ(c.icon, c.name),
           onClick: () => insertNode('category', at, { ref: c.id, color: c.color }, connectFrom),
         })),
       },
@@ -524,7 +525,7 @@ export default function CanvasView({ name }: { name?: string }) {
         disabled: !data.goals.length,
         children: data.goals.map((g) => ({
           id: 'goal:' + g.id,
-          label: `${g.icon} ${g.name}`,
+          label: сЗначкомъ(g.icon, g.name),
           onClick: () => insertNode('goal', at, { ref: g.id, color: g.color }, connectFrom),
         })),
       },

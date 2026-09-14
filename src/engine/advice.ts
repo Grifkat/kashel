@@ -1,4 +1,5 @@
 import type { Account, Category, Money, Transaction, VaultData } from '../lib/types'
+import { сЗначкомъ } from '../lib/catalog'
 import { addDays, addMonths, daysInMonth, diffDays, diffMonths, humanDate, monthKey, monthTitle, parseISO, today } from '../lib/date'
 import { money, moneyShort, months as monthsWord, pct, plural, times } from '../lib/format'
 import { balances, categoryMonthly, categoryTotals, creditRemaining, isAsset, mean, median, stdev, trendSlope } from './stats'
@@ -170,7 +171,7 @@ function ruleCategoryDrift(c: Ctx): Advice[] {
       id: 'drift_' + cat.id,
       kind: 'cut',
       severity: over / norm > 0.6 ? 'warn' : 'info',
-      title: `${cat.icon} ${cat.name}: идёт на ${pct((over / norm) * 100)} выше обычного`,
+      title: `${сЗначкомъ(cat.icon, cat.name)}: идёт на ${pct((over / norm) * 100)} выше обычного`,
       body:
         `Потрачено ${money(t.amount)} за ${Math.round(c.monthProgress * 100)}% месяца. ` +
         `При таком темпе выйдет ${money(projected)} против обычных ${money(norm)} — ` +
@@ -214,7 +215,7 @@ function ruleSmallLeaks(c: Ctx): Advice[] {
       id: 'leak_' + id,
       kind: 'cut',
       severity: 'info',
-      title: `${cat.icon} ${cat.name}: ${Math.round(perMonth)} мелких покупок в месяц`,
+      title: `${сЗначкомъ(cat.icon, cat.name)}: ${Math.round(perMonth)} мелких покупок в месяц`,
       body:
         `Средний чек ${money(Math.round(avg))}, в сумме ${money(monthly)} в месяц и ${money(monthly * 12)} в год. ` +
         `По одной трате это незаметно — заметно становится в годовом масштабе. ` +
@@ -1014,7 +1015,7 @@ function ruleSeasonalPeak(c: Ctx): Advice[] {
       `на ${pct(share)} тяжелее обычного. Это не повод сокращать траты — это повод отложить ${money(extra)} заранее, ` +
       `пока месяц не начался: сезонные пики опасны не размером, а тем, что приходят в тот момент, когда деньги уже распределены.`,
     evidence: peaks.slice(0, 4).map(
-      (x) => `${x.icon} ${x.name}: +${money(x.extra)} (×${x.k.toFixed(2).replace('.', ',')})`,
+      (x) => `${сЗначкомъ(x.icon, x.name)}: +${money(x.extra)} (×${x.k.toFixed(2).replace('.', ',')})`,
     ),
     impactMonthly: 0,
     effort: 'низкое',
@@ -1129,8 +1130,8 @@ function rulePriceVsVolume(c: Ctx): Advice[] {
       kind: 'cut',
       severity: growth / v.oldSum > 0.5 ? 'warn' : 'info',
       title: priceLed
-        ? `${cat.icon} ${cat.name} подорожала: чек вырос на ${pct(((avgNew - avgOld) / avgOld) * 100)}`
-        : `${cat.icon} ${cat.name}: покупок стало больше на ${pct(((v.newN - v.oldN) / v.oldN) * 100)}`,
+        ? `${сЗначкомъ(cat.icon, cat.name)} подорожала: чек вырос на ${pct(((avgNew - avgOld) / avgOld) * 100)}`
+        : `${сЗначкомъ(cat.icon, cat.name)}: покупок стало больше на ${pct(((v.newN - v.oldN) / v.oldN) * 100)}`,
       body:
         `За последние три месяца ушло ${money(v.newSum)} против ${money(v.oldSum)} тремя месяцами раньше — ` +
         `рост ${money(growth)}. Из него ${money(Math.abs(priceEffect))} дала цена и ${money(Math.abs(volumeEffect))} — количество покупок. ` +
@@ -1178,7 +1179,7 @@ function ruleNewcomerCategory(c: Ctx): Advice[] {
       id: 'newcomer_' + cat.id,
       kind: 'budget',
       severity: 'info',
-      title: `${cat.icon} ${cat.name} появилась ${monthsWord(age)} назад и уже в топ-5 расходов`,
+      title: `${сЗначкомъ(cat.icon, cat.name)} появилась ${monthsWord(age)} назад и уже в топ-5 расходов`,
       body:
         `С ${humanDate(first, true)} по этой категории прошло ${t.count} ${plural(t.count, 'операция', 'операции', 'операций')} на ${money(t.amount)}, ` +
         `в среднем ${money(monthly)} в месяц — это ${pct(t.share * 100)} всех расходов за три месяца. ` +
@@ -1219,7 +1220,7 @@ function ruleFadedCategory(c: Ctx): Advice[] {
       id: 'faded_' + cat.id,
       kind: 'budget',
       severity: 'info',
-      title: `${cat.icon} ${cat.name}: ${monthsWord(gap)} без единой траты`,
+      title: `${сЗначкомъ(cat.icon, cat.name)}: ${monthsWord(gap)} без единой траты`,
       body:
         `Раньше сюда уходило около ${money(norm)} в месяц, последняя операция — ${humanDate(last, true)}. ` +
         (cat.plan
@@ -1269,7 +1270,7 @@ function ruleFrequencyLeader(c: Ctx): Advice[] {
     id: 'freq',
     kind: 'cut',
     severity: 'info',
-    title: `${cat.icon} ${cat.name}: ${top.n} ${plural(top.n, 'покупка', 'покупки', 'покупок')} за три месяца, а денег — ${pct(moneyShare * 100)}`,
+    title: `${сЗначкомъ(cat.icon, cat.name)}: ${top.n} ${plural(top.n, 'покупка', 'покупки', 'покупок')} за три месяца, а денег — ${pct(moneyShare * 100)}`,
     body:
       `Это ${pct(countShare * 100)} всех ваших расходных операций и примерно ${perWeek.toFixed(1).replace('.', ',')} ${plural(Math.round(perWeek), 'покупка', 'покупки', 'покупок')} в неделю ` +
       `по ${money(Math.round(top.sum / top.n))}. Деньги здесь небольшие, а вот решений — больше, чем в любой другой категории: ` +

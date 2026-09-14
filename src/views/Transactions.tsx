@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import { Amount, useAnimatedList } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -176,13 +177,13 @@ export default function Transactions({ filter }: { filter?: string }) {
           <select value={catId} onChange={(e) => setCatId(e.target.value)} style={{ width: 170 }}>
             <option value="">Все категории</option>
             {data.categories.filter((c) => !c.archived).map((c) => (
-              <option key={c.id} value={c.id}>{c.icon} {c.name}</option>
+              <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
             ))}
           </select>
           <select value={accId} onChange={(e) => setAccId(e.target.value)} style={{ width: 150 }}>
             <option value="">Все счета</option>
             {data.accounts.filter((a) => !a.archived).map((a) => (
-              <option key={a.id} value={a.id}>{a.icon} {a.name}</option>
+              <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
             ))}
           </select>
           <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} style={{ width: 145 }} />

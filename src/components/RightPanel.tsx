@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react'
+import { сЗначкомъ } from '../lib/catalog'
 import { Amount, Money } from './anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -138,7 +139,7 @@ export function RightPanel({ open }: { open: boolean }) {
               return (
                 <div key={g.id} style={{ marginBottom: 10, cursor: 'pointer' }} onClick={() => app.openTab('goals')}>
                   <div className="row small" style={{ marginBottom: 4 }}>
-                    <span>{g.icon} {g.name}</span>
+                    <span>{сЗначкомъ(g.icon, g.name)}</span>
                     <span className="spacer" />
                     <span className="faint num">{Math.round(share * 100)}%</span>
                   </div>
