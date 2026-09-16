@@ -100,6 +100,14 @@ check('есть совет про концентрацию дохода', advice
 check('есть совет про подушку', advice.some((a) => a.id.startsWith('fund')))
 check('есть совет по кредиту', advice.some((a) => a.kind === 'debt'))
 check('у советов нет пустых заголовков', advice.every((a) => a.title.length > 5 && a.body.length > 20))
+{
+  // Служебное имя значка («house», «briefcase») — не текст: в советах оно
+  // вылезало перед названием статьи и цели — «briefcase Рабочие расходы».
+  const значки = new Set([...data.categories, ...data.goals].map((x) => x.icon).filter((i): i is string => !!i && /^[a-z0-9-]+$/.test(i)))
+  const текстъ = advice.map((a) => [a.title, a.body, ...(a.evidence ?? [])].join('\n')).join('\n')
+  const нашлись = [...значки].filter((i) => new RegExp(`(^|[\\s(])${i}\\s+[А-ЯЁа-яё]`, 'm').test(текстъ))
+  check('в советах нет служебных имён значков', значки.size > 5 && нашлись.length === 0, нашлись.join(', ') || `${значки.size} значков проверено`)
+}
 check('нет NaN в текстах советов', !advice.some((a) => (a.title + a.body + a.evidence.join('')).includes('NaN')))
 check('нет undefined в текстах советов', !advice.some((a) => (a.title + a.body + a.evidence.join('')).includes('undefined')))
 

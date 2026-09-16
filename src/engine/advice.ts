@@ -303,7 +303,7 @@ function rulePlanOverrun(c: Ctx): Advice[] {
       т('на оставшуюся часть месяца в этих категориях доступно {0}.', money(Math.max(0, bad.reduce((s, b) => s + Math.max(0, b.plan - b.spent), 0)))),
     evidence: bad
       .slice(0, 6)
-      .map((b) => т('{0} {1}: {2} из {3} → прогноз {4}', b.cat.icon, b.cat.name, money(b.spent), money(b.plan), money(b.projected))),
+      .map((b) => т('{0}: {1} из {2} → прогноз {3}', сЗначкомъ(b.cat.icon, b.cat.name), money(b.spent), money(b.plan), money(b.projected))),
     impactMonthly: overSum,
     effort: 'среднее',
     action: { label: т('Открыть бюджет'), type: 'goto', payload: { view: 'budget' } },
@@ -332,7 +332,7 @@ function ruleMissingPlans(c: Ctx): Advice[] {
       т('Разумная отправная точка — медиана за последние месяцы, округлённая вверх. Кошель может проставить такие лимиты сам.'),
     evidence: missing.map((x) => {
       const hist = categoryMonthly(c.data.transactions, x.t.categoryId, c.keys).filter((v) => v > 0)
-      return т('{0} {1}: {2}/мес → предложить лимит {3}', x.cat!.icon, x.cat!.name, money(Math.round(x.t.amount / 3)), money(Math.ceil(median(hist) / 50000) * 50000))
+      return т('{0}: {1}/мес → предложить лимит {2}', сЗначкомъ(x.cat!.icon, x.cat!.name), money(Math.round(x.t.amount / 3)), money(Math.ceil(median(hist) / 50000) * 50000))
     }),
     impactMonthly: 0,
     effort: 'низкое',
@@ -766,7 +766,7 @@ function ruleGoals(c: Ctx): Advice[] {
       т('Практика: цель с ближайшим сроком закрывается первой, остальные ставятся на паузу — так закрывается хотя бы одна, а не все понемногу.'),
     evidence: rows.map(
       (r) =>
-        т('{0} {1}: {2} из {3}', r.g.icon, r.g.name, money(r.saved), money(r.g.targetAmount)) +
+        т('{0}: {1} из {2}', сЗначкомъ(r.g.icon, r.g.name), money(r.saved), money(r.g.targetAmount)) +
         (r.need ? т(' → {0}/мес на {1}', money(r.need), monthsWord(r.monthsLeft!)) : т(' (без срока)')),
     ),
     impactMonthly: 0,
@@ -1086,7 +1086,7 @@ function ruleLastYearRepeat(c: Ctx): Advice[] {
       т('Что не повторится — просто пропустите.'),
     evidence: top.map((f) => {
       const cat = c.catById.get(f.t.categoryId || '')
-      return `${cat?.icon ?? '❓'} ${f.t.note || cat?.name || т('без категории')} — ${money(f.t.amount)}, ${humanDate(f.t.date, true)}`
+      return `${сЗначкомъ(cat?.icon ?? '❓', f.t.note || cat?.name || т('без категории'))} — ${money(f.t.amount)}, ${humanDate(f.t.date, true)}`
     }),
     impactMonthly: 0,
     effort: 'низкое',
