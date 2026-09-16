@@ -1,7 +1,7 @@
 import { ICON_GROUPS } from '../lib/catalog'
 import { PALETTE } from '../lib/emoji'
 import { т } from '../i18n'
-import type { Account, Category, Settings, ThemeId, VaultData } from '../lib/types'
+import type { Category, Settings, ThemeId, VaultData } from '../lib/types'
 
 export const DEFAULT_SETTINGS: VaultData['settings'] = {
   theme: 'imperial',
@@ -165,33 +165,4 @@ export function migrateSettings(raw: Partial<Settings> | undefined): Settings {
     pomodoro: { ...DEFAULT_SETTINGS.pomodoro, ...(raw?.pomodoro || {}) },
     profile: { ...DEFAULT_SETTINGS.profile, ...(raw?.profile || {}) },
   }
-}
-
-/*
- * Перенос кредитов на остаток счёта.
- *
- * Раньше долг по кредиту хранился отдельным полем `principal`, а остаток
- * счёта оставался нулём. Из-за этого кредит на полмиллиона весил в дашборде
- * и в чистом капитале ноль рублей, а погашения не существовало вовсе: платёж
- * требовал пометки, которую в программе негде было поставить.
- *
- * Теперь долг живёт в остатке, как у всего прочего. Старым счетам остаток
- * надо проставить — иначе они так и останутся невидимыми.
- *
- * Условие нарочно узкое: трогаем только те, у кого остаток ровно ноль и по
- * которым нет ни одной операции. Значит, человек завёл кредит и больше ничего
- * с ним не делал, и другого источника правды, кроме `principal`, у нас нет.
- * Где остаток уже задан или операции есть — не лезем.
- */
-export function migrateCredits(data: VaultData): { accounts: Account[]; changed: number } {
-  let changed = 0
-  const accounts = data.accounts.map((a) => {
-    if (a.type !== 'credit' || !a.credit) return a
-    const тело = a.credit.principal || 0
-    if (тело <= 0 || a.initialBalance !== 0) return a
-    if (data.transactions.some((t) => t.accountId === a.id || t.toAccountId === a.id)) return a
-    changed++
-    return { ...a, initialBalance: -тело }
-  })
-  return { accounts, changed }
 }

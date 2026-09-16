@@ -10,6 +10,7 @@ import { addDays, humanDate, today } from '../lib/date'
 import { formatAmountInput, groupDigits, money, toMinor, uid } from '../lib/format'
 import { readAttachmentBase64, saveAttachment, bridge } from '../state/vault'
 import { т, тр } from '../i18n'
+import { назначеніе, планъПлатежа } from '../engine/credit'
 
 const KIND_LABEL: Record<TxKind, string> = {
   expense: т('Расход'),
@@ -29,6 +30,20 @@ export function TransactionModal({
   const isEdit = !!(draft as Transaction).id
 
   const [kind, setKind] = useState<TxKind>(draft.kind ?? 'expense')
+  /*
+   * Платёж по кредиту — отдельный вид в окне, хотя записывается расходом или
+   * переводом: что из платежа расход, решает engine/credit по условиям
+   * кредита, а человеку достаточно сказать, с какой карты и по какому кредиту.
+   */
+  const кредиты = data.accounts.filter((a) => !a.archived && a.type === 'credit' && a.credit)
+  const платёжПоКредиту = (() => {
+    if (draft.kind !== 'expense' || !draft.debtId || draft.accountId === draft.debtId) return false
+    const к = data.accounts.find((a) => a.id === draft.debtId)
+    return !!к && к.type === 'credit' && назначеніе(к) === 'purchase'
+  })()
+  const [платёж, setПлатёж] = useState(платёжПоКредиту)
+  const [кредитId, setКредитId] = useState(draft.debtId ?? кредиты[0]?.id ?? '')
+  const кредитъ = кредиты.find((a) => a.id === кредитId)
   const [amountStr, setAmountStr] = useState(
     draft.amount ? formatAmountInput(String((draft.amount / 100).toFixed(2)).replace(/\.00$/, '').replace('.', ',')) : '',
   )
@@ -112,14 +127,53 @@ export function TransactionModal({
    */
   const switchKind = (next: TxKind) => {
     setKind(next)
+    setПлатёж(false)
     if (next === 'transfer') return
     const cat = data.categories.find((c) => c.id === categoryId)
     if (cat && cat.kind !== next) setCategoryId(undefined)
     if (splits.length) setSplits([])
   }
 
+  /** Перейти к платежу: карта — не кредит, сумма — платёж по графику. */
+  const toPayment = () => {
+    setKind('expense')
+    setПлатёж(true)
+    setSplits([])
+    const свой = data.accounts.find((a) => a.id === accountId)
+    if (!свой || свой.type === 'credit') {
+      const карта = data.accounts.find((a) => !a.archived && a.type !== 'credit' && a.type !== 'debt')
+      if (карта) setAccountId(карта.id)
+    }
+    const к = кредиты.find((a) => a.id === кредитId) ?? кредиты[0]
+    if (к && !amountStr && к.credit?.monthlyPayment) {
+      setAmountStr(formatAmountInput(String(к.credit.monthlyPayment / 100).replace('.', ',')))
+    }
+  }
+
   const splitSum = splits.reduce((s, x) => s + x.amount, 0)
   const splitOk = !splits.length || splitSum === amount
+
+  const планъ = платёж && кредитъ
+    ? планъПлатежа({ кредитъ, счётъ: accountId, сумма: amount, дата: date, data, безъ: isEdit ? (draft as Transaction).id : undefined, tags, note: note.trim() || undefined })
+    : null
+
+  /** Записать план платежа: статьи, затем операции; при правке первая операция заменяет исходную. */
+  const записатьПлатёжъ = (п: NonNullable<typeof планъ>) => {
+    for (const с of п.статьи) upsertCategory(с)
+    const [первая, ...прочія] = п.операціи
+    if (isEdit && первая && первая.kind === 'expense') {
+      const было = draft as Transaction
+      updateTransaction({
+        ...было, ...первая,
+        splits: первая.splits, categoryId: первая.categoryId, toAccountId: undefined,
+        attachments: attachments.length ? attachments : undefined,
+      })
+    } else {
+      if (isEdit) deleteTransaction((draft as Transaction).id)
+      if (первая) addTransaction({ ...первая, attachments: attachments.length ? attachments : undefined })
+    }
+    for (const о of прочія) addTransaction(о)
+  }
 
   const save = () => {
     if (!accountId) {
@@ -133,6 +187,25 @@ export function TransactionModal({
     if (kind === 'transfer' && (!toAccountId || toAccountId === accountId)) {
       toast(т('Выберите разные счёта для перевода'))
       return
+    }
+    if (платёж) {
+      if (!кредитъ) { toast(т('Выберите кредит')); return }
+      if (!планъ) { toast(т('Выберите карту, с которой платите, — не сам кредит')); return }
+      записатьПлатёжъ(планъ)
+      toast(isEdit ? т('Операция обновлена') : т('Платёж {0} по кредиту «{1}» записан', money(amount), кредитъ.name))
+      onClose()
+      return
+    }
+    // Новый перевод на кредит — тоже платёж: расход считается по тем же правилам.
+    const наКредитъ = data.accounts.find((a) => a.id === toAccountId && a.type === 'credit' && a.credit)
+    if (kind === 'transfer' && наКредитъ && !isEdit) {
+      const п = планъПлатежа({ кредитъ: наКредитъ, счётъ: accountId, сумма: amount, дата: date, data, tags, note: note.trim() || undefined })
+      if (п) {
+        записатьПлатёжъ(п)
+        toast(т('Платёж {0} по кредиту «{1}» записан', money(amount), наКредитъ.name))
+        onClose()
+        return
+      }
     }
     if (!splitOk) {
       toast(т('Сумма долей {0} не совпадает с {1}', money(splitSum), money(amount)))
@@ -150,6 +223,10 @@ export function TransactionModal({
       toAccountId: kind === 'transfer' ? toAccountId : undefined,
       categoryId: safeCategory,
       splits: splits.length ? splits : undefined,
+      // Проценты по кредиту деньгами правятся как обычный расход и остаются при кредите;
+      // всё прочее, переделанное из платежа, от кредита отвязывается.
+      debtId: kind === 'expense' && draft.debtPrincipal === 0 ? draft.debtId : undefined,
+      debtPrincipal: kind === 'expense' && draft.debtPrincipal === 0 ? 0 : undefined,
       tags,
       note: note.trim() || undefined,
       attachments: attachments.length ? attachments : undefined,
@@ -197,10 +274,13 @@ export function TransactionModal({
         )}
         <div className="seg" style={{ marginBottom: 16 }}>
           {(['expense', 'income', 'transfer'] as TxKind[]).map((k) => (
-            <button key={k} className={kind === k ? 'on' : ''} onClick={() => switchKind(k)}>
+            <button key={k} className={kind === k && !платёж ? 'on' : ''} onClick={() => switchKind(k)}>
               {KIND_LABEL[k]}
             </button>
           ))}
+          {кредиты.length > 0 && (
+            <button className={платёж ? 'on' : ''} onClick={toPayment}>{т('Платёж по кредиту')}</button>
+          )}
         </div>
 
         <div className="row" style={{ gap: 14, alignItems: 'flex-end', marginBottom: 16 }}>
@@ -238,14 +318,25 @@ export function TransactionModal({
             )}
           </div>
           <div style={{ width: 190 }}>
-            <Field label={kind === 'transfer' ? т('Со счёта') : т('Счёт')}>
+            <Field label={kind === 'transfer' || платёж ? т('Со счёта') : т('Счёт')}>
               <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                {data.accounts.filter((a) => !a.archived).map((a) => (
+                {data.accounts.filter((a) => !a.archived && !(платёж && a.type === 'credit')).map((a) => (
                   <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
                 ))}
               </select>
             </Field>
           </div>
+          {платёж && (
+            <div style={{ width: 190 }}>
+              <Field label={т('Кредит')}>
+                <select value={кредитId} onChange={(e) => setКредитId(e.target.value)}>
+                  {кредиты.map((a) => (
+                    <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          )}
           {kind === 'transfer' && (
             <div style={{ width: 190 }}>
               <Field label={т('На счёт')}>
@@ -260,7 +351,19 @@ export function TransactionModal({
           )}
         </div>
 
-        {kind !== 'transfer' && (
+        {платёж && кредитъ && (
+          <div className="advice-card info" style={{ marginBottom: 16, padding: '10px 12px', lineHeight: 1.55 }}>
+            {планъ
+              ? тр('Долг до платежа {0}. Проценты {1}, в погашение долга {2}. В расходы попадёт {3}.', money(планъ.долгъДо), money(планъ.проценты), money(планъ.тѣло), money(планъ.расходъ))
+              : т('Укажите сумму и карту, с которой платите.')}
+            <div className="faint small" style={{ marginTop: 4 }}>
+              {назначеніе(кредитъ) === 'purchase'
+                ? т('Кредит на покупку: платёж целиком — расход.')
+                : т('Кредит деньгами: в расход идут только проценты, остальное — перевод на кредит.')}</div>
+          </div>
+        )}
+
+        {kind !== 'transfer' && !платёж && (
           <>
             <div className="card-title">{т('Категория')}</div>
             <div className="row wrap" style={{ gap: 8, marginBottom: 16 }}>
@@ -359,7 +462,7 @@ export function TransactionModal({
           </div>
         </div>
 
-        {kind === 'expense' && (
+        {kind === 'expense' && !платёж && (
           <div style={{ marginTop: 18 }}>
             <div className="row" style={{ marginBottom: 8 }}>
               <div className="card-title" style={{ margin: 0 }}>{т('Разбить чек по категориям')}</div>

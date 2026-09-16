@@ -201,6 +201,7 @@ function normTransaction(v: unknown, drop: Drop): Transaction | null {
     attachments: strList(r.attachments).length ? strList(r.attachments) : undefined,
     recurringId: opt(r.recurringId),
     debtId: opt(r.debtId),
+    ...(r.debtPrincipal != null && opt(r.debtId) ? { debtPrincipal: Math.max(0, money(r.debtPrincipal)) } : {}),
     goalId: opt(r.goalId),
     createdAt: str(r.createdAt) || new Date().toISOString(),
   }
@@ -232,6 +233,8 @@ function normAccount(v: unknown, drop: Drop): Account | null {
             startDate: dateOr(credit.startDate, '1970-01-01'),
             paymentDay: Math.min(31, Math.max(1, Math.round(num(credit.paymentDay, 1)))),
             monthlyPayment: money(credit.monthlyPayment),
+            ...(credit.purpose === 'cash' || credit.purpose === 'purchase' ? { purpose: credit.purpose } : {}),
+            ...(credit.v === 2 ? { v: 2 as const } : {}),
           },
         }
       : {}),

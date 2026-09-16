@@ -229,7 +229,12 @@ export function yearSummary(txs: Transaction[], year: string, now: string = toda
 /** Влияние операции на остаток конкретного счёта. */
 export function accountDelta(t: Transaction, accountId: string): Money {
   if (t.kind === 'income') return t.accountId === accountId ? t.amount : 0
-  if (t.kind === 'expense') return t.accountId === accountId ? -t.amount : 0
+  if (t.kind === 'expense') {
+    if (t.accountId === accountId) return -t.amount
+    // Платёж по кредиту: расход с карты, а долг на кредите уменьшается на тело.
+    if (t.debtId === accountId) return t.debtPrincipal ?? t.amount
+    return 0
+  }
   if (t.accountId === accountId) return -t.amount
   if (t.toAccountId === accountId) return t.amount
   return 0
@@ -277,9 +282,18 @@ export function balances(accounts: Account[], txs: Transaction[], upTo?: string)
   return { byAccount, assets, liabilities, net: assets + liabilities }
 }
 
-/** Остаток по кредиту: тело минус проведённые платежи (грубо, без амортизации). */
+/**
+ * Сколько осталось выплатить по кредиту — это остаток счёта со знаком минус.
+ *
+ * Прежде здесь считалось «сумма кредита минус платежи с пометкой», и карточка
+ * не видела ни остатка, введённого руками, ни переводов на кредит, а цвет
+ * числа брался из настоящего остатка. Числа расходились: долг показывался
+ * один, а краснел по другому. Теперь цифра одна.
+ */
 export function creditRemaining(acc: Account, txs: Transaction[]): Money {
   if (!acc.credit) return 0
+  if (acc.credit.v === 2) return Math.max(0, -accountBalance(acc, txs))
+  // Счёт ещё не переведён (перевод — при открытии хранилища): считаем по-старому.
   const paid = txs.filter((t) => t.debtId === acc.id).reduce((s, t) => s + t.amount, 0)
   return Math.max(0, acc.credit.principal - paid)
 }

@@ -16,6 +16,8 @@ import { Obnovlenie, попроситьПроверку } from '../src/component
 import { Donut } from '../src/components/charts'
 import { addMonths, endOfMonth, humanDate, MONTHS_SHORT, numericDate, parseISO, relDate, today } from '../src/lib/date'
 import type { VaultData } from '../src/lib/types'
+import { creditRemaining } from '../src/engine/stats'
+import { money } from '../src/lib/format'
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   url: 'http://localhost/',
@@ -1863,6 +1865,78 @@ async function besjeda() {
   g.fetch = былъ
 }
 
+/*
+ * Кредиты: перенос при открытии, карточка, форма и платёж.
+ *
+ * В оснастке «Рассрочка на технику» заведена по-старому: остаток 0, а
+ * платежи — расходы с пометкой. Открытие хранилища обязано перевести её на
+ * новый учёт, карточка — показывать долг без тревожного цвета, а платёж из
+ * окна операции — уменьшать долг и попадать в расходы.
+ */
+async function кредиты() {
+  console.log('\n— кредиты —')
+  const было = await loadVault()
+  const рассрочка = было.accounts.find((a) => a.id === 'acc_credit')!
+  check('при открытии кредит переведён на новый учёт',
+    рассрочка.credit?.v === 2 && рассрочка.initialBalance === -180_000_00 && рассрочка.credit?.purpose === 'purchase',
+    `${рассрочка.initialBalance} ${JSON.stringify(рассрочка.credit)}`)
+  const долгъБылъ = creditRemaining(рассрочка, было.transactions)
+  check('старые платежи уменьшают долг', долгъБылъ > 0 && долгъБылъ < 180_000_00, String(долгъБылъ))
+
+  await open('Счета')
+  const карточка = [...document.querySelectorAll('.view .card')].find((к) => к.querySelector('.strong')?.textContent === 'Рассрочка на технику') as HTMLElement | undefined
+  const число = карточка?.querySelector('.num') as HTMLElement | undefined
+  check('на карточке — тот же долг', (число?.textContent || '').replace(/\s/g, '').includes(money(долгъБылъ).replace(/\s/g, '')),
+    `${число?.textContent} против ${money(долгъБылъ)}`)
+  check('и долг не красится тревогой', !!число && !число.getAttribute('style')?.includes('--alert'), число?.getAttribute('style') ?? '')
+
+  // Форма: вместо «Начального остатка» — «Осталось выплатить», есть «На что взят».
+  click(карточка?.querySelector('.icon-btn'))
+  await wait(400)
+  const форма = document.querySelector('.modal')?.textContent || ''
+  check('в форме кредита — «Осталось выплатить» и «На что взят»',
+    форма.includes('Осталось выплатить') && форма.includes('На что взят') && !форма.includes('Начальный остаток'))
+  check('у дат есть пояснения', форма.includes('Когда взят кредит') && форма.includes('Число месяца, когда списывается платёж'))
+  click(byText('.modal-foot .btn', 'Отмена'))
+  await wait(300)
+
+  // Платёж из окна операции.
+  await open('Операции')
+  click(byText('.view-head .btn', 'Добавить'))
+  await wait(400)
+  const вкладка = byText('.modal .seg button', 'Платёж по кредиту')
+  check('в окне операции есть «Платёж по кредиту»', !!вкладка)
+  click(вкладка)
+  await wait(300)
+  const окно = document.querySelector('.modal') as HTMLElement
+  const счета = [...окно.querySelectorAll('select')]
+  const откуда = счета[0] as HTMLSelectElement
+  check('платить с самого кредита нельзя', !!откуда && ![...откуда.options].some((о) => о.value === 'acc_credit'))
+  check('кредит выбран', счета.some((с) => (с as HTMLSelectElement).value === 'acc_credit'))
+  check('сумма — платёж по графику', ((окно.querySelector('input[inputmode="decimal"]') as HTMLInputElement)?.value || '').replace(/\s/g, '') === '9150')
+  check('видно, сколько уйдёт в расходы', (окно.textContent || '').includes('В расходы попадёт'))
+  check('категории для платежа не спрашиваются', !(окно.textContent || '').includes('Категория'))
+  const операцийБыло = было.transactions.length
+  click(byText('.modal-foot .btn', 'Добавить'))
+  await wait(1300)
+  check('окно закрылось', !document.querySelector('.modal'))
+  const стало = await loadVault()
+  const новые = стало.transactions.filter((т) => !было.transactions.some((б) => б.id === т.id))
+  const платёжъ = новые[0]
+  check('записан один расход с пометкой кредита',
+    новые.length === 1 && стало.transactions.length === операцийБыло + 1 && платёжъ.kind === 'expense' && платёжъ.debtId === 'acc_credit' && платёжъ.accountId !== 'acc_credit',
+    JSON.stringify(новые))
+  check('ставка 19,9%: расход разделён на тело и проценты',
+    платёжъ?.splits?.length === 2 && платёжъ.splits.reduce((s, x) => s + x.amount, 0) === 9_150_00
+      && платёжъ.splits.some((x) => x.categoryId === 'cat_credit_interest'), JSON.stringify(платёжъ?.splits))
+  const рассрочкаСтала = стало.accounts.find((a) => a.id === 'acc_credit')!
+  check('долг уменьшился ровно на тело',
+    creditRemaining(рассрочкаСтала, стало.transactions) === долгъБылъ - (платёжъ?.debtPrincipal ?? -1),
+    `${долгъБылъ} → ${creditRemaining(рассрочкаСтала, стало.transactions)}, тело ${платёжъ?.debtPrincipal}`)
+  check('статьи платежей и процентов заведены',
+    стало.categories.some((к) => к.id === 'cat_credit_pay') && стало.categories.some((к) => к.id === 'cat_credit_interest'))
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -1877,6 +1951,7 @@ async function main() {
   await пончикъ()
   await недѣляИКалендарикъ()
   await пополненіеЦѣли()
+  await кредиты()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

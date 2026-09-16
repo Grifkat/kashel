@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { DateField } from '../components/DateField'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { Money } from '../components/anim'
@@ -6,12 +6,13 @@ import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, uid } from '../lib/format'
-import { addMonths, today } from '../lib/date'
+import { addMonths, humanDate, today } from '../lib/date'
 import { accountBalance, balanceTimeline, balances, creditRemaining, isAsset } from '../engine/stats'
 import { Avatar, Confirm, ColorPicker, Field, IconPicker, Modal, MoneyInput, Toggle, useToast } from '../components/ui'
 import { Spark } from '../components/charts'
 import { проектный } from '../engine/project'
-import type { Account, AccountType } from '../lib/types'
+import type { Account, AccountType, VaultData } from '../lib/types'
+import { подсказкаОстатка } from '../engine/credit'
 import { т, тр } from '../i18n'
 
 const TYPES: { k: AccountType; t: string; hint: string }[] = [
@@ -65,7 +66,10 @@ export default function Accounts() {
         </div>
         <div className="row" style={{ marginTop: 10 }}>
           <div>
-            <div className="num" style={{ fontSize: 22, fontWeight: 650, color: b < 0 ? 'var(--alert)' : 'var(--text-strong)' }}>
+            {/* Долг по кредиту показывается как долг, а не как беда: прежде цвет
+                брался из другого числа, чем сама цифра, и «Диван» краснел,
+                пока на нём висел расход, хотя долг на карточке не менялся. */}
+            <div className="num" style={{ fontSize: 22, fontWeight: 650, color: b < 0 && a.type !== 'credit' ? 'var(--alert)' : 'var(--text-strong)' }}>
               {data.settings.hideBalance ? '••••' : <Money value={a.type === 'credit' ? -left : b} />}
             </div>
             {a.type === 'credit' && a.credit && (
@@ -146,6 +150,7 @@ export default function Accounts() {
 }
 
 function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: Account) => void; onClose: () => void }) {
+  const { data } = useStore()
   const [a, setA] = useState<Account>(value)
   const [pick, setPick] = useState(false)
   const toast = useToast()
@@ -156,7 +161,7 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
       type,
       credit:
         type === 'credit'
-          ? a.credit ?? { principal: 0, ratePct: 0, termMonths: 12, startDate: today(), paymentDay: 10, monthlyPayment: 0 }
+          ? a.credit ?? { principal: 0, ratePct: 0, termMonths: 12, startDate: today(), paymentDay: 10, monthlyPayment: 0, purpose: 'purchase', v: 2 }
           : undefined,
       debt: type === 'debt' ? a.debt ?? { counterparty: '', direction: 'i_owe' } : undefined,
     })
@@ -204,11 +209,26 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
         </div>
         <div className="faint small" style={{ marginBottom: 14 }}>{TYPES.find((t) => t.k === a.type)?.hint}</div>
 
-        <Field label={т('Начальный остаток')} hint={т('Сколько было на счёте до начала учёта')}>
-          <MoneyInput value={a.initialBalance} onChange={(v) => patch({ initialBalance: v })} />
-        </Field>
+        {a.type === 'credit' && a.credit ? (
+          <КредитъОстатокъ a={a} data={data} patch={patch} />
+        ) : (
+          <Field label={т('Начальный остаток')} hint={т('Сколько было на счёте до начала учёта')}>
+            <MoneyInput value={a.initialBalance} onChange={(v) => patch({ initialBalance: v })} />
+          </Field>
+        )}
 
         {a.type === 'credit' && a.credit && (
+          <>
+          <div className="card-title">{т('На что взят')}</div>
+          <div className="row wrap" style={{ gap: 7, marginBottom: 6 }}>
+            {([['purchase', т('Покупка или рассрочка')], ['cash', т('Деньги на счёт')]] as const).map(([k, t]) => (
+              <span key={k} className={'chip' + ((a.credit!.purpose ?? 'purchase') === k ? ' on' : '')} onClick={() => patch({ credit: { ...a.credit!, purpose: k } })}>{t}</span>
+            ))}
+          </div>
+          <div className="faint small" style={{ marginBottom: 14, lineHeight: 1.5 }}>
+            {(a.credit.purpose ?? 'purchase') === 'purchase'
+              ? т('Платёж целиком идёт в расходы: саму покупку нигде больше не записывали.')
+              : т('Деньги пришли на счёт и тратятся оттуда — в расходы из платежа идут только проценты.')}</div>
           <div className="grid c2">
             <Field label={т('Сумма кредита')}>
               <MoneyInput value={a.credit.principal} onChange={(v) => patch({ credit: { ...a.credit!, principal: v } })} />
@@ -222,13 +242,14 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
             <Field label={т('Срок, месяцев')}>
               <input type="number" value={a.credit.termMonths} onChange={(e) => patch({ credit: { ...a.credit!, termMonths: Number(e.target.value) } })} />
             </Field>
-            <Field label={т('Дата начала')}>
+            <Field label={т('Дата начала')} hint={т('Когда взят кредит')}>
               <DateField value={a.credit.startDate} onChange={(v) => patch({ credit: { ...a.credit!, startDate: v } })} />
             </Field>
-            <Field label={т('День платежа')}>
+            <Field label={т('День платежа')} hint={т('Число месяца, когда списывается платёж')}>
               <input type="number" min={1} max={31} value={a.credit.paymentDay} onChange={(e) => patch({ credit: { ...a.credit!, paymentDay: Number(e.target.value) } })} />
             </Field>
           </div>
+          </>
         )}
 
         {a.type === 'debt' && a.debt && (
@@ -269,6 +290,45 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
           onChange={(icon, color) => patch({ icon, color })}
           onClose={() => setPick(false)}
         />
+      )}
+    </>
+  )
+}
+
+/**
+ * Поле «Осталось выплатить» у кредита.
+ *
+ * Долг кредита — это остаток счёта со знаком минус, поэтому поле пишет в
+ * initialBalance отрицательное число. Рядом — подсказка по графику: сколько
+ * платежей прошло с даты начала и сколько после них осталось. Программа
+ * считает это сама, человеку остаётся согласиться или поправить.
+ */
+function КредитъОстатокъ({ a, data, patch }: { a: Account; data: VaultData; patch: (p: Partial<Account>) => void }) {
+  const подсказка = подсказкаОстатка(a, data)
+  const сейчасъ = Math.max(0, -a.initialBalance)
+  /*
+   * У нового кредита поле пустое, и без подсказки он заводился бы без долга.
+   * Пока человек сам поле не трогал, оно идёт следом за графиком.
+   */
+  const [самъ, setСамъ] = useState(сейчасъ !== 0)
+  const поГрафику = подсказка?.остатокъ
+  useEffect(() => {
+    if (!самъ && поГрафику != null && поГрафику !== сейчасъ) patch({ initialBalance: -поГрафику })
+  }, [самъ, поГрафику])
+  return (
+    <>
+      <Field
+        label={т('Осталось выплатить')}
+        hint={т('Долг на начало учёта. Платежи, внесённые в программу, вычтутся сами.')}
+      >
+        <MoneyInput value={сейчасъ} onChange={(v) => { setСамъ(true); patch({ initialBalance: -v }) }} />
+      </Field>
+      {подсказка && подсказка.остатокъ !== сейчасъ && (
+        <div className="row small" style={{ gap: 8, marginTop: -6, marginBottom: 12, flexWrap: 'wrap' }}>
+          <span className="faint">
+            {тр('По графику на {0}: {1} — прошло платежей: {2}', humanDate(подсказка.наДату, true), money(подсказка.остатокъ), подсказка.платежей)}</span>
+          <button className="btn sm" onClick={() => patch({ initialBalance: -подсказка.остатокъ })}>{т('Подставить')}</button>
+        </div>
       )}
     </>
   )

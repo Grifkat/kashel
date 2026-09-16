@@ -1,6 +1,7 @@
-import type { Account, Money, Transaction, VaultData } from '../lib/types'
+import type { Account, Category, Money, Transaction, VaultData } from '../lib/types'
 import { accountBalance } from './stats'
-import { addMonths, monthKey, today } from '../lib/date'
+import { addDays, addMonths, daysInMonth, monthKey, parseISO, today } from '../lib/date'
+import { т } from '../i18n'
 
 /*
  * Кредиты: карты и займы.
@@ -99,6 +100,7 @@ export function creditState(acc: Account, data: VaultData, now: string = today()
   const поСтатьямъ = new Map<string | null, Money>()
   for (const t of txs) {
     if (t.kind === 'transfer' && t.toAccountId === acc.id) repaid += t.amount
+    else if (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id) repaid += t.debtPrincipal ?? t.amount
     else if (t.kind === 'expense' && t.accountId === acc.id) {
       spentTotal += t.amount
       const k = t.categoryId ?? null
@@ -164,4 +166,250 @@ export function whatIf(k: Кредит, extra: Money): Прикидка {
     saved: Math.max(0, k.overpay - план.reduce((s, r) => s + r.interest, 0)),
     monthsLeft: план.length,
   }
+}
+
+/* ------------------------------------------------------------------------
+ * Платежи по кредиту.
+ *
+ * Правило, от чего зависит расход, одно и живёт здесь: окно операции и
+ * перенос старых данных зовут одни и те же функции, чтобы платёж, внесённый
+ * руками, и платёж, переведённый из старого перевода, не разошлись.
+ *
+ * - Проценты — всегда расход: это цена денег, их не вернуть.
+ * - Тело у покупки или рассрочки — тоже расход: диван купили в долг, и
+ *   покупку нигде больше не записали, так что траты видны по мере оплаты.
+ *   При ставке 0% весь платёж — тело, то есть весь — расход.
+ * - Тело у кредита деньгами — перевод: деньги пришли на счёт и уже ушли
+ *   оттуда расходами, второй раз считать их нельзя.
+ * ---------------------------------------------------------------------- */
+
+/** Статья для тела платежей по покупкам в долг. */
+export const СТАТЬЯ_ПЛАТЕЖЕЙ: Category = {
+  id: 'cat_credit_pay',
+  name: т('Платежи по кредитам'),
+  kind: 'expense',
+  icon: 'landmark',
+  color: '#e05252',
+  bucket: 'needs',
+}
+
+/** Статья для процентов — отдельно, чтобы переплату было видно в отчётах. */
+export const СТАТЬЯ_ПРОЦЕНТОВ: Category = {
+  id: 'cat_credit_interest',
+  name: т('Проценты по кредитам'),
+  kind: 'expense',
+  icon: 'percent',
+  color: '#e8833a',
+  bucket: 'needs',
+}
+
+export type Назначеніе = 'purchase' | 'cash'
+export const назначеніе = (acc: Account): Назначеніе => acc.credit?.purpose ?? 'purchase'
+
+/**
+ * Делит платёж на проценты за месяц и тело. Проценты берутся с долга на момент
+ * платежа по месячной ставке и не могут быть больше самого платежа.
+ */
+export function разложитьПлатёжъ(долгъ: Money, ratePct: number, сумма: Money): { проценты: Money; тѣло: Money } {
+  const r = Math.max(0, ratePct) / 100 / 12
+  const проценты = Math.min(сумма, Math.max(0, Math.round(Math.max(0, долгъ) * r)))
+  return { проценты, тѣло: сумма - проценты }
+}
+
+type НоваяОперація = Omit<Transaction, 'id' | 'createdAt'>
+
+export interface ПланъПлатежа {
+  /** Статьи, которых ещё нет в хранилище, — завести до записи операций. */
+  статьи: Category[]
+  операціи: НоваяОперація[]
+  долгъДо: Money
+  проценты: Money
+  тѣло: Money
+  /** Сколько из платежа попадёт в расходы. */
+  расходъ: Money
+}
+
+/**
+ * Что записать, когда платишь по кредиту.
+ *
+ * `безъ` — id правимой операции: её не учитываем в долге до платежа, иначе
+ * при правке платёж посчитал бы проценты с уже уменьшенного долга.
+ */
+export function планъПлатежа(p: {
+  кредитъ: Account
+  счётъ: string
+  сумма: Money
+  дата: string
+  data: VaultData
+  безъ?: string
+  tags?: string[]
+  note?: string
+}): ПланъПлатежа | null {
+  const { кредитъ, счётъ, сумма, дата, data } = p
+  if (!(сумма > 0) || !счётъ || счётъ === кредитъ.id || кредитъ.type !== 'credit') return null
+  const txs = p.безъ ? data.transactions.filter((t) => t.id !== p.безъ) : data.transactions
+  const долгъДо = Math.max(0, -accountBalance(кредитъ, txs, дата))
+  const { проценты, тѣло } = разложитьПлатёжъ(долгъДо, кредитъ.credit?.ratePct ?? 0, сумма)
+  const есть = new Set(data.categories.map((c) => c.id))
+  const статьи: Category[] = []
+  const нужна = (c: Category) => {
+    if (!есть.has(c.id) && !статьи.some((x) => x.id === c.id)) статьи.push(c)
+  }
+  const общее = { date: дата, tags: p.tags ?? [], note: p.note || т('Платёж по кредиту «{0}»', кредитъ.name) }
+  const операціи: НоваяОперація[] = []
+
+  if (назначеніе(кредитъ) === 'purchase') {
+    const доли: { categoryId: string; amount: Money }[] = []
+    if (тѣло > 0) доли.push({ categoryId: СТАТЬЯ_ПЛАТЕЖЕЙ.id, amount: тѣло })
+    if (проценты > 0) доли.push({ categoryId: СТАТЬЯ_ПРОЦЕНТОВ.id, amount: проценты })
+    if (тѣло > 0) нужна(СТАТЬЯ_ПЛАТЕЖЕЙ)
+    if (проценты > 0) нужна(СТАТЬЯ_ПРОЦЕНТОВ)
+    операціи.push({
+      kind: 'expense', amount: сумма, accountId: счётъ, debtId: кредитъ.id, debtPrincipal: тѣло,
+      ...(доли.length > 1 ? { splits: доли } : { categoryId: доли[0].categoryId }),
+      ...общее,
+    })
+    return { статьи, операціи, долгъДо, проценты, тѣло, расходъ: сумма }
+  }
+
+  if (тѣло > 0) {
+    операціи.push({ kind: 'transfer', amount: тѣло, accountId: счётъ, toAccountId: кредитъ.id, ...общее })
+  }
+  if (проценты > 0) {
+    нужна(СТАТЬЯ_ПРОЦЕНТОВ)
+    операціи.push({
+      kind: 'expense', amount: проценты, accountId: счётъ, categoryId: СТАТЬЯ_ПРОЦЕНТОВ.id,
+      debtId: кредитъ.id, debtPrincipal: 0, ...общее,
+    })
+  }
+  return { статьи, операціи, долгъДо, проценты, тѣло, расходъ: проценты }
+}
+
+/* ------------------------------------------------------------------------
+ * Остаток по графику.
+ *
+ * «Дата начала» — день, когда кредит взят. «День платежа» — число месяца.
+ * Первый платёж — ближайшее такое число после даты начала. Из этого
+ * программа сама знает, сколько платежей уже прошло, и предлагает, сколько
+ * осталось выплатить, — человеку не надо считать это в уме.
+ * ---------------------------------------------------------------------- */
+
+/** Дата платежа в месяце: 31-е в феврале — последний день февраля. */
+function числоВъМѣсяцѣ(месяцъ: string, день: number): string {
+  const d = parseISO(месяцъ.slice(0, 7) + '-01')
+  const n = Math.min(Math.max(1, день), daysInMonth(d.getFullYear(), d.getMonth()))
+  return месяцъ.slice(0, 7) + '-' + String(n).padStart(2, '0')
+}
+
+/** Даты платежей после начала и не позже `до`. */
+export function датыПлатежей(c: NonNullable<Account['credit']>, до: string): string[] {
+  const итогъ: string[] = []
+  if (!c.startDate || до <= c.startDate) return итогъ
+  let месяцъ = c.startDate.slice(0, 7) + '-01'
+  for (let i = 0; i < 600; i++) {
+    const д = числоВъМѣсяцѣ(месяцъ, c.paymentDay)
+    if (д > до) break
+    if (д > c.startDate) итогъ.push(д)
+    месяцъ = addMonths(месяцъ, 1)
+  }
+  return итогъ
+}
+
+/** Сколько останется долга после `n` платежей по графику. */
+export function остатокПослѣ(c: NonNullable<Account['credit']>, n: number): Money {
+  let остатокъ = c.principal
+  for (let i = 0; i < n && остатокъ > 0; i++) {
+    const { тѣло } = разложитьПлатёжъ(остатокъ, c.ratePct, c.monthlyPayment)
+    if (тѣло <= 0) break
+    остатокъ = Math.max(0, остатокъ - тѣло)
+  }
+  return остатокъ
+}
+
+/**
+ * Подсказка для поля «Осталось выплатить».
+ *
+ * Считается на день перед первым платежом, уже внесённым в программу: они
+ * вычтутся сами, и учесть их второй раз значило бы занизить долг. Если
+ * платежей в программе нет — на сегодня.
+ */
+export function подсказкаОстатка(
+  acc: Account,
+  data: VaultData,
+  now: string = today(),
+): { остатокъ: Money; платежей: number; наДату: string } | null {
+  const c = acc.credit
+  if (!c || !(c.principal > 0) || !(c.monthlyPayment > 0) || !c.startDate) return null
+  const свои = data.transactions
+    .filter((t) => (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id) || (t.kind === 'transfer' && t.toAccountId === acc.id))
+    .map((t) => t.date)
+    .sort()
+  const наДату = свои.length && свои[0] <= now ? addDays(свои[0], -1) : now
+  const платежей = датыПлатежей(c, наДату).length
+  return { остатокъ: остатокПослѣ(c, платежей), платежей, наДату }
+}
+
+/* ------------------------------------------------------------------------
+ * Перенос старых кредитов на новый учёт — один раз на счёт.
+ *
+ * - Остаток: раньше карточка показывала «сумму кредита», а поле «Начальный
+ *   остаток» ни на что не влияло, и в него вписывали, сколько осталось.
+ *   Положительное число там и означает «осталось выплатить». Ноль — значит
+ *   не вписали, и долгом становится сумма кредита: ровно то, что человек
+ *   видел на карточке. Кредитной карты с лимитом это не касается — её долг
+ *   и раньше складывался из трат.
+ * - Назначение: если с кредита переводили деньги на свои счета, это кредит
+ *   деньгами; иначе — покупка.
+ * - Переводы на кредит-покупку становятся платежами — с расходом, как
+ *   договорились. На кредит деньгами перевод и так означает тело.
+ * ---------------------------------------------------------------------- */
+export function перевестиКредиты(data: VaultData): {
+  accounts: Account[]
+  transactions: Transaction[]
+  статьи: Category[]
+  месяцы: string[]
+  changed: number
+} {
+  let changed = 0
+  let transactions = data.transactions
+  const статьи: Category[] = []
+  const месяцы = new Set<string>()
+  const accounts = data.accounts.map((a) => {
+    if (a.type !== 'credit' || !a.credit || a.credit.v === 2) return a
+    changed++
+    const c = a.credit
+    const карта = (c.kind ?? (c.limit ? 'card' : 'loan')) === 'card'
+    let initialBalance = a.initialBalance
+    if (initialBalance > 0) initialBalance = -initialBalance
+    else if (initialBalance === 0 && !карта) initialBalance = -(c.principal || 0)
+    const деньгами = transactions.some((t) => t.kind === 'transfer' && t.accountId === a.id && t.toAccountId !== a.id)
+    const новый: Account = {
+      ...a,
+      initialBalance,
+      credit: { ...c, purpose: c.purpose ?? (деньгами ? 'cash' : 'purchase'), v: 2 },
+    }
+    if (новый.credit!.purpose === 'purchase') {
+      const переводы = transactions
+        .filter((t) => t.kind === 'transfer' && t.toAccountId === a.id && t.accountId !== a.id)
+        .sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : 0))
+      for (const t of переводы) {
+        const планъ = планъПлатежа({
+          кредитъ: новый, счётъ: t.accountId, сумма: t.amount, дата: t.date,
+          data: { ...data, accounts: [новый], categories: [...data.categories, ...статьи], transactions },
+          безъ: t.id, tags: t.tags, note: t.note,
+        })
+        if (!планъ) continue
+        for (const с of планъ.статьи) if (!статьи.some((x) => x.id === с.id)) статьи.push(с)
+        const [платёжъ] = планъ.операціи
+        const замѣна: Transaction = {
+          ...платёжъ, id: t.id, createdAt: t.createdAt,
+          ...(t.attachments ? { attachments: t.attachments } : {}),
+        }
+        transactions = transactions.map((x) => (x.id === t.id ? замѣна : x))
+        месяцы.add(monthKey(t.date))
+      }
+    }
+    return новый
+  })
+  return { accounts, transactions, статьи, месяцы: [...месяцы], changed }
 }

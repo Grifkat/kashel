@@ -7,8 +7,9 @@ import { monthKey, today } from '../lib/date'
 import { uid } from '../lib/format'
 import { bridge, isDesktop, loadVault, saveCore, saveTransactions, wipeSpaceFiles } from './vault'
 import {
-  DEFAULT_CATEGORIES, DEFAULT_SETTINGS, emptyVault, freshVault, migrateCredits, migrateSettings,
+  DEFAULT_CATEGORIES, DEFAULT_SETTINGS, emptyVault, freshVault, migrateSettings,
 } from './defaults'
+import { перевестиКредиты } from '../engine/credit'
 import { occurrencesInMonth } from '../engine/forecast'
 import { т } from '../i18n'
 
@@ -185,12 +186,19 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         ? { ...merged, categories: DEFAULT_CATEGORIES.map((c) => ({ ...c })) }
         : merged
 
-      // Старым кредитам проставляем остаток: без этого они не видны нигде,
-      // кроме своего раздела. Правка разовая — второй раз условие не сойдётся.
-      const кредиты = migrateCredits(start)
+      // Старые кредиты — на новый учёт: остаток = сколько осталось выплатить,
+      // переводы на покупку в долг — платежи с расходом. Правка разовая: счёт
+      // получает отметку версии, и второй раз его не трогают.
+      const кредиты = перевестиКредиты(start)
       const сКредитами = кредиты.changed
-        ? { ...start, accounts: кредиты.accounts }
+        ? {
+            ...start,
+            accounts: кредиты.accounts,
+            transactions: кредиты.transactions,
+            categories: [...start.categories, ...кредиты.статьи],
+          }
         : start
+      for (const м of кредиты.месяцы) touchedRef.current.add(м)
 
       const posted = postDueRecurring(сКредитами)
       if (seq !== bootSeq.current) return
@@ -464,7 +472,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * затронутых месяцев означает «переписать все и подчистить лишние файлы»,
    * иначе месяцы прежнего хранилища остались бы лежать рядом с новыми.
    */
-  const replaceAll = useCallback(async (next: VaultData) => {
+  const replaceAll = useCallback(async (пришло: VaultData) => {
+    // Архив мог быть сделан прежней версией — кредиты переводим так же, как при открытии.
+    const к = перевестиКредиты(пришло)
+    const next = к.changed
+      ? { ...пришло, accounts: к.accounts, transactions: к.transactions, categories: [...пришло.categories, ...к.статьи] }
+      : пришло
     if (saveTimer.current) {
       window.clearTimeout(saveTimer.current)
       saveTimer.current = null

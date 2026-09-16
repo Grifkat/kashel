@@ -7,7 +7,7 @@ import { buildAdvice } from '../src/engine/advice'
 import { runQuery } from '../src/engine/query'
 import { parseQuick, describeDraft } from '../src/engine/parse'
 import { parseCsv, guessColumns, buildPreview, parseAmountCell, parseDateCell } from '../src/engine/csv'
-import { balances, categoryMonthly, categoryTotals, comparablePrev, entryDate, makePeriod, monthlySeries, yearSummary, type PeriodKind } from '../src/engine/stats'
+import { accountBalance, balances, categoryMonthly, creditRemaining, categoryTotals, comparablePrev, entryDate, makePeriod, monthlySeries, yearSummary, type PeriodKind } from '../src/engine/stats'
 import { DIGIT_SEP, groupDigits, money, toMinor, uid } from '../src/lib/format'
 import { addDays, addMonths, diffDays, monthKey, parseISO, startOfWeek, today, порядокъДней } from '../src/lib/date'
 import { разобратьДату, сеткаМесяца } from '../src/components/DateField'
@@ -27,10 +27,9 @@ import {
   address, awards, freshAwards, levelOf, RANKS, romanClass, standing, traits, xpBreakdown, XP_STEPS,
 } from '../src/engine/honors'
 import { знакъЕсть, ключъЗнака } from '../src/lib/znaki'
-import { creditState, schedule, whatIf } from '../src/engine/credit'
+import { creditState, schedule, whatIf, перевестиКредиты, планъПлатежа, разложитьПлатёжъ, датыПлатежей, остатокПослѣ, подсказкаОстатка, СТАТЬЯ_ПЛАТЕЖЕЙ, СТАТЬЯ_ПРОЦЕНТОВ } from '../src/engine/credit'
 import { личное, projectState, projectsSummary, проектная } from '../src/engine/project'
 import { НАСТАВЛЕНІЕ, наказЯзыка, полнаяВыгрузка, сводкаДляМодели } from '../src/engine/svodka'
-import { migrateCredits } from '../src/state/defaults'
 import { ОПИСАННЫЕ } from '../src/lib/znakiText'
 import { FREEZES_PER_MONTH, streak } from '../src/engine/streak'
 import { monthQuests, questsDone } from '../src/engine/honors'
@@ -1177,23 +1176,145 @@ const больше = whatIf(k0, 5_000_00)
 check('доплата сокращаетъ срокъ и переплату',
   больше.faster > 0 && больше.saved > 0, `на ${больше.faster} мѣс., ${больше.saved} коп.`)
 
-// Перенос старыхъ данныхъ: узкій случай и ровно одинъ разъ.
+// Перенос старыхъ данныхъ — одинъ разъ на счётъ.
+/*
+ * Прежде карточка кредита показывала «сумму кредита», а «Начальный остатокъ»
+ * ни на что не вліялъ, и туда вписывали, сколько осталось. Переносъ беретъ
+ * положительное число за «осталось выплатить», а ноль — за сумму кредита,
+ * то есть ровно за то, что человѣкъ видѣлъ на карточкѣ.
+ */
 const старый = { id: 'old', name: 'Рассрочка', type: 'credit' as const, icon: 'credit-card',
   color: '#e05252', initialBalance: 0,
-  credit: { principal: 50_000_00, ratePct: 0, termMonths: 10, startDate: today(),
-    paymentDay: 5, monthlyPayment: 5_000_00 } }
-const перенос = migrateCredits({ ...data, accounts: [старый], transactions: [] })
-check('старому кредиту проставляется остатокъ',
+  credit: { principal: 50_000_00, ratePct: 0, termMonths: 10, startDate: '2026-06-25',
+    paymentDay: 10, monthlyPayment: 5_000_00 } }
+const перенос = перевестиКредиты({ ...data, accounts: [старый], transactions: [] })
+check('старому кредиту долгомъ становится сумма кредита',
   перенос.accounts[0].initialBalance === -50_000_00, String(перенос.accounts[0].initialBalance))
-check('и это считается измѣненіемъ', перенос.changed === 1)
-const второй = migrateCredits({ ...data, accounts: перенос.accounts, transactions: [] })
+check('и это считается измѣненіемъ, съ отмѣткой версіи', перенос.changed === 1 && перенос.accounts[0].credit?.v === 2)
+check('безъ переводовъ съ кредита — это покупка', перенос.accounts[0].credit?.purpose === 'purchase')
+const второй = перевестиКредиты({ ...data, accounts: перенос.accounts, transactions: [] })
 check('второй разъ ничего не трогаетъ', второй.changed === 0)
-const сОперациями = migrateCredits({
-  ...data, accounts: [старый],
-  transactions: [{ id: 'x', kind: 'expense' as const, date: today(), amount: 100_00,
-    accountId: старый.id, tags: [], createdAt: today() }],
-})
-check('счётъ съ операціями не трогается', сОперациями.changed === 0)
+const вписалиОстатокъ = перевестиКредиты({ ...data, accounts: [{ ...старый, initialBalance: 23_300_79 }], transactions: [] })
+check('вписанный остатокъ — это долгъ', вписалиОстатокъ.accounts[0].initialBalance === -23_300_79,
+  String(вписалиОстатокъ.accounts[0].initialBalance))
+const кредитнаяКарта = перевестиКредиты({ ...data, accounts: [кредитный], transactions: [] })
+check('кредитную карту переносъ не трогаетъ', кредитнаяКарта.accounts[0].initialBalance === кредитный.initialBalance)
+
+// Переводъ на покупку въ долгъ становится платежомъ съ расходомъ — тотъ же id.
+const стараяОплата = { id: 'op1', kind: 'transfer' as const, date: '2026-09-13', amount: 4_551_00,
+  accountId: картаСчёт.id, toAccountId: старый.id, tags: ['диван'], createdAt: today() }
+const переведено = перевестиКредиты({ ...data, accounts: [картаСчёт, старый], transactions: [стараяОплата] })
+const ставшая = переведено.transactions[0]
+check('переводъ на покупку сталъ платежомъ',
+  ставшая.id === 'op1' && ставшая.kind === 'expense' && ставшая.debtId === старый.id && ставшая.debtPrincipal === 4_551_00,
+  JSON.stringify(ставшая))
+check('и статья платежей заведена', переведено.статьи.some((с) => с.id === СТАТЬЯ_ПЛАТЕЖЕЙ.id) && ставшая.categoryId === СТАТЬЯ_ПЛАТЕЖЕЙ.id)
+check('и мѣсяцъ помѣченъ къ записи', переведено.месяцы.includes('2026-09'))
+check('и метки съ ним переѣхали', ставшая.tags[0] === 'диван')
+const послѣПереноса = { ...data, accounts: переведено.accounts, transactions: переведено.transactions,
+  categories: [...data.categories, ...переведено.статьи] }
+check('долгъ уменьшился на платёжъ',
+  creditRemaining(переведено.accounts[1], послѣПереноса.transactions) === 50_000_00 - 4_551_00,
+  String(creditRemaining(переведено.accounts[1], послѣПереноса.transactions)))
+check('а въ расходахъ онъ виденъ',
+  categoryTotals(послѣПереноса.transactions, 'expense').some((c) => c.categoryId === СТАТЬЯ_ПЛАТЕЖЕЙ.id && c.amount === 4_551_00))
+
+const деньгамиСтарый = перевестиКредиты({ ...data, accounts: [картаСчёт, старый], transactions: [
+  { id: 'in', kind: 'transfer' as const, date: '2026-06-25', amount: 50_000_00, accountId: старый.id, toAccountId: картаСчёт.id, tags: [], createdAt: today() },
+  стараяОплата,
+] })
+check('съ кредита переводили деньги — это кредитъ деньгами', деньгамиСтарый.accounts[1].credit?.purpose === 'cash')
+check('и переводы на него остаются переводами', деньгамиСтарый.transactions[1].kind === 'transfer')
+
+// ------------------------------------------------------- платежи по кредиту
+/*
+ * Что въ платежѣ расходъ, рѣшаетъ одно правило: проценты — всегда; тѣло у
+ * покупки въ долгъ — тоже (саму покупку нигдѣ не записывали); тѣло у кредита
+ * деньгами — нѣтъ, иначе траты посчитались бы дважды.
+ */
+console.log('\n— платежи по кредиту —')
+const разложено = разложитьПлатёжъ(100_000_00, 12, 5_000_00)
+check('проценты за мѣсяцъ съ долга', разложено.проценты === 1_000_00 && разложено.тѣло === 4_000_00, JSON.stringify(разложено))
+check('при нулевой ставкѣ всё — тѣло', разложитьПлатёжъ(100_000_00, 0, 5_000_00).проценты === 0)
+check('проценты не больше платежа', разложитьПлатёжъ(100_000_00, 120, 500_00).тѣло === 0)
+
+const диванъ = { ...старый, id: 'div', name: 'Диван', initialBalance: -44_617_59,
+  credit: { ...старый.credit, principal: 44_617_59, monthlyPayment: 4_440_00, purpose: 'purchase' as const, v: 2 as const } }
+const техника = { ...диванъ, id: 'teh', name: 'Техника', initialBalance: -100_000_00,
+  credit: { ...диванъ.credit, principal: 100_000_00, ratePct: 12, purpose: 'purchase' as const } }
+const наличныйКредитъ = { ...техника, id: 'nal', name: 'Наличными',
+  credit: { ...техника.credit, purpose: 'cash' as const } }
+const банкъ = { ...data, accounts: [картаСчёт, диванъ, техника, наличныйКредитъ], transactions: [] as typeof data.transactions,
+  categories: data.categories.filter((c) => c.id !== СТАТЬЯ_ПЛАТЕЖЕЙ.id && c.id !== СТАТЬЯ_ПРОЦЕНТОВ.id) }
+const провести = (планъ: NonNullable<ReturnType<typeof планъПлатежа>>) =>
+  планъ.операціи.map((о, i) => ({ ...о, id: 'x' + i, createdAt: today() }))
+
+const п0 = планъПлатежа({ кредитъ: диванъ, счётъ: картаСчёт.id, сумма: 4_551_00, дата: '2026-09-13', data: банкъ })!
+check('рассрочка 0%: одинъ расходъ на всю сумму',
+  п0.операціи.length === 1 && п0.операціи[0].kind === 'expense' && п0.расходъ === 4_551_00 && п0.проценты === 0)
+const послѣ0 = провести(п0)
+check('рассрочка 0%: долгъ уменьшился на всю сумму', creditRemaining(диванъ, послѣ0) === 44_617_59 - 4_551_00)
+check('рассрочка 0%: съ карты ушла вся сумма',
+  accountBalance(картаСчёт, послѣ0) === картаСчёт.initialBalance - 4_551_00)
+
+const п12 = планъПлатежа({ кредитъ: техника, счётъ: картаСчёт.id, сумма: 5_000_00, дата: '2026-09-13', data: банкъ })!
+const д12 = п12.операціи[0]
+check('покупка подъ 12%: расходъ весь, раздѣлёнъ на тѣло и проценты',
+  п12.операціи.length === 1 && п12.расходъ === 5_000_00 && д12.splits?.length === 2
+    && д12.splits.reduce((s, x) => s + x.amount, 0) === 5_000_00, JSON.stringify(д12))
+check('покупка подъ 12%: долгъ уменьшился только на тѣло',
+  creditRemaining(техника, провести(п12)) === 100_000_00 - 4_000_00, String(creditRemaining(техника, провести(п12))))
+check('и обѣ статьи заведены', п12.статьи.length === 2)
+
+const пН = планъПлатежа({ кредитъ: наличныйКредитъ, счётъ: картаСчёт.id, сумма: 5_000_00, дата: '2026-09-13', data: банкъ })!
+const опН = провести(пН)
+check('кредитъ деньгами: переводъ тѣла и расходъ процентовъ',
+  пН.операціи.length === 2 && пН.операціи[0].kind === 'transfer' && пН.операціи[0].amount === 4_000_00
+    && пН.операціи[1].kind === 'expense' && пН.операціи[1].amount === 1_000_00 && пН.расходъ === 1_000_00)
+check('кредитъ деньгами: долгъ минусъ тѣло, карта минусъ весь платёжъ',
+  creditRemaining(наличныйКредитъ, опН) === 96_000_00 && accountBalance(картаСчёт, опН) === картаСчёт.initialBalance - 5_000_00)
+const безПроцентовъ = планъПлатежа({ кредитъ: { ...наличныйКредитъ, credit: { ...наличныйКредитъ.credit, ratePct: 0 } },
+  счётъ: картаСчёт.id, сумма: 5_000_00, дата: '2026-09-13', data: банкъ })!
+check('кредитъ деньгами 0%: расхода нѣтъ вовсе', безПроцентовъ.операціи.length === 1 && безПроцентовъ.расходъ === 0)
+check('платить съ самого кредита нельзя', планъПлатежа({ кредитъ: диванъ, счётъ: диванъ.id, сумма: 100, дата: today(), data: банкъ }) === null)
+
+// Правка платежа: проценты считаются съ долга безъ самой правимой операціи.
+const записанный = { ...провести(п12)[0], id: 'edit1' }
+const сЗаписью = { ...банкъ, transactions: [записанный] }
+const правка = планъПлатежа({ кредитъ: техника, счётъ: картаСчёт.id, сумма: 5_000_00, дата: '2026-09-13', data: сЗаписью, безъ: 'edit1' })!
+check('при правкѣ долгъ до платежа — безъ неё', правка.долгъДо === 100_000_00 && правка.проценты === 1_000_00)
+
+// ------------------------------------------------------- график
+console.log('\n— график кредита —')
+const графикъ = { principal: 33_742_64, ratePct: 0, termMonths: 12, startDate: '2026-06-25', paymentDay: 10, monthlyPayment: 2_820_00 }
+const даты = датыПлатежей(графикъ, '2026-09-15')
+check('платежи — числа мѣсяца послѣ даты начала', даты.join(',') === '2026-07-10,2026-08-10,2026-09-10', даты.join(','))
+check('въ день начала платежа нѣтъ', датыПлатежей({ ...графикъ, startDate: '2026-06-10' }, '2026-06-30').length === 0)
+check('31-е въ февралѣ — послѣдній день',
+  датыПлатежей({ ...графикъ, startDate: '2027-01-31', paymentDay: 31 }, '2027-03-01').join(',') === '2027-02-28')
+check('остатокъ послѣ трёхъ платежей', остатокПослѣ(графикъ, 3) === 33_742_64 - 3 * 2_820_00, String(остатокПослѣ(графикъ, 3)))
+check('остатокъ не уходитъ ниже нуля', остатокПослѣ(графикъ, 100) === 0)
+const счётТехники = { ...техника, credit: { ...графикъ, v: 2 as const } }
+const подсказка = подсказкаОстатка(счётТехники, { ...банкъ, transactions: [] }, '2026-09-15')
+check('подсказка на сегодня безъ платежей въ программѣ',
+  подсказка?.платежей === 3 && подсказка.остатокъ === 33_742_64 - 3 * 2_820_00, JSON.stringify(подсказка))
+const сПлатежомъ = { ...банкъ, transactions: [{ id: 'q', kind: 'expense' as const, date: '2026-07-12', amount: 2_820_00,
+  accountId: картаСчёт.id, debtId: счётТехники.id, debtPrincipal: 2_820_00, tags: [], createdAt: today() }] }
+const подсказка2 = подсказкаОстатка(счётТехники, сПлатежомъ, '2026-09-15')
+check('платежи, уже внесённые въ программу, второй разъ не вычитаются',
+  подсказка2?.наДату === '2026-07-11' && подсказка2.платежей === 1, JSON.stringify(подсказка2))
+
+// Архивъ не теряетъ ни назначенія кредита, ни тѣла платежа.
+{
+  const архивъ = { kashel: 'vault', formatVersion: 1, app: 'Кошель', exportedAt: '2026-09-14T00:00:00Z', counts: {}, data: { ...банкъ, transactions: провести(п12) }, notes: {}, canvases: {}, attachments: {} }
+  const р = parseArchive(JSON.stringify(архивъ))
+  const счета = р.ok ? р.archive.data.accounts : []
+  const опер = р.ok ? р.archive.data.transactions : []
+  check('архивъ хранитъ назначеніе и версію кредита',
+    счета.find((a) => a.id === 'nal')?.credit?.purpose === 'cash' && счета.find((a) => a.id === 'div')?.credit?.v === 2,
+    р.ok ? '' : String(р.error))
+  check('архивъ хранитъ тѣло платежа', опер[0]?.debtPrincipal === 4_000_00, JSON.stringify(опер[0]))
+}
 
 // ------------------------------------------------------- проекты
 /*
