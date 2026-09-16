@@ -17,6 +17,7 @@ import { ThemeThumb } from '../components/ThemePicker'
 import { Obnovlenie } from '../components/Obnovlenie'
 import type { AnimLevel, Density, ReadingFont } from '../lib/types'
 import { т, тр } from '../i18n'
+import { звукЗаписи } from '../lib/sound'
 
 export default function SettingsView() {
   const app = useApp()
@@ -150,6 +151,16 @@ export default function SettingsView() {
           <div className="row" style={{ marginBottom: 12 }}>
             <span style={{ flex: 1 }}>{т('Скрывать баланс')}</span>
             <Toggle checked={data.settings.hideBalance} onChange={(v) => patchSettings({ hideBalance: v })} />
+          </div>
+          <div className="row" style={{ marginBottom: 12 }}>
+            <span style={{ flex: 1 }}>{т('Звук при записи операции')}</span>
+            <Toggle
+              checked={data.settings.saveSound !== false}
+              onChange={(v) => {
+                patchSettings({ saveSound: v })
+                if (v) звукЗаписи('income', true)
+              }}
+            />
           </div>
           {/* Любой день, а не только понедельник или воскресенье: неделю
               удобно начинать и с собственного выходного. Меняет все календари

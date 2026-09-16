@@ -224,9 +224,15 @@ function normAccount(v: unknown, drop: Drop): Account | null {
     color: str(r.color, '#4cc46a'),
     initialBalance: money(r.initialBalance),
     ...(bool(r.archived) ? { archived: true } : {}),
+    // Проектный счёт без этой отметки после загрузки считался бы личным, и
+    // чужие деньги вошли бы в доход и капитал.
+    ...(bool(r.project) ? { project: true } : {}),
     ...(r.credit
       ? {
           credit: {
+            ...(credit.kind === 'card' || credit.kind === 'loan' ? { kind: credit.kind } : {}),
+            ...(credit.limit != null ? { limit: Math.abs(money(credit.limit)) } : {}),
+            ...(credit.graceDays != null ? { graceDays: Math.max(0, Math.round(num(credit.graceDays))) } : {}),
             principal: money(credit.principal),
             ratePct: num(credit.ratePct),
             termMonths: Math.max(1, Math.round(num(credit.termMonths, 12))),
@@ -247,6 +253,7 @@ function normAccount(v: unknown, drop: Drop): Account | null {
             counterparty: str(debt.counterparty),
             direction: debt.direction === 'owed_to_me' ? 'owed_to_me' : 'i_owe',
             ...(isDate(str(debt.dueDate)) ? { dueDate: str(debt.dueDate) } : {}),
+            ...(debt.v === 2 ? { v: 2 as const } : {}),
           },
         }
       : {}),
@@ -270,6 +277,7 @@ function normCategory(v: unknown, drop: Drop): Category | null {
     color: str(r.color, '#7c8794'),
     ...(plan ? { plan } : {}),
     ...(typeof r.bucket === 'string' ? { bucket: oneOf<Bucket>(r.bucket, BUCKETS, 'wants') } : {}),
+    ...(bool(r.capital) ? { capital: true } : {}),
     ...(bool(r.archived) ? { archived: true } : {}),
   }
 }
@@ -298,6 +306,7 @@ function normRecurring(v: unknown, drop: Drop): Recurring | null {
     ...(isDate(str(r.endDate)) ? { endDate: str(r.endDate) } : {}),
     autoPost: bool(r.autoPost),
     ...(typeof r.lastPosted === 'string' ? { lastPosted: str(r.lastPosted) } : {}),
+    ...(isDate(str(r.lastPostedDate)) ? { lastPostedDate: str(r.lastPostedDate) } : {}),
     tags: strList(r.tags),
     note: opt(r.note),
     active: r.active !== false,
@@ -391,6 +400,7 @@ function normTask(v: unknown, drop: Drop): Task | null {
     ...(isDate(str(r.doneAt)) ? { doneAt: str(r.doneAt) } : {}),
     ...(isDate(str(r.due)) ? { due: str(r.due) } : {}),
     important: r.important === true,
+    ...([0, 1, 2, 3].includes(r.priority as number) ? { priority: r.priority as 0 | 1 | 2 | 3 } : {}),
     ...(amount
       ? {
           amount,

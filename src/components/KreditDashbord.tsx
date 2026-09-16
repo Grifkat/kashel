@@ -21,6 +21,7 @@ export function KreditDashbord({ acc, compact = false }: { acc: Account; compact
   const с = сводкаКредита(acc, data)
   const c = acc.credit
   const скрыто = data.settings.hideBalance
+  const платитьСъ = data.accounts.find((a) => a.id === c?.payFrom && !a.archived)?.id
   const м = (v: number) => (скрыто ? '••••' : money(v))
   const закрытъ = с.debt <= 0
 
@@ -37,7 +38,7 @@ export function KreditDashbord({ acc, compact = false }: { acc: Account; compact
         </div>
         <span className="spacer" />
         {!закрытъ && (
-          <button className="btn primary" onClick={() => app.editTransaction({ debtId: acc.id, accountId: c?.payFrom })}>
+          <button className="btn primary" onClick={() => app.editTransaction({ debtId: acc.id, accountId: платитьСъ })}>
             <Icon name="plus" size={15} /> {т(' Внести платёж')}</button>
         )}
       </div>

@@ -277,6 +277,8 @@ export function balances(accounts: Account[], txs: Transaction[], upTo?: string)
     byAccount.set(a.id, b)
     if (a.project) continue
     if (isAsset(a)) assets += b
+    // «Мне должны» — это мои деньги, просто у другого человека.
+    else if (a.type === 'debt' && a.debt?.direction === 'owed_to_me') assets += Math.max(0, b)
     else liabilities += Math.min(0, b)
   }
   return { byAccount, assets, liabilities, net: assets + liabilities }
@@ -478,15 +480,48 @@ export const UNCATEGORIZED: Category = {
  * записанной операции: карта, которой пользуются, обычно та же. И только
  * если записей нет — первая карта. Раньше всегда стояла первая карта, и её
  * приходилось перещёлкивать каждый раз.
+ *
+ * «Последний» берётся только среди своих повседневных счетов. Проектный
+ * счёт сюда не годится: одна запись на него — и все следующие траты молча
+ * уходили туда же, выпадая из личных сумм. Человек видел, что «расходы не
+ * сохраняются», а они лежали на проекте. Кредит и долг — тоже не место для
+ * покупки по умолчанию. Открытый в разделе счёт — любой: его выбрали руками.
  */
 export function счётПоУмолчанию(accounts: Account[], txs: Transaction[], открытый?: string | null): string {
   const живые = accounts.filter((a) => !a.archived)
   if (открытый && живые.some((a) => a.id === открытый)) return открытый
+  const свои = живые.filter((a) => !a.project && a.type !== 'credit' && a.type !== 'debt')
   let последняя: Transaction | undefined
   for (const t of txs) {
-    if (!живые.some((a) => a.id === t.accountId)) continue
+    if (!свои.some((a) => a.id === t.accountId)) continue
     if (!последняя || t.createdAt > последняя.createdAt) последняя = t
   }
   if (последняя) return последняя.accountId
-  return (живые.find((a) => a.type === 'card') ?? живые[0])?.id ?? ''
+  return (свои.find((a) => a.type === 'card') ?? свои[0] ?? живые[0])?.id ?? ''
+}
+
+/** Сколько по долгу человеку осталось: должен я — минус остатка, должны мне — плюс. */
+export function остатокДолга(acc: Account, txs: Transaction[]): Money {
+  const b = accountBalance(acc, txs)
+  return acc.debt?.direction === 'owed_to_me' ? Math.max(0, b) : Math.max(0, -b)
+}
+
+/**
+ * Перенос долгов людям на знак по направлению — один раз на счёт.
+ *
+ * Поле суммы не принимало минус, и «я должен Пете 5 000» сохранялось как
+ * плюс 5 000: такой долг не попадал в обязательства, а «Отдать» его только
+ * увеличивало. Положительный остаток «я должен» переворачивается, как и
+ * отрицательный «мне должны».
+ */
+export function перевестиДолги(accounts: Account[]): { accounts: Account[]; changed: number } {
+  let changed = 0
+  const итогъ = accounts.map((a) => {
+    if (a.type !== 'debt' || !a.debt || a.debt.v === 2) return a
+    changed++
+    const направо = a.debt.direction === 'owed_to_me'
+    const initialBalance = направо ? Math.abs(a.initialBalance) : -Math.abs(a.initialBalance)
+    return { ...a, initialBalance, debt: { ...a.debt, v: 2 as const } }
+  })
+  return { accounts: итогъ, changed }
 }

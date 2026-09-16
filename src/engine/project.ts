@@ -64,6 +64,9 @@ export function личное(data: VaultData): VaultData {
     ...data,
     accounts: data.accounts.filter((a) => !проектный(a)),
     transactions: data.transactions.filter((t) => !проектная(t, иды)),
+    // Регулярные правила проекта тоже не личные: иначе аванс по графику
+    // раздувал бы личный прогноз и норму сбережений.
+    recurring: data.recurring.filter((r) => !иды.has(r.accountId) && !(r.toAccountId && иды.has(r.toAccountId) && иды.has(r.accountId))),
   }
   кэшъ.set(data, итогъ)
   return итогъ

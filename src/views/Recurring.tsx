@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { счётПоУмолчанию } from '../engine/stats'
 import { DateField } from '../components/DateField'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -64,7 +65,7 @@ export default function RecurringView() {
           onClick={() =>
             setEdit({
               id: uid('r'), title: '', kind: 'expense', amount: 0,
-              accountId: data.accounts[0]?.id ?? '', categoryId: data.categories.find((c) => c.kind === 'expense')?.id,
+              accountId: счётПоУмолчанию(data.accounts, data.transactions), categoryId: data.categories.find((c) => c.kind === 'expense')?.id,
               freq: 'monthly', interval: 1, dayOfMonth: 1, startDate: today(),
               autoPost: true, tags: [], active: true,
             })

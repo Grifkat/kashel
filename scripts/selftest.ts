@@ -28,6 +28,12 @@ import {
 } from '../src/engine/honors'
 import { знакъЕсть, ключъЗнака } from '../src/lib/znaki'
 import { всеТеги, переименоватьТег } from '../src/engine/tegi'
+import { датыПравила, провестиАвтосписания } from '../src/engine/avtospisaniya'
+import { суммаИзВыражения } from '../src/lib/format'
+import { перевестиДолги, остатокДолга } from '../src/engine/stats'
+import { nextDate } from '../src/engine/reminders'
+import { личное } from '../src/engine/project'
+import { очиститьИсторію } from '../src/engine/uvedomleniya'
 import { включённыеВиджеты } from '../src/components/RightPanel'
 import { ждущія, новыеУведомления, отклонить, подтвердитьПлатёж } from '../src/engine/uvedomleniya'
 import type { Notice } from '../src/lib/types'
@@ -2616,6 +2622,129 @@ function тегиИУведомленія() {
       && р.archive.data.accounts.find((a) => a.id === 'loan')?.credit?.remindFrom === '2026-08-01')
 }
 
+/*
+ * Найденное при разборе ошибок — каждая проверка держит одну исправленную.
+ */
+function разборОшибокъ() {
+  console.log('\n— разбор ошибок: счёт, автосписания, разбор строки —')
+  const карта = { id: 'k1', name: 'Мои', type: 'card' as const, icon: 'x', color: '#000', initialBalance: 0 }
+  const проектъ = { id: 'p1', name: 'Комикс', type: 'card' as const, icon: 'x', color: '#000', initialBalance: 0, project: true }
+  const наПроектъ = { id: 'x1', kind: 'expense' as const, date: '2026-09-12', amount: 100, accountId: 'p1', tags: [], createdAt: '2026-09-16T21:00:00Z' }
+  const наСвой = { id: 'x0', kind: 'expense' as const, date: '2026-09-10', amount: 100, accountId: 'k1', tags: [], createdAt: '2026-09-15T21:00:00Z' }
+  check('последний счёт — не проектный, даже если запись была на проект',
+    счётПоУмолчанию([карта, проектъ], [наСвой, наПроектъ]) === 'k1')
+  check('но открытый руками проект — он', счётПоУмолчанию([карта, проектъ], [наСвой], 'p1') === 'p1')
+
+  const правило = (p: Partial<import('../src/lib/types').Recurring>) => ({
+    id: 'r', title: 'Аренда', kind: 'expense' as const, amount: 1000_00, accountId: 'k1', freq: 'monthly' as const,
+    interval: 1, startDate: '2026-01-31', dayOfMonth: 31, autoPost: true, tags: [], active: true, ...p,
+  })
+  check('31-е в феврале — 28-е', датыПравила(правило({}), '2026-02-01', '2026-02-28').join(',') === '2026-02-28')
+  const сНуля = { ...data, accounts: [карта], transactions: [] as typeof data.transactions, recurring: [правило({ lastPosted: '2026-01' })] }
+  let номеръ = 0
+  const догнали = провестиАвтосписания(сНуля, '2026-03-31', () => 'n' + ++номеръ)
+  check('пропущенные месяцы догоняются', догнали.created.map((t) => t.date).join(',') === '2026-02-28,2026-03-31',
+    догнали.created.map((t) => t.date).join(','))
+  const второйРазъ = провестиАвтосписания(догнали.data, '2026-03-31', () => 'z')
+  check('второй запуск в тот же день ничего не ставит', второйРазъ.created.length === 0)
+  const удалили = { ...догнали.data, transactions: [] }
+  check('удалённое автосписание не воскресает', провестиАвтосписания(удалили, '2026-04-02', () => 'q').created.length === 0)
+  const недѣльное = { ...сНуля, recurring: [правило({ freq: 'weekly', startDate: '2026-03-02', dayOfMonth: undefined, lastPosted: undefined })] }
+  check('еженедельное — каждую неделю, а не раз в месяц',
+    провестиАвтосписания(недѣльное, '2026-03-23', () => 'w').created.map((t) => t.date).join(',') === '2026-03-02,2026-03-09,2026-03-16,2026-03-23')
+  const годовое = { ...сНуля, recurring: [правило({ freq: 'yearly', startDate: '2026-09-20', dayOfMonth: undefined, lastPosted: undefined })] }
+  check('годовое не раньше своей даты', провестиАвтосписания(годовое, '2026-09-19', () => 'y').created.length === 0
+    && провестиАвтосписания(годовое, '2026-09-20', () => 'y').created[0]?.date === '2026-09-20')
+  const давнее = { ...сНуля, recurring: [правило({ startDate: '2020-01-15', dayOfMonth: 15, lastPosted: undefined })] }
+  check('давнее правило не вываливает годы операций', провестиАвтосписания(давнее, '2026-09-20', () => 'd').created.length <= 4)
+  const кредитъ = { id: 'cr', name: 'Диван', type: 'credit' as const, icon: 'x', color: '#f00', initialBalance: -10_000_00,
+    credit: { principal: 10_000_00, ratePct: 0, termMonths: 10, startDate: '2026-01-01', paymentDay: 5, monthlyPayment: 1000_00, purpose: 'purchase' as const, v: 2 as const } }
+  const наКредитъ = { ...сНуля, accounts: [карта, кредитъ], recurring: [правило({ kind: 'transfer', toAccountId: 'cr', dayOfMonth: 5, startDate: '2026-03-05', lastPosted: '2026-02' })] }
+  const платежи = провестиАвтосписания(наКредитъ, '2026-03-06', () => 'c')
+  check('автоперевод на кредит — платёж с расходом',
+    платежи.created.length === 1 && платежи.created[0].kind === 'expense' && платежи.created[0].debtId === 'cr'
+      && платежи.created[0].recurringId === 'r' && платежи.data.categories.some((c) => c.id === 'cat_credit_pay'),
+    JSON.stringify(платежи.created))
+
+  const ctx = { accountId: 'k1' }
+  const булка = parseQuick('булка 45.50', data.categories, data.accounts, ctx)
+  check('«45.50» — цена, а не дата', булка.amount === 4550 && булка.date === today(), `${булка.amount} ${булка.date}`)
+  const февраль = parseQuick('кофе 200 31.02', data.categories, data.accounts, ctx)
+  check('31.02 — не дата', февраль.date === today(), февраль.date)
+  check('«500 3 человека» — пятьсот, не 5 003', parseQuick('обед 500 3 человека', data.categories, data.accounts, ctx).amount === 500_00)
+  check('«1 250» — одна сумма', parseQuick('обед 1 250', data.categories, data.accounts, ctx).amount === 1250_00)
+  check('«такси 480 12.08» — дата', parseQuick('такси 480 12.08', data.categories, data.accounts, ctx).date.endsWith('-08-12'))
+
+  check('CSV: американская дата', parseDateCell('09/17/2026') === '2026-09-17', String(parseDateCell('09/17/2026')))
+  check('CSV: однозначные числа', parseDateCell('1.9.2026') === '2026-09-01', String(parseDateCell('1.9.2026')))
+  check('CSV: несуществующая дата отбрасывается', parseDateCell('31.02.2026') === null && parseDateCell('2026-17-09') === null)
+  check('CSV: 1,234.56', parseAmountCell('1,234.56') === 123456, String(parseAmountCell('1,234.56')))
+  check('CSV: 1.234,56', parseAmountCell('1.234,56') === 123456, String(parseAmountCell('1.234,56')))
+  check('CSV: длинный минус банка', parseAmountCell('−1500') === -150000, String(parseAmountCell('−1500')))
+  check('CSV: 1,234 — тысячи', parseAmountCell('1,234') === 123400, String(parseAmountCell('1,234')))
+
+  check('поле суммы считает выражение', суммаИзВыражения('450+120') === 570_00 && суммаИзВыражения('1 000 - 200') === 800_00)
+  check('и не пропускает постороннее', суммаИзВыражения('alert(1)+1') === 0 && суммаИзВыражения('-500') === -500_00)
+
+  console.log('\n— разбор ошибок: кредиты, долги, напоминания, архив —')
+  const тратаСъКредита = { id: 'e', kind: 'expense' as const, date: '2026-01-02', amount: 50_000_00, accountId: 'old2', tags: [], createdAt: '' }
+  const старый2 = { id: 'old2', name: 'Карта в долг', type: 'credit' as const, icon: 'x', color: '#000', initialBalance: 0,
+    credit: { principal: 50_000_00, ratePct: 0, termMonths: 10, startDate: '2026-01-01', paymentDay: 5, monthlyPayment: 5_000_00 } }
+  const сТратой = перевестиКредиты({ ...data, accounts: [карта, старый2], transactions: [тратаСъКредита] })
+  check('перенос не удваивает долг, если траты уже на кредите',
+    creditRemaining(сТратой.accounts[1], сТратой.transactions) === 50_000_00, String(creditRemaining(сТратой.accounts[1], сТратой.transactions)))
+  check('и такой кредит считается «деньгами», чтобы платёж не стал вторым расходом', сТратой.accounts[1].credit?.purpose === 'cash')
+  const сСвязями = перевестиКредиты({ ...data, accounts: [карта, { ...старый2, id: 'old3' }],
+    transactions: [{ id: 't', kind: 'transfer' as const, date: '2026-02-05', amount: 5_000_00, accountId: 'k1', toAccountId: 'old3', recurringId: 'rr', goalId: 'gg', tags: [], createdAt: '' }] })
+  check('перенос сохраняет связь с правилом и целью', сСвязями.transactions[0].recurringId === 'rr' && сСвязями.transactions[0].goalId === 'gg')
+
+  const долгъ = { id: 'd1', name: 'Пете', type: 'debt' as const, icon: 'x', color: '#000', initialBalance: 5_000_00,
+    debt: { counterparty: 'Петя', direction: 'i_owe' as const } }
+  const мнѣ = { id: 'd2', name: 'Маше', type: 'debt' as const, icon: 'x', color: '#000', initialBalance: -3_000_00,
+    debt: { counterparty: 'Маша', direction: 'owed_to_me' as const } }
+  const долги = перевестиДолги([долгъ, мнѣ])
+  check('«я должен» становится минусом, «мне должны» — плюсом',
+    долги.accounts[0].initialBalance === -5_000_00 && долги.accounts[1].initialBalance === 3_000_00 && долги.changed === 2)
+  check('второй раз долги не трогаются', перевестиДолги(долги.accounts).changed === 0)
+  check('остаток долга по направлению', остатокДолга(долги.accounts[0], []) === 5_000_00 && остатокДолга(долги.accounts[1], []) === 3_000_00)
+  const итоги = balances([карта, ...долги.accounts], [])
+  check('«мне должны» — актив, «я должен» — обязательство', итоги.assets === 3_000_00 && итоги.liabilities === -5_000_00)
+
+  const напоминаніе = { id: 'rm', title: 'Аренда', active: true, sound: 'none' as const, kind: 'date' as const, date: '2026-01-31', repeat: 'monthly' as const }
+  check('ежемесячное напоминание не съезжает на 28-е', nextDate(напоминаніе, '2026-03-01') === '2026-03-31', String(nextDate(напоминаніе, '2026-03-01')))
+
+  const сПроектомъ = { ...data, accounts: [карта, проектъ], transactions: [],
+    recurring: [правило({ accountId: 'p1', kind: 'income' })] }
+  check('правило проекта не входит в личное', личное(сПроектомъ).recurring.length === 0)
+
+  const напомнить = { ...кредитъ, credit: { ...кредитъ.credit, remind: true, remindFrom: '2026-01-01' } }
+  const отвѣт = { id: 'n1', kind: 'credit_payment' as const, accountId: 'cr', dueDate: '2026-03-05', amount: 1, createdAt: '', status: 'skipped' as const, resolvedAt: '2026-03-06' }
+  const почищено = очиститьИсторію({ ...data, accounts: [напомнить], transactions: [], notifications: [отвѣт] })
+  check('после очистки истории отвеченные дни не возвращаются',
+    (почищено.notifications?.length ?? 1) === 0 && !новыеУведомления(почищено, '2026-03-10').some((n) => n.dueDate <= '2026-03-05'),
+    почищено.accounts[0].credit?.remindFrom)
+  const выключено = { ...data, accounts: [кредитъ], notifications: [{ ...отвѣт, status: 'pending' as const }] }
+  check('у кредита без напоминания висящие уведомления не показываются', ждущія(выключено).length === 0)
+  const опоздалъ = { ...data, accounts: [карта, напомнить], transactions: [{ id: 'late', kind: 'expense' as const, date: '2026-02-07', amount: 1000_00,
+    accountId: 'k1', debtId: 'cr', debtPrincipal: 1000_00, tags: [], createdAt: '' }], notifications: [] as Notice[] }
+  check('платёж с опозданием не глушит следующий месяц',
+    новыеУведомления(опоздалъ, '2026-03-05').some((n) => n.dueDate === '2026-03-05'))
+
+  const архивъ = { kashel: 'vault', formatVersion: 1, app: 'Кошель', exportedAt: '2026-09-14T00:00:00Z', counts: {},
+    data: { ...data,
+      accounts: [проектъ, { ...кредитъ, credit: { ...кредитъ.credit, kind: 'card' as const, limit: 50_000_00, graceDays: 55 } }],
+      categories: [{ id: 'cc', name: 'Дивиденды', kind: 'income' as const, icon: 'x', color: '#000', capital: true }],
+      tasks: [{ id: 'tk', title: 'Дело', done: false, important: false, priority: 2, tags: [], order: 0, createdAt: '2026-01-01' }] },
+    notes: {}, canvases: {}, attachments: {} }
+  const р = parseArchive(JSON.stringify(архивъ))
+  const д = р.ok ? р.archive.data : null
+  check('архив хранит отметку проекта', д?.accounts.find((a) => a.id === 'p1')?.project === true)
+  check('архив хранит лимит и льготный срок карты',
+    д?.accounts.find((a) => a.id === 'cr')?.credit?.kind === 'card' && д?.accounts.find((a) => a.id === 'cr')?.credit?.limit === 50_000_00
+      && д?.accounts.find((a) => a.id === 'cr')?.credit?.graceDays === 55)
+  check('архив хранит «доход с капитала» и важность задачи', д?.categories[0]?.capital === true && д?.tasks[0]?.priority === 2)
+}
+
 void завершить()
 
 async function завершить() {
@@ -2628,6 +2757,7 @@ async function завершить() {
   await полнаяВыгрузкаПровѣрка()
   await шифрованіе()
   тегиИУведомленія()
+  разборОшибокъ()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

@@ -80,7 +80,12 @@ function seedStorage() {
   // Одно ждущее уведомление о платеже — для проверки колокольчика.
   const уведомленіе = { id: 'n_test', kind: 'credit_payment', accountId: 'acc_credit', dueDate: today(),
     amount: 9_150_00, createdAt: new Date().toISOString(), status: 'pending' }
-  ls.setItem('kashel:data.json', JSON.stringify({ ...core, notifications: [уведомленіе] }))
+  // Напоминание у кредита включено, но с далёкой даты: новых уведомлений
+  // служба не заведёт, а заготовленное будет видно.
+  const счета = core.accounts.map((a) => (a.id === 'acc_credit' && a.credit
+    ? { ...a, credit: { ...a.credit, remind: true, remindFrom: '2099-01-01' } }
+    : a))
+  ls.setItem('kashel:data.json', JSON.stringify({ ...core, accounts: счета, notifications: [уведомленіе] }))
   const byMonth = new Map<string, typeof transactions>()
   for (const t of transactions) {
     const mk = t.date.slice(0, 7)
@@ -2114,6 +2119,54 @@ async function виджеты() {
   await wait(250)
 }
 
+/*
+ * Быстрый ввод: видно, на какой счёт уйдёт запись, счёт можно сменить,
+ * а подтверждение называет счёт. Перевод не записывается без счёта
+ * назначения — открывается подробная форма.
+ */
+async function быстрыйВводСчётъ() {
+  console.log('\n— быстрый ввод: счёт записи —')
+  await open('Дашборд')
+  click(byText('.hero .btn', 'Расход'))
+  await wait(400)
+  const окно = () => byText('.modal', 'Быстрый ввод') as HTMLElement | null
+  const выборъ = окно()?.querySelector('.schet-vybor') as HTMLElement | null
+  check('в быстром вводе виден счёт записи', !!выборъ && (выборъ.textContent || '').trim().length > 0, выборъ?.textContent ?? '')
+  click(выборъ)
+  await wait(150)
+  const наличные = [...document.querySelectorAll('.schet-pop .schet-opt')].find((о) => (о.textContent || '').includes('Наличные')) as HTMLElement
+  click(наличные)
+  await wait(150)
+  check('счёт меняется руками', (выборъ?.textContent || '').includes('Наличные'))
+  const поле = окно()?.querySelector('input') as HTMLInputElement
+  const свойства = Object.entries(поле).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+  свойства?.onChange?.({ target: { value: 'проверка 77' } })
+  await wait(150)
+  const было = (await loadVault()).transactions.length
+  click(byText('.modal-foot .btn', 'Записать'))
+  await wait(1300)
+  const стало = await loadVault()
+  const новая = стало.transactions.find((т) => т.note === 'проверка')
+  check('запись ушла на выбранный счёт', стало.transactions.length === было + 1 && новая?.accountId === 'acc_cash', JSON.stringify(новая))
+  check('подтверждение называет счёт', text().includes('записан на «Наличные»'))
+
+  click(byText('.hero .btn', 'Расход'))
+  await wait(400)
+  click([...(окно()?.querySelectorAll('.seg button') ?? [])].find((б) => (б.textContent || '').trim() === 'Перевод'))
+  await wait(150)
+  const поле2 = окно()?.querySelector('input') as HTMLInputElement
+  const свойства2 = Object.entries(поле2).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+  свойства2?.onChange?.({ target: { value: 'в копилку 500' } })
+  await wait(150)
+  const было2 = (await loadVault()).transactions.length
+  click(byText('.modal-foot .btn', 'Дальше'))
+  await wait(500)
+  check('перевод без счёта назначения не записывается сразу', (await loadVault()).transactions.length === было2)
+  check('а открывает подробную форму с «На счёт»', !!byText('.modal', 'На счёт') && !!byText('.modal', 'Новая операция'))
+  click(byText('.modal-foot .btn', 'Отмена'))
+  await wait(300)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2131,6 +2184,7 @@ async function main() {
   await пополненіеЦѣли()
   await кредиты()
   await поВидео()
+  await быстрыйВводСчётъ()
   await дашбордКредитаИУведомленія()
   await конструкторъОформленія()
   await themes()

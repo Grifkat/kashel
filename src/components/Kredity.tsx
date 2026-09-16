@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useДеньги } from './anim'
 import { useStore } from '../state/store'
 import { useApp } from '../App'
 import { useAnalytics } from '../state/analytics'
@@ -26,6 +27,8 @@ import { т, тр } from '../i18n'
 const ДОПЛАТЫ = [1_000_00, 5_000_00, 10_000_00]
 
 export function Kredity({ style }: { style?: React.CSSProperties }) {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const { data } = useStore()
   const app = useApp()
   const { fc } = useAnalytics(data)

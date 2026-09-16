@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react'
 import { DateField } from '../components/DateField'
-import { Money, Num } from '../components/anim'
+import { Money, Num, useДеньги } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -18,6 +18,8 @@ const BASE: Scenario = {
 }
 
 export default function Forecast() {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const app = useApp()
   const { data, upsertScenario, deleteScenario } = useStore()
   const toast = useToast()

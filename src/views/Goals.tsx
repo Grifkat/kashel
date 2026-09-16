@@ -2,20 +2,22 @@ import React, { useMemo, useState } from 'react'
 import { DateField } from '../components/DateField'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { сЗначкомъ } from '../lib/catalog'
-import { Money } from '../components/anim'
+import { Money, useДеньги } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { useAnalytics } from '../state/analytics'
 import { Icon } from '../lib/icons'
 import { money, months as monthsWord, pct, uid } from '../lib/format'
 import { addMonths, diffMonths, humanDate, today } from '../lib/date'
-import { balances } from '../engine/stats'
+import { accountBalance, balances } from '../engine/stats'
 import { Avatar, ColorPicker, Confirm, Field, IconPicker, Modal, MoneyInput, Toggle, useToast } from '../components/ui'
 import type { Goal } from '../lib/types'
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../engine/goals'
 import { т, тр } from '../i18n'
 
 export default function Goals() {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const app = useApp()
   const { data, upsertGoal, deleteGoal } = useStore()
   const { fc } = useAnalytics(data)
@@ -86,7 +88,7 @@ export default function Goals() {
                   </div>
                   <div className="faint small">
                     {g.targetDate ? т('до {0}', humanDate(g.targetDate, true)) : т('без срока')}
-                    {g.accountId ? т(' · счёт {0}', data.accounts.find((a) => a.id === g.accountId)?.name) : ''}
+                    {g.accountId ? т(' · счёт {0}', data.accounts.find((a) => a.id === g.accountId)?.name ?? т('(счёт удалён)')) : ''}
                   </div>
                 </div>
                 <button className="icon-btn" onClick={() => setEdit(g)}>
@@ -109,6 +111,14 @@ export default function Goals() {
                   <span className="l">{т('Осталось собрать')}</span>
                   <span className="v" style={{ fontSize: 16 }}>{money(left)}</span>
                 </div>
+                {/* Срок прошёл, а цель не собрана — говорим прямо. */}
+                {!g.done && left > 0 && monthsLeft != null && monthsLeft <= 0 && (
+                  <div className="stat">
+                    <span className="l">{т('Срок')}</span>
+                    <span className="v neg" style={{ fontSize: 16 }}>{т('прошёл')}</span>
+                    <span className="d faint">{т('поправьте дату или сумму')}</span>
+                  </div>
+                )}
                 {need != null && (
                   <div className="stat">
                     <span className="l">{т('Нужно в месяц')}</span>
@@ -160,6 +170,10 @@ export default function Goals() {
           onSave={(g) => {
             if (!g.name.trim()) {
               toast(т('Введите название цели'))
+              return
+            }
+            if (!(g.targetAmount > 0)) {
+              toast(т('Укажите, сколько нужно собрать'))
               return
             }
             upsertGoal(g)
@@ -273,6 +287,9 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
   const [pick, setPick] = useState(false)
   const patch = (p: Partial<Goal>) => setG((x) => ({ ...x, ...p }))
   const monthsLeft = g.targetDate ? Math.max(1, diffMonths(today(), g.targetDate)) : null
+  // У цели со счётом накоплено то, что лежит на счёте, — как на карточке.
+  const счётЦели = data.accounts.find((a) => a.id === g.accountId)
+  const накоплено = g.accountId ? (счётЦели ? accountBalance(счётЦели, data.transactions) : 0) : g.saved
 
   return (
     <>
@@ -328,7 +345,7 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
 
         {monthsLeft && g.targetAmount > 0 && (
           <div className="advice-card info" style={{ padding: '10px 12px' }}>
-            {тр('До срока {0}. Чтобы успеть, откладывать нужно{1}', monthsWord(monthsLeft), ' ')}<b>{money(Math.round(Math.max(0, g.targetAmount - g.saved) / monthsLeft))}</b> {т(' в месяц.')}</div>
+            {тр('До срока {0}. Чтобы успеть, откладывать нужно{1}', monthsWord(monthsLeft), ' ')}<b>{money(Math.round(Math.max(0, g.targetAmount - накоплено) / monthsLeft))}</b> {т(' в месяц.')}</div>
         )}
 
         <div style={{ marginTop: 14 }}>

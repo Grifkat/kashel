@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { счётПоУмолчанию } from '../engine/stats'
 import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -23,7 +24,7 @@ export default function ImportView() {
   const [table, setTable] = useState<CsvTable | null>(null)
   const [map, setMap] = useState<ColumnMap>({ date: 0, amount: 1, description: 2 })
   const [rows, setRows] = useState<ImportPreviewRow[]>([])
-  const [accountId, setAccountId] = useState(data.accounts.find((a) => a.type === 'card')?.id ?? data.accounts[0]?.id ?? '')
+  const [accountId, setAccountId] = useState(() => счётПоУмолчанию(data.accounts, data.transactions))
   const [skipDup, setSkipDup] = useState(true)
 
   const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories])

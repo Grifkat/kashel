@@ -77,23 +77,64 @@ export function guessColumns(header: string[]): ColumnMap {
   }
 }
 
-/** Даты в выписках приходят в трёх-четырёх форматах — принимаем все. */
-export function parseDateCell(raw: string): string | null {
-  const s = raw.trim().split(' ')[0]
-  let m = s.match(/^(\d{2})[.\/-](\d{2})[.\/-](\d{4})$/)
-  if (m) return `${m[3]}-${m[2]}-${m[1]}`
-  m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
-  if (m) return s
-  m = s.match(/^(\d{2})[.\/-](\d{2})[.\/-](\d{2})$/)
-  if (m) return `20${m[3]}-${m[2]}-${m[1]}`
-  const d = new Date(s)
-  return Number.isNaN(d.getTime()) ? null : iso(d)
+/** Настоящая ли дата: 31.02 и 17-й месяц не проходят. */
+function датаИлиНичего(y: number, m: number, d: number): string | null {
+  if (m < 1 || m > 12 || d < 1) return null
+  const x = new Date(y, m - 1, d)
+  if (x.getFullYear() !== y || x.getMonth() !== m - 1 || x.getDate() !== d) return null
+  return iso(x)
 }
 
+/**
+ * Даты в выписках приходят в разных видах — принимаем все, но только
+ * настоящие. Прежде «09/17/2026» становилось «2026-17-09»: операция ложилась
+ * в несуществующий месяц и не показывалась нигде.
+ *
+ * День.месяц — русский порядок, он главный. Если первое число больше 12, а
+ * второе — нет, это американский месяц/день, и они меняются местами.
+ * Однозначные числа («1.9.2026») тоже принимаются.
+ */
+export function parseDateCell(raw: string): string | null {
+  const s = raw.trim().split(/[ T]/)[0]
+  let m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/)
+  if (m) return датаИлиНичего(Number(m[1]), Number(m[2]), Number(m[3]))
+  m = s.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{2}|\d{4})$/)
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3])
+    const a = Number(m[1])
+    const b = Number(m[2])
+    return датаИлиНичего(y, b, a) ?? (b > 12 ? датаИлиНичего(y, a, b) : null)
+  }
+  return null
+}
+
+/**
+ * Сумма из ячейки. Знаки минуса бывают разные («−» у многих банков), а
+ * разделитель разрядов — точка, запятая или пробел: десятичный — тот из
+ * «.» и «,», что стоит последним и за которым не три цифры подряд до конца.
+ */
 export function parseAmountCell(raw: string): Money {
-  const s = raw.replace(/\s| |₽|руб\.?|RUB/gi, '').replace(',', '.')
-  const neg = /^-/.test(s) || /\(.*\)/.test(raw)
-  const n = Number.parseFloat(s.replace(/[^\d.\-]/g, ''))
+  let s = raw.replace(/[\s\u00A0\u202F]|₽|руб\.?|RUB/gi, '').replace(/[\u2212\u2013\u2014]/g, '-')
+  const neg = /^-/.test(s) || /-$/.test(s) || /\(.*\)/.test(raw)
+  s = s.replace(/[^\d.,]/g, '')
+  const точка = s.lastIndexOf('.')
+  const запятая = s.lastIndexOf(',')
+  const послѣдній = Math.max(точка, запятая)
+  let целое = s
+  let дробь = ''
+  if (послѣдній >= 0) {
+    const хвостъ = s.slice(послѣдній + 1)
+    const знаковъ = (s.match(/[.,]/g) ?? []).length
+    // «1,234» или «1.234» без других знаков — это тысячи, если после знака
+    // ровно три цифры; «1234,5» и «1.234,56» — дробь.
+    const этоТысячи = хвостъ.length === 3 && знаковъ === 1 && s.slice(0, послѣдній).length <= 3
+    if (!этоТысячи) {
+      целое = s.slice(0, послѣдній)
+      дробь = хвостъ
+    }
+  }
+  целое = целое.replace(/[.,]/g, '')
+  const n = Number.parseFloat((целое || '0') + (дробь ? '.' + дробь : ''))
   if (!Number.isFinite(n)) return 0
   return Math.round(Math.abs(n) * 100) * (neg ? -1 : 1)
 }

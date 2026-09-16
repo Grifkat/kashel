@@ -379,10 +379,18 @@ export function перевестиКредиты(data: VaultData): {
     changed++
     const c = a.credit
     const карта = (c.kind ?? (c.limit ? 'card' : 'loan')) === 'card'
+    // Свои движения со счёта кредита: траты с него или деньги, выведенные с
+    // него на другие счета. Если они есть, долг уже сидит в остатке — ставить
+    // сверху ещё и сумму кредита значило бы удвоить его.
+    const своиТраты = transactions.some((t) => t.kind === 'expense' && t.accountId === a.id)
+    const выведено = transactions.some((t) => t.kind === 'transfer' && t.accountId === a.id && t.toAccountId !== a.id)
     let initialBalance = a.initialBalance
     if (initialBalance > 0) initialBalance = -initialBalance
-    else if (initialBalance === 0 && !карта) initialBalance = -(c.principal || 0)
-    const деньгами = transactions.some((t) => t.kind === 'transfer' && t.accountId === a.id && t.toAccountId !== a.id)
+    else if (initialBalance === 0 && !карта && !своиТраты && !выведено) initialBalance = -(c.principal || 0)
+    // Покупки уже записаны расходами с самого кредита (кредитная карта, трата
+    // «Диван» со счёта кредита) — тогда платёж не расход, иначе траты
+    // посчитались бы дважды. Так же, как у кредита деньгами.
+    const деньгами = выведено || своиТраты || карта
     const новый: Account = {
       ...a,
       initialBalance,
@@ -404,6 +412,8 @@ export function перевестиКредиты(data: VaultData): {
         const замѣна: Transaction = {
           ...платёжъ, id: t.id, createdAt: t.createdAt,
           ...(t.attachments ? { attachments: t.attachments } : {}),
+          ...(t.recurringId ? { recurringId: t.recurringId } : {}),
+          ...(t.goalId ? { goalId: t.goalId } : {}),
         }
         transactions = transactions.map((x) => (x.id === t.id ? замѣна : x))
         месяцы.add(monthKey(t.date))
@@ -421,7 +431,7 @@ export function следующийПлатёж(c: NonNullable<Account['credit']>
 
 /** Платёж, записанный в программе: расход с пометкой кредита или перевод на него. */
 export const этоПлатёжПо = (acc: Account, t: Transaction): boolean =>
-  (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id) ||
+  (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id && t.debtPrincipal !== 0) ||
   (t.kind === 'transfer' && t.toAccountId === acc.id)
 
 export interface СводкаКредита extends Кредит {

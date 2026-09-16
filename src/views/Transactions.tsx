@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { DateField } from '../components/DateField'
 import { сЗначкомъ } from '../lib/catalog'
-import { Amount, useAnimatedList } from '../components/anim'
+import { Amount, useAnimatedList, useДеньги } from '../components/anim'
 import { useApp, useTabId } from '../App'
 import { SchetVybor } from '../components/SchetVybor'
 import { TegiOkno } from '../components/TegiOkno'
@@ -17,6 +17,8 @@ import type { Transaction } from '../lib/types'
 import { т, тр } from '../i18n'
 
 export default function Transactions({ filter }: { filter?: string }) {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const app = useApp()
   const { data, deleteTransactions, restoreTransactions } = useStore()
   const toast = useToast()
@@ -51,12 +53,17 @@ export default function Transactions({ filter }: { filter?: string }) {
   const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories])
   const accById = useMemo(() => new Map(data.accounts.map((a) => [a.id, a])), [data.accounts])
   const allTags = useMemo(() => всеТеги(data).map((x) => x.тег), [data])
+  // Тег переименовали или удалили — фильтр по старому имени снимается сам.
+  useEffect(() => {
+    if (tag && !allTags.includes(tag)) setTag('')
+  }, [tag, allTags])
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return data.transactions
       .filter((t) => {
-        if (t.date < from || t.date > to) return false
+        // Пустая граница — без ограничения, а не «ничего не показывать».
+        if ((from && t.date < from) || (to && t.date > to)) return false
         if (kind !== 'all' && t.kind !== kind) return false
         if (catId && t.categoryId !== catId && !t.splits?.some((s) => s.categoryId === catId)) return false
         // Платёж по кредиту списан с карты, но относится и к самому кредиту.
@@ -72,9 +79,13 @@ export default function Transactions({ filter }: { filter?: string }) {
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1))
   }, [data.transactions, q, kind, catId, accId, tag, from, to, onlyUncat, catById])
 
-  const sum = rows.reduce((s, t) => s + (t.kind === 'income' ? t.amount : t.kind === 'expense' ? -t.amount : 0), 0)
-  const totalExpense = rows.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0)
-  const totalIncome = rows.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0)
+  // С фильтром по статье разбитый чек считается своей долей, а не целиком:
+  // иначе чек на 10 000 с долей продуктов в 3 000 давал бы «продуктов» 10 000.
+  const долей = (t: Transaction) =>
+    catId && t.splits?.length ? t.splits.filter((x) => x.categoryId === catId).reduce((s, x) => s + x.amount, 0) : t.amount
+  const sum = rows.reduce((s, t) => s + (t.kind === 'income' ? долей(t) : t.kind === 'expense' ? -долей(t) : 0), 0)
+  const totalExpense = rows.filter((t) => t.kind === 'expense').reduce((s, t) => s + долей(t), 0)
+  const totalIncome = rows.filter((t) => t.kind === 'income').reduce((s, t) => s + долей(t), 0)
 
   const grouped = useMemo(() => {
     const map = new Map<string, Transaction[]>()
@@ -154,9 +165,9 @@ export default function Transactions({ filter }: { filter?: string }) {
             <button className="btn" onClick={undo} title={т('Вернуть последний удалённый пакет')}>
               <Icon name="repeat" size={15} /> {тр(' Вернуть {0}', undoBuffer.length)}</button>
           )}
-          {sel.size > 0 && (
+          {selected.length > 0 && (
             <button className="btn danger" onClick={() => setConfirmBulk(true)}>
-              <Icon name="trash" size={15} /> {тр(' Удалить {0}', sel.size)}</button>
+              <Icon name="trash" size={15} /> {тр(' Удалить {0}', selected.length)}</button>
           )}
           <button className="btn" onClick={exportCsv}>
             <Icon name="upload" size={15} /> {т(' Экспорт CSV')}</button>
@@ -201,7 +212,7 @@ export default function Transactions({ filter }: { filter?: string }) {
           <DateField allowEmpty value={to} onChange={setTo} style={{ width: 145 }} placeholder={т('по какое')} />
           <button className={'chip' + (onlyUncat ? ' on' : '')} onClick={() => setOnlyUncat((v) => !v)}>
             {т('без категории')}</button>
-          {(catId || accId || tag || q || onlyUncat) && (
+          {(catId || accId || tag || q || onlyUncat || kind !== 'all' || initialDay) && (
             <button
               className="btn sm ghost"
               onClick={() => {
@@ -210,6 +221,9 @@ export default function Transactions({ filter }: { filter?: string }) {
                 setTag('')
                 setQ('')
                 setOnlyUncat(false)
+                setKind('all')
+                setFrom(addMonths(today(), -3))
+                setTo(today())
               }}
             >
               {т('Сбросить')}</button>
@@ -217,7 +231,9 @@ export default function Transactions({ filter }: { filter?: string }) {
         </div>
         {allTags.length > 0 && (
           <div className="row wrap" style={{ gap: 5, marginTop: 8 }}>
-            {allTags.slice(0, 18).map((t) => (
+            {/* Выбранный тег виден всегда, даже если он не из первых: иначе
+                фильтр нечем снять. */}
+            {[...allTags.slice(0, 18), ...(tag && !allTags.slice(0, 18).includes(tag) ? [tag] : [])].map((t) => (
               <span key={t} className={'chip' + (tag === t ? ' on' : '')} onClick={() => setTag(tag === t ? '' : t)}>
                 #{t}
               </span>
@@ -243,11 +259,11 @@ export default function Transactions({ filter }: { filter?: string }) {
             />
             <span>{allSelected ? т('Снять выделение') : т('Выделить все ({0})', rows.length)}</span>
           </label>
-          {sel.size > 0 && (
+          {selected.length > 0 && (
             <>
               <span className="faint">·</span>
               <span className="small">
-                {тр('выбрано {0}{1}{2}', sel.size, selExpense > 0 && <> {т(' · расходы ')}<b className="amount out">{money(selExpense)}</b></>, selIncome > 0 && <> {т(' · доходы ')}<b className="amount in">{money(selIncome)}</b></>)}</span>
+                {тр('выбрано {0}{1}{2}', selected.length, selExpense > 0 && <> {т(' · расходы ')}<b className="amount out">{money(selExpense)}</b></>, selIncome > 0 && <> {т(' · доходы ')}<b className="amount in">{money(selIncome)}</b></>)}</span>
               <button className="btn sm danger" onClick={() => setConfirmBulk(true)}>
                 <Icon name="trash" size={13} /> {т(' Удалить выбранные')}</button>
             </>
@@ -306,11 +322,14 @@ export default function Transactions({ filter }: { filter?: string }) {
                         {t.recurringId ? <span className="badge" style={{ marginLeft: 7 }}>{т('регулярный')}</span> : null}
                       </div>
                       <div className="tx-sub">
-                        {t.kind === 'transfer' ? `${acc?.name} → ${to2?.name}` : `${c?.name ?? т('без категории')} · ${acc?.name}`}
+                        {/* Счёт могли удалить — тогда так и пишем, а не «undefined». */}
+                        {t.kind === 'transfer'
+                          ? `${acc?.name ?? т('(счёт удалён)')} → ${to2?.name ?? т('(счёт удалён)')}`
+                          : `${c?.name ?? т('без категории')} · ${acc?.name ?? т('(счёт удалён)')}`}
                         {t.tags.length ? ' · ' + t.tags.map((x) => '#' + x).join(' ') : ''}
                       </div>
                     </div>
-                    <Amount value={t.amount} kind={t.kind} onClick={() => app.editTransaction(t)} />
+                    <Amount value={долей(t)} kind={t.kind} onClick={() => app.editTransaction(t)} />
                   </div>
                 )
               })}
@@ -321,8 +340,8 @@ export default function Transactions({ filter }: { filter?: string }) {
 
       {confirmBulk && (
         <Confirm
-          title={т('Удалить {0} {1}?', sel.size, plural(sel.size, 'операцию', 'операции', 'операций'))}
-          confirmLabel={т('Удалить {0}', sel.size)}
+          title={т('Удалить {0} {1}?', selected.length, plural(selected.length, 'операцию', 'операции', 'операций'))}
+          confirmLabel={т('Удалить {0}', selected.length)}
           text={
             т('Уйдут все выбранные записи') +
             (selected.length

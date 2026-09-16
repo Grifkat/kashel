@@ -83,6 +83,19 @@ contextBridge.exposeInMainWorld('kashel', {
     }
   },
 
+  /** Просьба оболочки дописать правки перед выходом. Возвращает отписку. */
+  onSaveBeforeQuit: (cb) => {
+    const передВыходом = async () => {
+      try {
+        await cb()
+      } finally {
+        ipcRenderer.send('app:saved')
+      }
+    }
+    ipcRenderer.on('app:save-before-quit', передВыходом)
+    return () => ipcRenderer.off('app:save-before-quit', передВыходом)
+  },
+
   assocStatus: () => ipcRenderer.invoke('assoc:status'),
   assocSet: () => ipcRenderer.invoke('assoc:set'),
   assocClear: () => ipcRenderer.invoke('assoc:clear'),

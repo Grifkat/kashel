@@ -66,7 +66,10 @@ function audio(): AudioContext | null {
  */
 export function playTone(id: ReminderSound): void {
   const notes = TONES[id]
-  if (!notes) return
+  if (notes) сыграть(notes, 0.22)
+}
+
+function сыграть(notes: { hz: number; at: number; len: number; type: OscillatorType }[], громкость: number): void {
   const a = audio()
   if (!a) return
   // Звук из окна, которое человек ещё не трогал, браузер держит на паузе.
@@ -78,12 +81,39 @@ export function playTone(id: ReminderSound): void {
     osc.type = n.type
     osc.frequency.value = n.hz
     gain.gain.setValueAtTime(0.0001, t0 + n.at)
-    gain.gain.exponentialRampToValueAtTime(0.22, t0 + n.at + 0.012)
+    gain.gain.exponentialRampToValueAtTime(громкость, t0 + n.at + 0.012)
     gain.gain.exponentialRampToValueAtTime(0.0001, t0 + n.at + n.len)
     osc.connect(gain)
     gain.connect(a.destination)
     osc.start(t0 + n.at)
     osc.stop(t0 + n.at + n.len + 0.02)
+  }
+}
+
+/*
+ * Звук записи операции — короткий и тихий, чтобы было слышно, что запись
+ * легла, но не надоедало на сотой трате. Доход — две ноты вверх, расход —
+ * вниз: на слух понятно, что записалось. Выключается в настройках.
+ */
+const ЗАПИСЬ: Record<'income' | 'expense', { hz: number; at: number; len: number; type: OscillatorType }[]> = {
+  income: [
+    { hz: 659, at: 0, len: 0.12, type: 'sine' },
+    { hz: 988, at: 0.07, len: 0.22, type: 'sine' },
+  ],
+  expense: [
+    { hz: 880, at: 0, len: 0.1, type: 'sine' },
+    { hz: 587, at: 0.06, len: 0.2, type: 'sine' },
+  ],
+}
+
+/** Звук записи. `включено` — настройка saveSound; пусто значит «включено». */
+export function звукЗаписи(kind: string, включено?: boolean): void {
+  if (включено === false) return
+  if (kind !== 'income' && kind !== 'expense') return
+  try {
+    сыграть(ЗАПИСЬ[kind], 0.12)
+  } catch {
+    /* звука нет — запись от этого не хуже */
   }
 }
 

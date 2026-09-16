@@ -60,6 +60,20 @@ export function useSpring() {
  * знак и символ валюты берутся из тех же правил, что и у текстового money(),
  * чтобы анимированные и обычные числа выглядели одинаково.
  */
+/**
+ * Форматирование суммы с учётом «Скрывать баланс». Экраны, где суммы
+ * выводятся строкой, берут его вместо money — иначе настройка скрывала
+ * цифры на главной, а в «Операциях», «Бюджете» и «Целях» они оставались.
+ */
+export function useДеньги(): typeof money {
+  const { data } = useStore()
+  const скрыто = data.settings.hideBalance
+  return React.useCallback(
+    ((m: Minor, opts?: Parameters<typeof money>[1]) => (скрыто ? '••••' : money(m, opts))) as typeof money,
+    [скрыто],
+  )
+}
+
 export function Money({
   value,
   sign,
@@ -78,6 +92,7 @@ export function Money({
   const { data } = useStore()
   const level = useAnimLevel()
   const u = unit ?? data.settings.profile.currency ?? '₽'
+  if (data.settings.hideBalance) return <span className={className} style={style}>••••</span>
 
   if (level === 'off' || !NUMBER_ANIMATION_SUPPORTED) {
     return (
@@ -137,7 +152,7 @@ export function Amount({
   return (
     <span className={`amount ${tone}${className ? ' ' + className : ''}`} onClick={onClick}>
       <span className="sign">{sign}</span>
-      {hidden ? '••••' : money(Math.abs(value), { unit: u })}
+      {hidden ?? data.settings.hideBalance ? '••••' : money(Math.abs(value), { unit: u })}
     </span>
   )
 }

@@ -65,13 +65,23 @@ export function parseQuick(
 
   // Явная дата: 12.08 / 12.08.2026 / 2026-08-12
   const dm = text.match(/\s(\d{1,2})[.\/](\d{1,2})(?:[.\/](\d{2,4}))?\s/)
-  if (dm) {
+  /*
+   * «12.08» — дата, а «45.50» — цена. Дата принимается, только если день и
+   * месяц настоящие (31.02 и 45.50 не проходят: раньше они молча катились в
+   * март и в 2030 год), а у короткой записи без года в строке должно быть
+   * ещё одно число — сумма. Иначе «булка 45.50» лишалась суммы.
+   */
+  const датаГодна = (() => {
+    if (!dm) return false
     const y = dm[3] ? (dm[3].length === 2 ? 2000 + Number(dm[3]) : Number(dm[3])) : parseISO(today()).getFullYear()
     const d = new Date(y, Number(dm[2]) - 1, Number(dm[1]))
-    if (!Number.isNaN(d.getTime())) {
-      date = iso(d)
-      text = text.replace(dm[0], ' ')
-    }
+    if (d.getFullYear() !== y || d.getMonth() !== Number(dm[2]) - 1 || d.getDate() !== Number(dm[1])) return false
+    if (!dm[3] && !/\s\d/.test(text.replace(dm[0], ' '))) return false
+    date = iso(d)
+    return true
+  })()
+  if (dm && датаГодна) {
+    text = text.replace(dm[0], ' ')
   } else {
     // \b в JS опирается на ASCII-\w, поэтому с кириллицей не работает —
     // границы слова задаём пробелами явно.
@@ -104,7 +114,9 @@ export function parseQuick(
 
   // Сумма: 250, 1 250,50, 3к, 3.5к, 12тыс
   let amount: Money = 0
-  const am = text.match(/\s(\d[\d\s ]*(?:[.,]\d{1,2})?)\s*(к|k|тыс|т)?\.?(?=\s)/i)
+  // Разряды отделяются пробелом только тройками: «1 250» — одна сумма, а в
+  // «обед 500 3 человека» пятьсот и тройка — разные числа, не 5 003.
+  const am = text.match(/\s((?:\d{1,3}(?:[ \u00A0]\d{3})+|\d+)(?:[.,]\d{1,2})?)\s*(к|k|тыс|т)?\.?(?=\s)/i)
   if (am) {
     const mult = am[2] ? 1000 : 1
     amount = toMinor(am[1]) * mult

@@ -7,7 +7,7 @@ import { PALETTE } from '../lib/emoji'
 import { Avatar, Modal, Field, GroupedInput, MoneyInput, TagInput, useToast, Confirm } from './ui'
 import { Icon } from '../lib/icons'
 import { addDays, humanDate, today } from '../lib/date'
-import { formatAmountInput, groupDigits, money, toMinor, uid } from '../lib/format'
+import { formatAmountInput, groupDigits, money, uid, суммаИзВыражения } from '../lib/format'
 import { readAttachmentBase64, saveAttachment, bridge } from '../state/vault'
 import { т, тр } from '../i18n'
 import { назначеніе, планъПлатежа } from '../engine/credit'
@@ -15,6 +15,7 @@ import { счётПоУмолчанию } from '../engine/stats'
 import { всеТеги } from '../engine/tegi'
 import { SchetVybor } from './SchetVybor'
 import { useApp } from '../App'
+import { звукЗаписи } from '../lib/sound'
 
 const KIND_LABEL: Record<TxKind, string> = {
   expense: т('Расход'),
@@ -39,7 +40,8 @@ export function TransactionModal({
    * переводом: что из платежа расход, решает engine/credit по условиям
    * кредита, а человеку достаточно сказать, с какой карты и по какому кредиту.
    */
-  const кредиты = data.accounts.filter((a) => !a.archived && a.type === 'credit' && a.credit)
+  // Кредит правимого платежа — в списке, даже если он уже в архиве.
+  const кредиты = data.accounts.filter((a) => a.type === 'credit' && a.credit && (!a.archived || a.id === draft.debtId))
   const платёжПоКредиту = (() => {
     if (!draft.debtId || draft.accountId === draft.debtId) return false
     const к = data.accounts.find((a) => a.id === draft.debtId)
@@ -113,7 +115,7 @@ export function TransactionModal({
     setShowAll(true)
   }
 
-  const amount = toMinor(amountStr || '0')
+  const amount = суммаИзВыражения(amountStr || '0')
   const cats = useMemo(
     () => data.categories.filter((c) => !c.archived && c.kind === (kind === 'income' ? 'income' : 'expense')),
     [data.categories, kind],
@@ -148,6 +150,9 @@ export function TransactionModal({
   const switchKind = (next: TxKind) => {
     setKind(next)
     setПлатёж(false)
+    // Доли бывают только у расхода: скрытые доли у перевода не давали его
+    // записать и уезжали в хранилище.
+    if (next !== 'expense' && splits.length) setSplits([])
     if (next === 'transfer') return
     const cat = data.categories.find((c) => c.id === categoryId)
     if (cat && cat.kind !== next) setCategoryId(undefined)
@@ -200,8 +205,8 @@ export function TransactionModal({
       toast(т('Сначала создайте счёт — в разделе «Счета»'))
       return
     }
-    if (!amount) {
-      toast(т('Укажите сумму'))
+    if (!(amount > 0)) {
+      toast(amount < 0 ? т('Сумма не может быть меньше нуля — вид операции задаёт знак сам') : т('Укажите сумму'))
       return
     }
     if (kind === 'transfer' && (!toAccountId || toAccountId === accountId)) {
@@ -212,6 +217,7 @@ export function TransactionModal({
       if (!кредитъ) { toast(т('Выберите кредит')); return }
       if (!планъ) { toast(т('Выберите карту, с которой платите, — не сам кредит')); return }
       записатьПлатёжъ(планъ)
+      if (!isEdit) звукЗаписи('expense', data.settings.saveSound)
       toast(isEdit ? т('Операция обновлена') : т('Платёж {0} по кредиту «{1}» записан', money(amount), кредитъ.name))
       onClose()
       return
@@ -256,7 +262,8 @@ export function TransactionModal({
       toast(т('Операция обновлена'))
     } else {
       addTransaction({ ...payload } as Omit<Transaction, 'id' | 'createdAt'>)
-      toast(т('{0} {1} записан', KIND_LABEL[kind], money(amount)))
+      звукЗаписи(kind, data.settings.saveSound)
+      toast(т('{0} {1} записан на «{2}»', KIND_LABEL[kind], money(amount), data.accounts.find((a) => a.id === accountId)?.name ?? ''))
     }
     onClose()
   }
@@ -366,6 +373,17 @@ export function TransactionModal({
             </div>
           )}
         </div>
+
+        {kind === 'expense' && !платёж && (() => {
+          const съКредита = data.accounts.find((a) => a.id === accountId && a.type === 'credit' && a.credit)
+          if (!съКредита || назначеніе(съКредита) !== 'purchase') return null
+          // Кредит «на покупку» считает расходом свои платежи. Трата с него
+          // посчиталась бы второй раз — об этом надо сказать до записи.
+          return (
+            <div className="advice-card warn" style={{ marginBottom: 14, padding: '10px 12px', lineHeight: 1.5 }}>
+              {т('У этого кредита платежи уже идут в расходы («На что взят: покупка»). Трата с него посчитается второй раз. Если это кредитная карта, выберите в настройках кредита «Деньги или кредитная карта».')}</div>
+          )
+        })()}
 
         {платёж && кредитъ && (
           <div className="advice-card info" style={{ marginBottom: 16, padding: '10px 12px', lineHeight: 1.55 }}>

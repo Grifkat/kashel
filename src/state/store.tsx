@@ -10,6 +10,8 @@ import {
   DEFAULT_CATEGORIES, DEFAULT_SETTINGS, emptyVault, freshVault, migrateSettings,
 } from './defaults'
 import { перевестиКредиты } from '../engine/credit'
+import { провестиАвтосписания } from '../engine/avtospisaniya'
+import { перевестиДолги } from '../engine/stats'
 import { occurrencesInMonth } from '../engine/forecast'
 import { т } from '../i18n'
 
@@ -71,60 +73,6 @@ export const useStore = (): Store => {
   const v = useContext(Ctx)
   if (!v) throw new Error(т('useStore вне провайдера'))
   return v
-}
-
-/**
- * Догоняет пропущенные автосписания регулярных платежей до сегодняшнего дня.
- *
- * Отметка lastPosted обязательна: без неё удалённое пользователем автосписание
- * воскресало при следующем запуске, потому что правило снова не находило
- * операции за текущий месяц и создавало её заново.
- */
-function postDueRecurring(data: VaultData): { data: VaultData; created: number; coreChanged: boolean } {
-  const cur = monthKey(today())
-  const created: Transaction[] = []
-  const handled = new Set<string>()
-  const day = Number(today().slice(8, 10))
-
-  for (const r of data.recurring) {
-    if (!r.active || !r.autoPost) continue
-    if (r.lastPosted && r.lastPosted >= cur) continue
-    if (!occurrencesInMonth(r, cur)) continue
-    if (r.freq === 'monthly' && (r.dayOfMonth ?? 1) > day) continue
-    const exists = data.transactions.some((t) => t.recurringId === r.id && monthKey(t.date) === cur)
-    if (exists) {
-      // Операция уже есть (например, из демо-данных) — отмечаем месяц как
-      // проведённый, чтобы после её удаления она не появилась снова.
-      handled.add(r.id)
-      continue
-    }
-
-    const date = `${cur}-${String(Math.min(r.dayOfMonth ?? 1, day)).padStart(2, '0')}`
-    created.push({
-      id: uid('t'),
-      kind: r.kind,
-      date,
-      amount: r.amount,
-      accountId: r.accountId,
-      toAccountId: r.toAccountId,
-      categoryId: r.categoryId,
-      tags: r.tags,
-      note: r.title,
-      recurringId: r.id,
-      createdAt: new Date().toISOString(),
-    })
-    handled.add(r.id)
-  }
-  if (!handled.size) return { data, created: 0, coreChanged: false }
-  return {
-    data: {
-      ...data,
-      transactions: created.length ? [...data.transactions, ...created] : data.transactions,
-      recurring: data.recurring.map((r) => (handled.has(r.id) ? { ...r, lastPosted: cur } : r)),
-    },
-    created: created.length,
-    coreChanged: true,
-  }
 }
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
@@ -189,24 +137,29 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Старые кредиты — на новый учёт: остаток = сколько осталось выплатить,
       // переводы на покупку в долг — платежи с расходом. Правка разовая: счёт
       // получает отметку версии, и второй раз его не трогают.
-      const кредиты = перевестиКредиты(start)
+      const долги = перевестиДолги(start.accounts)
+      const сДолгами = долги.changed ? { ...start, accounts: долги.accounts } : start
+      const кредиты = перевестиКредиты(сДолгами)
       const сКредитами = кредиты.changed
         ? {
-            ...start,
+            ...сДолгами,
             accounts: кредиты.accounts,
             transactions: кредиты.transactions,
             categories: [...start.categories, ...кредиты.статьи],
           }
-        : start
+        : сДолгами
       for (const м of кредиты.месяцы) touchedRef.current.add(м)
 
-      const posted = postDueRecurring(сКредитами)
+      // Автосписания — см. engine/avtospisaniya: точные даты правил и догон
+      // пропущенного. Отметка дня обязательна: без неё удалённое автосписание
+      // воскресало бы при следующем запуске.
+      const posted = провестиАвтосписания(сКредитами, today(), () => uid('t'))
       if (seq !== bootSeq.current) return
       setDataRaw(posted.data)
       dataRef.current = posted.data
-      if (posted.coreChanged || needCats || кредиты.changed) {
+      if (posted.coreChanged || needCats || кредиты.changed || долги.changed) {
         coreDirty.current = true
-        if (posted.created) touchedRef.current.add(monthKey(today()))
+        for (const t of posted.created) touchedRef.current.add(monthKey(t.date))
         queueSave()
       }
       setReady(true)
@@ -225,10 +178,23 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   }, [boot])
 
   // ------------------------------------------------------------ сохранение
+  /*
+   * Очередь записей. Отложенная запись, Ctrl+S, таймер и замена хранилища
+   * не должны писать одни файлы одновременно: старая запись, закончившись
+   * позже, откатила бы файл к прежнему виду. Каждая ждёт предыдущую.
+   */
+  const очередь = useRef<Promise<unknown>>(Promise.resolve())
+  const вОчередь = useCallback(<T,>(дѣло: () => Promise<T>): Promise<T> => {
+    const р = очередь.current.then(дѣло, дѣло)
+    очередь.current = р.catch(() => {})
+    return р
+  }, [])
+
   const queueSave = useCallback(() => {
     setDirty(true)
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(async () => {
+    saveTimer.current = window.setTimeout(() => void вОчередь(async () => {
+      saveTimer.current = null
       const touched = new Set(touchedRef.current)
       touchedRef.current.clear()
       const needCore = coreDirty.current
@@ -248,39 +214,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         if (needCore) coreDirty.current = true
         setSaveError(e instanceof Error ? e.message : String(e))
       }
-    }, 400)
-  }, [])
+    }), 400)
+  }, [вОчередь])
 
   /**
    * Полное сохранение по требованию: пишет и справочники, и все месяцы,
    * не дожидаясь отложенной записи. Используется кнопкой «Сохранить»,
    * Ctrl+S, автосохранением по таймеру и закрытием окна.
    */
-  const saveNow = useCallback(async () => {
+  const saveNow = useCallback((): Promise<void> => {
     if (saveTimer.current) {
       window.clearTimeout(saveTimer.current)
       saveTimer.current = null
     }
-    const touched = new Set(touchedRef.current)
-    touchedRef.current.clear()
-    coreDirty.current = false
-    setDirty(true)
-    const cur = dataRef.current
-    try {
-      await saveCore(cur)
-      await saveTransactions(cur.transactions, new Set())
-      setSaveError(null)
-      setDirty(false)
-      setLastSaved(Date.now())
-    } catch (e) {
-      for (const m of touched) touchedRef.current.add(m)
-      coreDirty.current = true
-      setSaveError(e instanceof Error ? e.message : String(e))
-      // Бросаем дальше: запасной экран границы отрисовки показывает этот текст
-      // в своей строке отчёта. Все прочие вызовы гасят отказ своим перехватом.
-      throw e
-    }
-  }, [])
+    return вОчередь(async () => {
+      const touched = new Set(touchedRef.current)
+      touchedRef.current.clear()
+      coreDirty.current = false
+      setDirty(true)
+      const cur = dataRef.current
+      try {
+        await saveCore(cur)
+        await saveTransactions(cur.transactions, new Set())
+        setSaveError(null)
+        setDirty(false)
+        setLastSaved(Date.now())
+      } catch (e) {
+        for (const m of touched) touchedRef.current.add(m)
+        coreDirty.current = true
+        setSaveError(e instanceof Error ? e.message : String(e))
+        // Бросаем дальше: запасной экран границы отрисовки показывает этот текст
+        // в своей строке отчёта. Все прочие вызовы гасят отказ своим перехватом.
+        throw e
+      }
+    })
+  }, [вОчередь])
+
+  // Оболочка выходит только после того, как правки дописаны.
+  useEffect(() => bridge.onSaveBeforeQuit?.(() => saveNow().catch(() => {})), [saveNow])
 
   // Страховка на случай, если отложенная запись почему-то не сработала:
   // раз в пять минут переписываем хранилище целиком.
@@ -406,7 +377,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     )
 
   const upsertAccount = upsert('accounts') as (a: Account) => void
-  const deleteAccount = remove('accounts')
+  /*
+   * Удаление счёта. Операции на нём остаются — это история, — а вот
+   * регулярные правила с него и на него выключаются: иначе они продолжали бы
+   * проводиться на счёт, которого больше нет.
+   */
+  const deleteAccount = useCallback(
+    (id: string) => {
+      setData((d) => ({
+        ...d,
+        accounts: d.accounts.filter((x) => x.id !== id),
+        recurring: d.recurring.map((r) => (r.active && (r.accountId === id || r.toAccountId === id) ? { ...r, active: false } : r)),
+      }))
+    },
+    [setData],
+  )
   const upsertCategory = upsert('categories') as (c: Category) => void
   const deleteCategory = remove('categories')
   const upsertRecurring = upsert('recurring') as (r: Recurring) => void
@@ -474,10 +459,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    */
   const replaceAll = useCallback(async (пришло: VaultData) => {
     // Архив мог быть сделан прежней версией — кредиты переводим так же, как при открытии.
-    const к = перевестиКредиты(пришло)
+    const сДолгами = { ...пришло, accounts: перевестиДолги(пришло.accounts).accounts }
+    const к = перевестиКредиты(сДолгами)
     const next = к.changed
-      ? { ...пришло, accounts: к.accounts, transactions: к.transactions, categories: [...пришло.categories, ...к.статьи] }
-      : пришло
+      ? { ...сДолгами, accounts: к.accounts, transactions: к.transactions, categories: [...пришло.categories, ...к.статьи] }
+      : сДолгами
     if (saveTimer.current) {
       window.clearTimeout(saveTimer.current)
       saveTimer.current = null
@@ -486,11 +472,13 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     coreDirty.current = false
     setDataRaw(next)
     dataRef.current = next
-    await saveCore(next)
-    await saveTransactions(next.transactions, new Set())
+    await вОчередь(async () => {
+      await saveCore(next)
+      await saveTransactions(next.transactions, new Set())
+    })
     setLastSaved(Date.now())
     setDirty(false)
-  }, [])
+  }, [вОчередь])
 
   const chooseVault = useCallback(async () => {
     const p = await bridge.chooseVault()

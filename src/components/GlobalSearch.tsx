@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useДеньги } from './anim'
 import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -17,6 +18,8 @@ interface NoteHit {
 
 /** Ctrl+Shift+F — сквозной поиск по операциям, заметкам и справочникам. */
 export function GlobalSearch({ initial, onClose }: { initial: string; onClose: () => void }) {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const app = useApp()
   const { data } = useStore()
   const [q, setQ] = useState(initial)
@@ -62,7 +65,7 @@ export function GlobalSearch({ initial, onClose }: { initial: string; onClose: (
   }, [needle, notes])
 
   const catHits = useMemo(
-    () => (needle.length < 2 ? [] : data.categories.filter((c) => c.name.toLowerCase().includes(needle)).slice(0, 8)),
+    () => (needle.length < 2 ? [] : data.categories.filter((c) => !c.archived && c.name.toLowerCase().includes(needle)).slice(0, 8)),
     [needle, data.categories],
   )
 

@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react'
+import React, { useMemo, useRef, useState } from 'react'
+import { useДеньги } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { useAnalytics } from '../state/analytics'
@@ -17,6 +18,8 @@ const BUCKET_COLOR: Record<Bucket, string> = { needs: '#4aa3e8', wants: '#e8833a
 const TARGET: Record<Bucket, number> = { needs: 50, wants: 30, savings: 20 }
 
 export default function Budget() {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const app = useApp()
   const { data, upsertCategory } = useStore()
   const { fc } = useAnalytics(data)
@@ -55,13 +58,26 @@ export default function Budget() {
     savings: baseIncome ? ((baseIncome - expense) / baseIncome) * 100 : 0,
   }
 
-  const rows = cats
-    .map((c) => {
-      const spent = spentByCat.get(c.id) ?? 0
-      const projected = Math.round(spent / Math.max(0.05, progress))
-      return { c, spent, projected, plan: c.plan ?? 0 }
-    })
-    .sort((a, b) => (b.plan || b.spent) - (a.plan || a.spent))
+  /*
+   * Порядок строк замирает, пока в строке вводят лимит: сортировка по лимиту
+   * переставляла строку на каждом нажатии («1» — вниз, «15000» — вверх), и
+   * поле уезжало из-под пальцев.
+   */
+  const [правимъ, setПравимъ] = useState<string | null>(null)
+  const порядокъ = useRef<string[]>([])
+  const посчитанные = cats.map((c) => {
+    const spent = spentByCat.get(c.id) ?? 0
+    const projected = Math.round(spent / Math.max(0.05, progress))
+    return { c, spent, projected, plan: c.plan ?? 0 }
+  })
+  if (!правимъ) {
+    порядокъ.current = [...посчитанные].sort((a, b) => (b.plan || b.spent) - (a.plan || a.spent)).map((r) => r.c.id)
+  }
+  const мѣсто = (id: string) => {
+    const i = порядокъ.current.indexOf(id)
+    return i < 0 ? Number.MAX_SAFE_INTEGER : i
+  }
+  const rows = [...посчитанные].sort((a, b) => мѣсто(a.c.id) - мѣсто(b.c.id))
 
   /** Автоплан: обязательное по факту, «хочу» ужимаем до ориентира, остаток — в цели. */
   const autoPlan = () => {
@@ -233,6 +249,8 @@ export default function Budget() {
                       className="num in-plan"
                       value={plan || undefined}
                       placeholder="—"
+                      onFocus={() => setПравимъ(c.id)}
+                      onBlur={() => setПравимъ(null)}
                       onChange={(v, empty) => upsertCategory({ ...c, plan: empty ? undefined : v })}
                     />
                   </td>

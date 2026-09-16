@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { DateField } from '../components/DateField'
 import { цвѣтъПодсвѣтки } from '../components/effects'
-import { Money } from '../components/anim'
+import { Money, useДеньги } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -25,6 +25,8 @@ const TYPES: { k: AccountType; t: string; hint: string }[] = [
 ]
 
 export default function Accounts() {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const app = useApp()
   const { data, upsertAccount, deleteAccount } = useStore()
   const [edit, setEdit] = useState<Account | null>(null)
@@ -36,6 +38,9 @@ export default function Accounts() {
   const assets = data.accounts.filter((a) => !a.archived && isAsset(a) && !проектный(a))
   const liabilities = data.accounts.filter((a) => !a.archived && !isAsset(a) && !проектный(a))
   const projects = data.accounts.filter((a) => !a.archived && проектный(a))
+  // Убранные в архив не пропадают совсем: иначе их нельзя было бы вернуть.
+  const вАрхиве = data.accounts.filter((a) => a.archived)
+  const [архивОткрыт, setАрхивОткрыт] = useState(false)
   const проектныеДеньги = projects.reduce((s, a) => s + (bal.byAccount.get(a.id) ?? 0), 0)
 
   const spark = useMemo(() => {
@@ -140,6 +145,27 @@ export default function Accounts() {
         </>
       )}
 
+      {вАрхиве.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          <button className="btn sm ghost" onClick={() => setАрхивОткрыт((v) => !v)}>
+            <Icon name={архивОткрыт ? 'up' : 'down'} size={13} /> {т(' В архиве: {0}', вАрхиве.length)}</button>
+          {архивОткрыт && (
+            <div className="grid c3" style={{ marginTop: 10, opacity: 0.75 }}>
+              {вАрхиве.map((a) => (
+                <div key={a.id} className="card tight row" style={{ gap: 10 }}>
+                  <Avatar icon={a.icon} color={a.color} />
+                  <span style={{ flex: 1 }}>{a.name}</span>
+                  <button className="btn sm" onClick={() => upsertAccount({ ...a, archived: undefined })}>{т('Вернуть')}</button>
+                  <button className="icon-btn" onClick={() => setEdit(a)} title={т('Изменить')}>
+                    <Icon name="edit" size={14} />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {edit && <AccountModal value={edit} onClose={() => setEdit(null)} onSave={(a) => { upsertAccount(a); setEdit(null) }} />}
       {del && (
         <Confirm
@@ -167,7 +193,7 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
         type === 'credit'
           ? a.credit ?? { principal: 0, ratePct: 0, termMonths: 12, startDate: today(), paymentDay: 10, monthlyPayment: 0, purpose: 'purchase', v: 2 }
           : undefined,
-      debt: type === 'debt' ? a.debt ?? { counterparty: '', direction: 'i_owe' } : undefined,
+      debt: type === 'debt' ? a.debt ?? { counterparty: '', direction: 'i_owe', v: 2 } : undefined,
     })
   }
 
@@ -214,7 +240,16 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
         <div className="faint small" style={{ marginBottom: 14 }}>{TYPES.find((t) => t.k === a.type)?.hint}</div>
 
         {a.type === 'credit' && a.credit ? (
-          <КредитъОстатокъ a={a} data={data} patch={patch} />
+          <КредитъОстатокъ a={a} data={data} patch={patch} новый={!data.accounts.some((x) => x.id === value.id)} />
+        ) : a.type === 'debt' && a.debt ? (
+          // Сумма пишется без знака, знак ставит направление: «я должен» —
+          // минус, «мне должны» — плюс. Минус руками в поле не вписать.
+          <Field label={т('Сумма долга')} hint={т('На начало учёта. Возвраты, внесённые в программу, вычтутся сами.')}>
+            <MoneyInput
+              value={Math.abs(a.initialBalance)}
+              onChange={(v) => patch({ initialBalance: a.debt!.direction === 'owed_to_me' ? v : -v })}
+            />
+          </Field>
         ) : (
           <Field label={т('Начальный остаток')} hint={т('Сколько было на счёте до начала учёта')}>
             <MoneyInput value={a.initialBalance} onChange={(v) => patch({ initialBalance: v })} />
@@ -225,14 +260,14 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
           <>
           <div className="card-title">{т('На что взят')}</div>
           <div className="row wrap" style={{ gap: 7, marginBottom: 6 }}>
-            {([['purchase', т('Покупка или рассрочка')], ['cash', т('Деньги на счёт')]] as const).map(([k, t]) => (
+            {([['purchase', т('Покупка или рассрочка')], ['cash', т('Деньги или кредитная карта')]] as const).map(([k, t]) => (
               <span key={k} className={'chip' + ((a.credit!.purpose ?? 'purchase') === k ? ' on' : '')} onClick={() => patch({ credit: { ...a.credit!, purpose: k } })}>{t}</span>
             ))}
           </div>
           <div className="faint small" style={{ marginBottom: 14, lineHeight: 1.5 }}>
             {(a.credit.purpose ?? 'purchase') === 'purchase'
               ? т('Платёж целиком идёт в расходы: саму покупку нигде больше не записывали.')
-              : т('Деньги пришли на счёт и тратятся оттуда — в расходы из платежа идут только проценты.')}</div>
+              : т('Деньги пришли на счёт или траты идут с самой кредитной карты — они уже расходы, поэтому из платежа в расходы идут только проценты.')}</div>
           <div className="grid c2">
             <Field label={т('Сумма кредита')}>
               <MoneyInput value={a.credit.principal} onChange={(v) => patch({ credit: { ...a.credit!, principal: v } })} />
@@ -283,7 +318,14 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
               <input type="text" value={a.debt.counterparty} placeholder={т('Имя')} onChange={(e) => patch({ debt: { ...a.debt!, counterparty: e.target.value } })} />
             </Field>
             <Field label={т('Направление')}>
-              <select value={a.debt.direction} onChange={(e) => patch({ debt: { ...a.debt!, direction: e.target.value as 'i_owe' | 'owed_to_me' } })}>
+              <select
+                value={a.debt.direction}
+                onChange={(e) => {
+                  const direction = e.target.value as 'i_owe' | 'owed_to_me'
+                  const сумма = Math.abs(a.initialBalance)
+                  patch({ debt: { ...a.debt!, direction, v: 2 }, initialBalance: direction === 'owed_to_me' ? сумма : -сумма })
+                }}
+              >
                 <option value="i_owe">{т('Я должен')}</option>
                 <option value="owed_to_me">{т('Мне должны')}</option>
               </select>
@@ -328,14 +370,16 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
  * платежей прошло с даты начала и сколько после них осталось. Программа
  * считает это сама, человеку остаётся согласиться или поправить.
  */
-function КредитъОстатокъ({ a, data, patch }: { a: Account; data: VaultData; patch: (p: Partial<Account>) => void }) {
+function КредитъОстатокъ({ a, data, patch, новый }: { a: Account; data: VaultData; patch: (p: Partial<Account>) => void; новый: boolean }) {
   const подсказка = подсказкаОстатка(a, data)
   const сейчасъ = Math.max(0, -a.initialBalance)
   /*
    * У нового кредита поле пустое, и без подсказки он заводился бы без долга.
    * Пока человек сам поле не трогал, оно идёт следом за графиком.
    */
-  const [самъ, setСамъ] = useState(сейчасъ !== 0)
+  // У заведённого кредита поле не трогаем вовсе: ноль там мог быть поставлен
+  // нарочно, и открыть форму ради переименования не должно добавлять долг.
+  const [самъ, setСамъ] = useState(!новый || сейчасъ !== 0)
   const поГрафику = подсказка?.остатокъ
   useEffect(() => {
     if (!самъ && поГрафику != null && поГрафику !== сейчасъ) patch({ initialBalance: -поГрафику })

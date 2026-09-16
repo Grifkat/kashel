@@ -13,6 +13,24 @@ export function toMinor(value: string | number): Money {
   return Number.isFinite(n) ? Math.round(n * 100) : 0
 }
 
+/**
+ * Сумма из поля, где можно считать: «450+120», «1 200*3». Раньше выражение
+ * записывалось как есть: знаки выбрасывались, цифры склеивались, и
+ * «450+120» становилось 450 120 ₽. Разрешены только цифры, разделители,
+ * скобки и четыре действия — ничего, что можно выполнить как код.
+ */
+export function суммаИзВыражения(value: string): Money {
+  const s = value.replace(/[\s\u00A0]/g, '').replace(/,/g, '.')
+  if (!/[+\-*/]/.test(s.replace(/^-/, ''))) return toMinor(value)
+  if (!/^[\d.+\-*/()]+$/.test(s)) return 0
+  try {
+    const v = Function(`"use strict";return (${s})`)() as unknown
+    return typeof v === 'number' && Number.isFinite(v) ? Math.round(v * 100) : 0
+  } catch {
+    return 0
+  }
+}
+
 export const toMajor = (m: Money): number => m / 100
 
 /** Разделитель разрядов — тот же неразрывный пробел, что ставит Intl для ru-RU. */

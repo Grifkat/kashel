@@ -96,9 +96,12 @@ function resolveInVault(rel) {
   return path.resolve(root, rel)
 }
 
+// Своё имя временного файла на каждую запись: две записи одного файла подряд
+// не должны делить один .tmp — иначе одна обрезает то, что пишет другая.
+let номерЗаписи = 0
 async function atomicWrite(full, data) {
   await fsp.mkdir(path.dirname(full), { recursive: true })
-  const tmp = full + '.tmp'
+  const tmp = `${full}.${process.pid}.${++номерЗаписи}.tmp`
   try {
     await fsp.writeFile(tmp, data, 'utf8')
     await fsp.rename(tmp, full)
@@ -186,6 +189,34 @@ let win = null
  * и только там; иначе программу нельзя было бы закрыть вовсе.
  */
 let tray = null
+
+/*
+ * Сохранение перед выходом.
+ *
+ * Окно пишет правки с задержкой в доли секунды. Выход из трея сразу после
+ * записи раньше убивал процесс раньше, чем файл был дописан, — последняя
+ * операция пропадала. Теперь выход ждёт, пока окно скажет «сохранено»,
+ * но не дольше трёх секунд: зависшее окно не должно держать программу.
+ */
+let сохраненоПередВыходом = false
+let ждёмСохраненія = false
+function сохранитьИ(дальше) {
+  if (сохраненоПередВыходом || !win || win.isDestroyed()) return false
+  if (ждёмСохраненія) return true
+  ждёмСохраненія = true
+  let готово = false
+  const закончить = () => {
+    if (готово) return
+    готово = true
+    сохраненоПередВыходом = true
+    ждёмСохраненія = false
+    дальше()
+  }
+  ipcMain.once('app:saved', закончить)
+  setTimeout(закончить, 3000)
+  win.webContents.send('app:save-before-quit')
+  return true
+}
 let вТрей = true
 let выходим = false
 
@@ -242,7 +273,10 @@ function createWindow() {
       e.preventDefault()
       win.hide()
       makeTray()
+      return
     }
+    // Окно закрывается насовсем — сперва пусть допишет последние правки.
+    if (сохранитьИ(() => win && !win.isDestroyed() && win.close())) e.preventDefault()
   })
   win.on('minimize', (e) => {
     if (вТрей) {
@@ -363,7 +397,10 @@ if (!app.requestSingleInstanceLock()) {
     if (вТрей && !выходим) return
     if (process.platform !== 'darwin') app.quit()
   })
-  app.on('before-quit', () => { выходим = true })
+  app.on('before-quit', (e) => {
+    выходим = true
+    if (сохранитьИ(() => app.quit())) e.preventDefault()
+  })
 }
 
 // ------------------------------------------------------------ обновленіе

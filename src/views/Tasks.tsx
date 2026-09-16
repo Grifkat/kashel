@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { счётПоУмолчанию } from '../engine/stats'
 import { DateField } from '../components/DateField'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -414,7 +415,7 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
   /** Закрыть задачу и сразу записать трату: ради этого сумма у задачи и нужна. */
   const записатьОперацию = () => {
     if (!t.amount) return
-    const accountId = t.accountId || data.accounts.find((a) => a.type === 'card')?.id || data.accounts[0]?.id
+    const accountId = t.accountId || счётПоУмолчанию(data.accounts, data.transactions)
     if (!accountId) {
       toast(т('Сначала создайте счёт — в разделе «Счета»'))
       return

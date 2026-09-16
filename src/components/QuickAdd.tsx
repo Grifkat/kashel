@@ -4,6 +4,8 @@ import { useApp } from '../App'
 import { Avatar, GroupedInput, Modal, useToast } from './ui'
 import { describeDraft, parseQuick } from '../engine/parse'
 import { счётПоУмолчанию } from '../engine/stats'
+import { SchetVybor } from './SchetVybor'
+import { звукЗаписи } from '../lib/sound'
 import { addMonths, relDate, today } from '../lib/date'
 import { groupDigits, money } from '../lib/format'
 import { Icon } from '../lib/icons'
@@ -34,6 +36,8 @@ export function QuickAdd({
   // строки: нажали руками — значит, это и есть ответ.
   const [pickedCat, setPickedCat] = useState<string | undefined>()
   const [allCats, setAllCats] = useState(false)
+  // Счёт, выбранный руками в окне, главнее и подстановки, и «@счёта» в строке.
+  const [pickedAcc, setPickedAcc] = useState<string | undefined>()
 
   const entryAccount = app.entryAccount
   const defaultAccount = data.accounts.find((a) => a.id === счётПоУмолчанию(data.accounts, data.transactions, entryAccount))
@@ -48,7 +52,9 @@ export function QuickAdd({
   )
   const kind = picked ?? draft.kind
   const categoryId = pickedCat ?? draft.categoryId
-  const ok = draft.amount > 0 && !!draft.accountId
+  const accountId = pickedAcc ?? draft.accountId
+  const счётЗаписи = data.accounts.find((a) => a.id === accountId)
+  const ok = draft.amount > 0 && !!accountId
 
   const catName = (id: string) => data.categories.find((c) => c.id === id)?.name ?? ''
   const pinned = data.settings.pinnedCategories
@@ -93,17 +99,40 @@ export function QuickAdd({
       toast(т('Не хватает суммы — напишите число в строке'))
       return
     }
+    // Перевод без счёта назначения — это просто пропавшие деньги. Строка
+    // такой счёт не называет, поэтому перевод дописывается в подробной форме.
+    if (kind === 'transfer') {
+      подробно()
+      return
+    }
     addTransaction({
       kind,
       date: draft.date,
       amount: draft.amount,
-      accountId: draft.accountId!,
-      categoryId,
+      accountId: accountId!,
+      // Категория чужого направления не записывается.
+      categoryId: data.categories.find((c) => c.id === categoryId)?.kind === kind ? categoryId : undefined,
       tags: draft.tags,
       note: draft.note || undefined,
     } as Omit<Transaction, 'id' | 'createdAt'>)
-    toast(т('{0} {1} записан', kind === 'income' ? т('Доход') : kind === 'transfer' ? т('Перевод') : т('Расход'), money(draft.amount)))
+    звукЗаписи(kind, data.settings.saveSound)
+    // Счёт называется в подтверждении: иначе запись на «не тот» счёт
+    // выглядела как несохранённая.
+    toast(т('{0} {1} записан на «{2}»', kind === 'income' ? т('Доход') : т('Расход'), money(draft.amount), счётЗаписи?.name ?? ''))
     onClose()
+  }
+
+  const подробно = () => {
+    onClose()
+    app.editTransaction({
+      kind,
+      amount: draft.amount,
+      date: draft.date,
+      accountId,
+      categoryId,
+      tags: draft.tags,
+      note: draft.note,
+    })
   }
 
   const examples = [
@@ -120,24 +149,10 @@ export function QuickAdd({
       onClose={onClose}
       footer={
         <>
-          <button
-            className="btn"
-            onClick={() => {
-              onClose()
-              app.editTransaction({
-                kind,
-                amount: draft.amount,
-                date: draft.date,
-                accountId: draft.accountId,
-                categoryId,
-                tags: draft.tags,
-                note: draft.note,
-              })
-            }}
-          >
+          <button className="btn" onClick={подробно}>
             {т('Подробно…')}</button>
           <button className="btn primary" onClick={submit} disabled={!ok}>
-            {т('Записать ')}<kbd style={{ marginLeft: 4 }}>Enter</kbd>
+            {kind === 'transfer' ? т('Дальше… ') : т('Записать ')}<kbd style={{ marginLeft: 4 }}>Enter</kbd>
           </button>
         </>
       }
@@ -157,11 +172,32 @@ export function QuickAdd({
       )}
       <div className="seg" style={{ marginBottom: 12 }}>
         {(['expense', 'income', 'transfer'] as TxKind[]).map((k) => (
-          <button key={k} className={kind === k ? 'on' : ''} onClick={() => setPicked(k)}>
+          <button
+            key={k}
+            className={kind === k ? 'on' : ''}
+            onClick={() => {
+              setPicked(k)
+              // Расходная плитка не должна остаться на доходе.
+              const выбрана = data.categories.find((c) => c.id === pickedCat)
+              if (выбрана && выбрана.kind !== (k === 'income' ? 'income' : 'expense')) setPickedCat(undefined)
+            }}
+          >
             {k === 'expense' ? т('Расход') : k === 'income' ? т('Доход') : т('Перевод')}
           </button>
         ))}
       </div>
+      {data.accounts.some((a) => !a.archived) && (
+        <div className="row" style={{ gap: 8, marginBottom: 10 }}>
+          <span className="faint small nowrap">{kind === 'income' ? т('На счёт') : т('Со счёта')}</span>
+          <SchetVybor
+            value={accountId ?? ''}
+            onChange={setPickedAcc}
+            accounts={data.accounts.filter((a) => !a.archived)}
+            style={{ maxWidth: 260 }}
+          />
+          {счётЗаписи?.project && <span className="badge">{т('проект')}</span>}
+        </div>
+      )}
       <GroupedInput
         type="text"
         autoFocus
@@ -218,7 +254,7 @@ export function QuickAdd({
             ? describeDraft(
                 // Выбранную плитку показываем в подсказке так же, как угаданную
                 // из текста: иначе непонятно, куда уйдёт операция.
-                { ...draft, kind, categoryId, matchedCategory: pickedCat ? catName(pickedCat) : draft.matchedCategory },
+                { ...draft, kind, categoryId, accountId, matchedCategory: pickedCat ? catName(pickedCat) : draft.matchedCategory },
                 data.categories,
                 data.accounts,
               )

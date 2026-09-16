@@ -49,10 +49,11 @@ export const EVENT_THRESHOLD: Record<ReminderEvent, { label: string; unit: 'days
 export function nextDate(r: Reminder, now: string = today()): string | null {
   if (!r.date) return null
   if (!r.repeat || r.repeat === 'once') return r.date
+  // Каждый шаг считается от исходной даты, а не от прошлого шага: иначе
+  // «31-го каждый месяц» после февраля навсегда съезжало на 28-е.
   let d = r.date
-  let guard = 0
-  while (d < now && guard++ < 400) {
-    d = r.repeat === 'weekly' ? addDays(d, 7) : r.repeat === 'yearly' ? addMonths(d, 12) : addMonths(d, 1)
+  for (let n = 1; d < now && n < 400; n++) {
+    d = r.repeat === 'weekly' ? addDays(r.date, 7 * n) : r.repeat === 'yearly' ? addMonths(r.date, 12 * n) : addMonths(r.date, n)
   }
   return d
 }
@@ -144,8 +145,12 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
     }
     case 'low-balance': {
       const bal = balances(data.accounts, data.transactions)
+      // Без выбранного счёта — только свои повседневные: кредит и долг
+      // всегда «ниже нуля», и напоминание звонило бы каждый день.
       const list = data.accounts
-        .filter((a) => !a.archived && (!r.accountId || a.id === r.accountId))
+        .filter((a) => !a.archived && (r.accountId
+          ? a.id === r.accountId
+          : !a.project && (a.type === 'card' || a.type === 'cash' || a.type === 'savings')))
         .map((a) => ({ a, v: bal.byAccount.get(a.id) ?? 0 }))
         .filter((x) => x.v < th)
       return list.length ? list.map((x) => `${x.a.name}: ${money(x.v)}`).join(' · ') : null

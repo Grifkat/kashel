@@ -37,6 +37,8 @@ export default function Categories() {
   )
 
   const list = data.categories.filter((c) => c.kind === kind && !c.archived)
+  const вАрхиве = data.categories.filter((c) => c.kind === kind && c.archived)
+  const [архивОткрыт, setАрхивОткрыт] = useState(false)
 
   return (
     <div className="view">
@@ -132,6 +134,24 @@ export default function Categories() {
           )
         })}
       </div>
+
+      {вАрхиве.length > 0 && (
+        <div style={{ marginTop: 22 }}>
+          <button className="btn sm ghost" onClick={() => setАрхивОткрыт((v) => !v)}>
+            <Icon name={архивОткрыт ? 'up' : 'down'} size={13} /> {т(' В архиве: {0}', вАрхиве.length)}</button>
+          {архивОткрыт && (
+            <div className="grid c3" style={{ marginTop: 10, opacity: 0.75 }}>
+              {вАрхиве.map((c) => (
+                <div key={c.id} className="card tight row" style={{ gap: 10 }}>
+                  <Avatar icon={c.icon} color={c.color} />
+                  <span style={{ flex: 1 }}>{c.name}</span>
+                  <button className="btn sm" onClick={() => upsertCategory({ ...c, archived: undefined })}>{т('Вернуть')}</button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {edit && (
         <CategoryModal
@@ -252,6 +272,13 @@ function CategoryModal({
 
         <div className="card-title">{т('Цвет')}</div>
         <ColorPicker value={c.color} onChange={(color) => patch({ color })} />
+
+        {/* Архив — вместо удаления: история остаётся при статье, а в списках
+            выбора её больше нет. Вернуть можно из списка «В архиве». */}
+        <label className="row" style={{ gap: 8, marginTop: 14 }}>
+          <input type="checkbox" checked={!!c.archived} onChange={(e) => patch({ archived: e.target.checked || undefined })} />
+          <span>{т('В архиве (скрыта из списков, история остаётся)')}</span>
+        </label>
       </Modal>
       {pick && (
         <IconPicker

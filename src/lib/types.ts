@@ -111,6 +111,8 @@ export interface Account {
     counterparty: string
     direction: 'i_owe' | 'owed_to_me'
     dueDate?: string
+    /** 2 — знак остатка по направлению: «я должен» — минус, «мне должны» — плюс. */
+    v?: 2
   }
 }
 
@@ -154,6 +156,8 @@ export interface Recurring {
   endDate?: string
   autoPost: boolean // создавать операции автоматически при наступлении даты
   lastPosted?: string
+  /** День, по который правило проведено. Прежние версии хранили только месяц в lastPosted. */
+  lastPostedDate?: string
   tags: string[]
   note?: string
   active: boolean
@@ -353,6 +357,8 @@ export interface Settings {
   readingFont: ReadingFont
   /** Категории, закреплённые в быстром вводе. Порядок — как закрепляли. */
   pinnedCategories: string[]
+  /** Звук при записи операции. Пусто — включён. */
+  saveSound?: boolean
   /** Виджеты правой панели в своём порядке. Пусто — набор по умолчанию. */
   rightWidgets?: ВиджетId[]
   accent: string

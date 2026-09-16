@@ -216,7 +216,7 @@ export function RightPanel({ open }: { open: boolean }) {
           </div>
         )
       case 'accounts': {
-        const счета = data.accounts.filter((a) => !a.archived && a.type !== 'credit' && a.type !== 'debt')
+        const счета = личн.accounts.filter((a) => !a.archived && a.type !== 'credit' && a.type !== 'debt')
         if (!счета.length) return null
         return (
           <div className="card tight">

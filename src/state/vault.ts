@@ -21,6 +21,8 @@ export interface Bridge {
   openSound(): Promise<{ name: string; base64: string } | null>
   /** Настройки оболочки: трей и язык встроенного выбора даты. */
   shellPrefs?(prefs: { tray?: boolean; dateFormat?: 'ru' | 'us'; language?: 'ru' | 'en' }): Promise<boolean>
+  /** Оболочка просит дописать правки перед выходом. Только на рабочем столе. */
+  onSaveBeforeQuit?(cb: () => Promise<void>): () => void
 
   // Ниже — только рабочий стол: меню «Файл», двойной клик по .kashel и связь
   // расширения с программой. В браузере всего этого нет, поэтому необязательны.

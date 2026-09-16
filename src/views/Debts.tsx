@@ -1,11 +1,12 @@
 import React, { useMemo, useState } from 'react'
+import { useДеньги } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { useAnalytics } from '../state/analytics'
 import { Icon } from '../lib/icons'
 import { money, months as monthsWord, pct, plural, toMinor } from '../lib/format'
 import { addMonths, diffDays, humanDate, today } from '../lib/date'
-import { accountBalance, creditRemaining } from '../engine/stats'
+import { creditRemaining, остатокДолга, счётПоУмолчанию } from '../engine/stats'
 import { KreditDashbord } from '../components/KreditDashbord'
 import { LineChart } from '../components/charts'
 import { Avatar } from '../components/ui'
@@ -38,6 +39,8 @@ function schedule(principal: Money, ratePct: number, payment: Money, extra = 0):
 }
 
 export default function Debts() {
+  // Суммы на экране — с учётом «Скрывать баланс».
+  const money = useДеньги()
   const app = useApp()
   const { data, upsertAccount } = useStore()
   const { fc } = useAnalytics(data)
@@ -50,7 +53,7 @@ export default function Debts() {
 
   const totalDebt =
     credits.reduce((s, a) => s + creditRemaining(a, data.transactions), 0) +
-    debts.reduce((s, a) => s + Math.abs(Math.min(0, accountBalance(a, data.transactions))), 0)
+    debts.filter((a) => a.debt!.direction === 'i_owe').reduce((s, a) => s + остатокДолга(a, data.transactions), 0)
 
   return (
     <div className="view">
@@ -176,8 +179,8 @@ export default function Debts() {
           <div className="card-title">{т('Долги людям')}</div>
           <div className="grid c2">
             {debts.map((a) => {
-              const b = accountBalance(a, data.transactions)
-              const amount = Math.abs(b)
+              const amount = остатокДолга(a, data.transactions)
+              const мне = a.debt!.direction === 'owed_to_me'
               const due = a.debt?.dueDate
               const daysLeft = due ? -diffDays(due, today()) : null
               return (
@@ -205,12 +208,12 @@ export default function Debts() {
                     <button
                       className="btn sm"
                       onClick={() =>
-                        app.editTransaction({
-                          kind: 'transfer',
-                          amount,
-                          toAccountId: a.id,
-                          note: (a.debt!.direction === 'i_owe' ? т('Возврат долга: ') : т('Получен возврат: ')) + a.debt!.counterparty,
-                        })
+                        // Отдаю — деньги уходят со своего счёта на долг; получаю —
+                        // наоборот, с долга на свой счёт. Раньше «Получить» тоже
+                        // слало деньги на долг и только увеличивало его.
+                        app.editTransaction(мне
+                          ? { kind: 'transfer', amount, accountId: a.id, toAccountId: счётПоУмолчанию(data.accounts, data.transactions), note: т('Получен возврат: ') + a.debt!.counterparty }
+                          : { kind: 'transfer', amount, toAccountId: a.id, note: т('Возврат долга: ') + a.debt!.counterparty })
                       }
                     >
                       {a.debt!.direction === 'i_owe' ? т('Отдать') : т('Получить')}

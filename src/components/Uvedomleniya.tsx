@@ -7,7 +7,7 @@ import { humanDate, today } from '../lib/date'
 import { money } from '../lib/format'
 import { playTone } from '../lib/sound'
 import { счётПоУмолчанию } from '../engine/stats'
-import { ждущія, новыеУведомления, отклонить, подтвердитьПлатёж, уведомленія } from '../engine/uvedomleniya'
+import { ждущія, новыеУведомления, отклонить, очиститьИсторію, подтвердитьПлатёж, уведомленія } from '../engine/uvedomleniya'
 import type { Notice, VaultData } from '../lib/types'
 import { т, тр } from '../i18n'
 
@@ -104,7 +104,7 @@ export function UvedomleniyaOkno({ onClose }: { onClose: () => void }) {
             <button
               className="btn ghost"
               style={{ marginRight: 'auto' }}
-              onClick={() => setData((d) => ({ ...d, notifications: уведомленія(d).filter((n) => n.status === 'pending') }))}
+              onClick={() => setData(очиститьИсторію)}
             >
               {т('Очистить историю')}</button>
           )}
