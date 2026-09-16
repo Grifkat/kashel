@@ -1900,3 +1900,17 @@ input.invalid { border-color: var(--alert) !important; }
 }
 .schet-opt.cur { background: var(--hover); }
 .schet-opt.sel { color: var(--text-strong); font-weight: 600; }
+
+/* ------------------------------------------------ правка виджетов справа */
+.widget-edit {
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 6px;
+}
+.widget-edit-bar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 0 2px 6px 4px;
+}
+.widget-edit-bar .icon-btn:disabled { opacity: 0.35; cursor: default; }

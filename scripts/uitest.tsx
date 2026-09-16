@@ -1048,8 +1048,11 @@ async function rightPanel() {
    * панели, — и человѣкъ спрашивал, чем они отличаются. Ничем. Остаётся ≡:
    * она видна и при скрытой панели, а значит, ею же панель и возвращается.
    */
+  // Единственная кнопка в шапке — настройка виджетов; скрывающей там нет.
+  const кнопкиШапки = [...document.querySelectorAll('.rightbar .sidebar-head button')]
   check('в шапке «Сводки» своей кнопки скрытия нет',
-    document.querySelectorAll('.rightbar .sidebar-head button').length === 0)
+    кнопкиШапки.length === 1 && кнопкиШапки[0].getAttribute('title') === 'Настроить виджеты',
+    кнопкиШапки.map((б) => б.getAttribute('title')).join(' | '))
 }
 
 /*
@@ -2067,6 +2070,50 @@ async function дашбордКредитаИУведомленія() {
   await wait(300)
 }
 
+/*
+ * Виджеты правой панели: карандаш включает правку, виджет убирается,
+ * добавляется, переставляется, а «Вернуть как было» возвращает набор.
+ */
+async function виджеты() {
+  console.log('\n— виджеты справа —')
+  const панель = () => document.querySelector('.rightbar') as HTMLElement | null
+  const карандашъ = () => панель()?.querySelector('.sidebar-head .icon-btn') as HTMLElement | null
+  const правимые = () => [...(панель()?.querySelectorAll('.widget-edit') ?? [])].map((в) => в.getAttribute('data-widget'))
+  const настройки = async () => (await loadVault()).settings?.rightWidgets
+  check('в шапке сводки есть кнопка настройки', !!карандашъ())
+  click(карандашъ())
+  await wait(250)
+  check('в правке — все виджеты по умолчанию, даже пустые', правимые().join(',') === 'month,attention,upcoming,goals,rank,forecast', правимые().join(','))
+  const крестикъ = (w: string) => [...(панель()?.querySelector(`.widget-edit[data-widget="${w}"]`)?.querySelectorAll('.icon-btn') ?? [])]
+    .find((б) => б.getAttribute('title') === 'Убрать виджет') as HTMLElement
+  click(крестикъ('forecast'))
+  await wait(1300)
+  check('виджет убран и это сохранено', !правимые().includes('forecast') && !(await настройки())?.includes('forecast'), JSON.stringify(await настройки()))
+  const добавить = (подпись: string) => [...(панель()?.querySelectorAll('.chip') ?? [])].find((ч) => (ч.textContent || '').includes(подпись)) as HTMLElement
+  check('убранный можно вернуть из «Добавить виджет»', !!добавить('Прогноз на год'))
+  click(добавить('Счета'))
+  await wait(300)
+  check('новый виджет «Счета» добавился в конец', правимые().at(-1) === 'accounts', правимые().join(','))
+  const выше = [...(панель()?.querySelector('.widget-edit[data-widget="accounts"]')?.querySelectorAll('.icon-btn') ?? [])]
+    .find((б) => б.getAttribute('title') === 'Выше') as HTMLElement
+  click(выше)
+  await wait(1300)
+  const порядокъ = правимые()
+  check('виджет переставлен выше', порядокъ.indexOf('accounts') === порядокъ.length - 2, порядокъ.join(','))
+  check('порядок сохранён', JSON.stringify(await настройки()) === JSON.stringify(порядокъ), JSON.stringify(await настройки()))
+  click(карандашъ())
+  await wait(250)
+  const текстъ = панель()?.textContent || ''
+  check('после правки: прогноза нет, счета есть', !текстъ.includes('Прогноз на год') && !!панель()?.querySelector('.avatar'))
+  click(карандашъ())
+  await wait(250)
+  click(byText('.rightbar .btn', 'Вернуть как было'))
+  await wait(1300)
+  check('«Вернуть как было» — снова набор по умолчанию', правимые().join(',') === 'month,attention,upcoming,goals,rank,forecast' && !(await настройки()), правимые().join(','))
+  click(карандашъ())
+  await wait(250)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2076,6 +2123,7 @@ async function main() {
   await updates()
   await besjeda()
   await rightPanel()
+  await виджеты()
   await leftPanel()
   await значкиВъСпискахъ()
   await пончикъ()

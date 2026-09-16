@@ -28,6 +28,7 @@ import {
 } from '../src/engine/honors'
 import { знакъЕсть, ключъЗнака } from '../src/lib/znaki'
 import { всеТеги, переименоватьТег } from '../src/engine/tegi'
+import { включённыеВиджеты } from '../src/components/RightPanel'
 import { ждущія, новыеУведомления, отклонить, подтвердитьПлатёж } from '../src/engine/uvedomleniya'
 import type { Notice } from '../src/lib/types'
 import { creditState, schedule, whatIf, следующийПлатёж, сводкаКредита, перевестиКредиты, планъПлатежа, разложитьПлатёжъ, датыПлатежей, остатокПослѣ, подсказкаОстатка, СТАТЬЯ_ПЛАТЕЖЕЙ, СТАТЬЯ_ПРОЦЕНТОВ } from '../src/engine/credit'
@@ -2547,6 +2548,11 @@ function тегиИУведомленія() {
   check('чужие операции не тронуты', слито.transactions[3] === наборъ.transactions[3])
   const убрано = переименоватьТег(наборъ, 'кофе', '')
   check('пустое имя удаляет тег', убрано.transactions[3].tags.length === 0 && убрано.операций === 1)
+
+  console.log('\n— виджеты справа —')
+  check('без настройки — прежний набор', включённыеВиджеты(undefined).join(',') === 'month,attention,upcoming,goals,rank,forecast')
+  check('чужие и повторы отбрасываются', включённыеВиджеты(['accounts', 'чужой', 'accounts', 'month']).join(',') === 'accounts,month')
+  check('пустой список — пустая панель, а не набор по умолчанию', включённыеВиджеты([]).length === 0)
 
   console.log('\n— счёт по умолчанию —')
   const счета = [

@@ -353,6 +353,8 @@ export interface Settings {
   readingFont: ReadingFont
   /** Категории, закреплённые в быстром вводе. Порядок — как закрепляли. */
   pinnedCategories: string[]
+  /** Виджеты правой панели в своём порядке. Пусто — набор по умолчанию. */
+  rightWidgets?: ВиджетId[]
   accent: string
   hideBalance: boolean
   forecastHorizon: number
@@ -523,3 +525,8 @@ export interface Notice {
   /** Операции, записанные при подтверждении. */
   txIds?: string[]
 }
+
+/** Виджеты правой панели. */
+export type ВиджетId = 'month' | 'attention' | 'upcoming' | 'goals' | 'rank' | 'forecast' | 'accounts' | 'credits'
+/** Набор до того, как человек что-то поменял, — ровно прежняя панель. */
+export const ВИДЖЕТЫ_ПО_УМОЛЧАНИЮ: ВиджетId[] = ['month', 'attention', 'upcoming', 'goals', 'rank', 'forecast']
