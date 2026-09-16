@@ -57,13 +57,15 @@ export function ContextMenu({
       }
     }
     // Слушаем на следующем тике, иначе тот же клик сразу закроет меню.
+    // Щелчок ловим на перехвате: окна гасят mousedown внутри себя, и меню
+    // поверх окна иначе не закрывалось бы щелчком мимо.
     const id = window.setTimeout(() => {
-      window.addEventListener('mousedown', away)
+      window.addEventListener('mousedown', away, true)
       window.addEventListener('keydown', esc, true)
     }, 0)
     return () => {
       window.clearTimeout(id)
-      window.removeEventListener('mousedown', away)
+      window.removeEventListener('mousedown', away, true)
       window.removeEventListener('keydown', esc, true)
     }
   }, [onClose])

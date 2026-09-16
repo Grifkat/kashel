@@ -2218,6 +2218,12 @@ async function подкатегорииЭкраны() {
   правыйЩелчок(плитка)
   await wait(150)
   check('правый щелчок открывает меню категории', !!menuItem('Изменить') && !!menuItem('Удалить') && !!menuItem('Сделать подкатегорией'))
+  // Щелчок мимо меню — внутри окна быстрого ввода — закрывает меню.
+  окно()?.querySelector('.qa-poisk')?.dispatchEvent(new dom.window.MouseEvent('mousedown', { bubbles: true }))
+  await wait(100)
+  check('щелчок мимо закрывает меню категории', !menuItem('Изменить'))
+  правыйЩелчок(плитка)
+  await wait(150)
   click(menuItem('Сделать подкатегорией'))
   await wait(100)
   click(all('.ctx-sub .ctx-item').find((б) => (б.textContent || '').trim() === 'Продукты'))
