@@ -12,6 +12,7 @@ import {
 import { перевестиКредиты } from '../engine/credit'
 import { провестиАвтосписания } from '../engine/avtospisaniya'
 import { перевестиДолги } from '../engine/stats'
+import { безРодителя } from '../engine/podkategorii'
 import { occurrencesInMonth } from '../engine/forecast'
 import { т } from '../i18n'
 
@@ -393,7 +394,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [setData],
   )
   const upsertCategory = upsert('categories') as (c: Category) => void
-  const deleteCategory = remove('categories')
+  // Подкатегории удалённой главной становятся главными — см. engine/podkategorii.
+  const deleteCategory = useCallback(
+    (id: string) => setData((d) => ({ ...d, categories: безРодителя(d, id) })),
+    [setData],
+  )
   const upsertRecurring = upsert('recurring') as (r: Recurring) => void
   const deleteRecurring = remove('recurring')
   const upsertReminder = upsert('reminders') as (r: Reminder) => void

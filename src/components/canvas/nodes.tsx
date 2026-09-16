@@ -9,6 +9,7 @@ import { QueryBlock } from '../QueryBlock'
 import { Spark } from '../charts'
 import type { CanvasNode, CardStyle, Money, TextFit, VaultData } from '../../lib/types'
 import { т } from '../../i18n'
+import { суммаСемьи } from '../../engine/podkategorii'
 
 /**
  * Значок в шапке карточки: из каталога, эмодзи или свой загруженный.
@@ -235,7 +236,8 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
     case 'category': {
       const c = data.categories.find((x) => x.id === node.ref)
       if (!c) return { title: т('Категория удалена'), missing: true }
-      const amount = (c.kind === 'income' ? ctx.income : ctx.expense).get(c.id) ?? 0
+      // Главная — вместе с подкатегориями, как на «Сводке».
+      const amount = суммаСемьи(c.id, c.kind === 'income' ? ctx.income : ctx.expense, data.categories)
       return {
         title: c.name,
         icon: c.icon,

@@ -1914,3 +1914,23 @@ input.invalid { border-color: var(--alert) !important; }
   padding: 0 2px 6px 4px;
 }
 .widget-edit-bar .icon-btn:disabled { opacity: 0.35; cursor: default; }
+
+/* ------------------------------------------------ подкатегории и выбор категории */
+.kat-deti {
+  margin-top: 10px;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.kat-rebenok { gap: 8px; padding: 3px 0; }
+.kat-pop { display: flex; flex-direction: column; max-height: 380px; overflow: hidden; }
+.kat-poisk { margin-bottom: 5px; flex: none; }
+.kat-spisok { overflow-y: auto; min-height: 0; }
+.schet-opt.kat-pod { margin-left: 18px; }
+/* Подпись главной у плитки подкатегории. */
+.tile-parent { font-size: 10px; color: var(--faint); line-height: 1.1; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qa-poisk { margin-top: 10px; max-width: 280px; }
+.budget-pod td:first-child { padding-left: 34px; }
+.budget-pod td { font-size: 0.95em; }

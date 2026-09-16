@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { KategoriyaVybor } from '../components/KategoriyaVybor'
+import { семья, вСемье } from '../engine/podkategorii'
 import { DateField } from '../components/DateField'
-import { сЗначкомъ } from '../lib/catalog'
 import { Amount, useAnimatedList, useДеньги } from '../components/anim'
 import { useApp, useTabId } from '../App'
 import { SchetVybor } from '../components/SchetVybor'
@@ -58,6 +59,7 @@ export default function Transactions({ filter }: { filter?: string }) {
     if (tag && !allTags.includes(tag)) setTag('')
   }, [tag, allTags])
 
+  const семьяФильтра = useMemo(() => семья(catId, data.categories), [catId, data.categories])
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase()
     return data.transactions
@@ -65,7 +67,8 @@ export default function Transactions({ filter }: { filter?: string }) {
         // Пустая граница — без ограничения, а не «ничего не показывать».
         if ((from && t.date < from) || (to && t.date > to)) return false
         if (kind !== 'all' && t.kind !== kind) return false
-        if (catId && t.categoryId !== catId && !t.splits?.some((s) => s.categoryId === catId)) return false
+        // Главная категория показывает и свои подкатегории.
+        if (catId && !вСемье(t, семьяФильтра)) return false
         // Платёж по кредиту списан с карты, но относится и к самому кредиту.
         if (accId && t.accountId !== accId && t.toAccountId !== accId && t.debtId !== accId) return false
         if (tag && !t.tags.includes(tag)) return false
@@ -77,12 +80,12 @@ export default function Transactions({ filter }: { filter?: string }) {
         return true
       })
       .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : a.createdAt < b.createdAt ? 1 : -1))
-  }, [data.transactions, q, kind, catId, accId, tag, from, to, onlyUncat, catById])
+  }, [data.transactions, q, kind, catId, семьяФильтра, accId, tag, from, to, onlyUncat, catById])
 
   // С фильтром по статье разбитый чек считается своей долей, а не целиком:
   // иначе чек на 10 000 с долей продуктов в 3 000 давал бы «продуктов» 10 000.
   const долей = (t: Transaction) =>
-    catId && t.splits?.length ? t.splits.filter((x) => x.categoryId === catId).reduce((s, x) => s + x.amount, 0) : t.amount
+    catId && t.splits?.length ? t.splits.filter((x) => семьяФильтра.has(x.categoryId)).reduce((s, x) => s + x.amount, 0) : t.amount
   const sum = rows.reduce((s, t) => s + (t.kind === 'income' ? долей(t) : t.kind === 'expense' ? -долей(t) : 0), 0)
   const totalExpense = rows.filter((t) => t.kind === 'expense').reduce((s, t) => s + долей(t), 0)
   const totalIncome = rows.filter((t) => t.kind === 'income').reduce((s, t) => s + долей(t), 0)
@@ -195,12 +198,14 @@ export default function Transactions({ filter }: { filter?: string }) {
               <button key={k} className={kind === k ? 'on' : ''} onClick={() => setKind(k)}>{t}</button>
             ))}
           </div>
-          <select value={catId} onChange={(e) => setCatId(e.target.value)} style={{ width: 170 }}>
-            <option value="">{т('Все категории')}</option>
-            {data.categories.filter((c) => !c.archived).map((c) => (
-              <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
-            ))}
-          </select>
+          <KategoriyaVybor
+            value={catId}
+            onChange={setCatId}
+            pusto={т('Все категории')}
+            // Архивная категория из поиска или календаря тоже видна в фильтре.
+            cats={data.categories.filter((c) => !c.archived || c.id === catId)}
+            style={{ width: 210 }}
+          />
           <SchetVybor
             value={accId}
             onChange={setAccId}

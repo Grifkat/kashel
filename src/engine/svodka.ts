@@ -5,6 +5,7 @@ import { balances, categoryTotals, monthlySeries, tagTotals } from './stats'
 import { creditsSummary } from './credit'
 import { личное, projectsSummary } from './project'
 import { т } from '../i18n'
+import { суммаСемьи } from './podkategorii'
 
 /*
  * Что уходит к нейросети.
@@ -108,7 +109,7 @@ export function сводкаДляМодели(данные: VaultData, now: str
     const потрачено = new Map(categoryTotals(вМѣсяцѣ, 'expense').map((c) => [c.categoryId, c.amount]))
     п(т('## Планы на месяц ({0})', monthTitle(этотъ)))
     for (const c of съПланомъ) {
-      п(т('- {0}: план {1}, потрачено {2}', c.name, рубли(c.plan!), рубли(потрачено.get(c.id) ?? 0)))
+      п(т('- {0}: план {1}, потрачено {2}', c.name, рубли(c.plan!), рубли(суммаСемьи(c.id, потрачено, д.categories))))
     }
     п('')
   }

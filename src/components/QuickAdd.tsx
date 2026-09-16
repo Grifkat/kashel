@@ -5,9 +5,14 @@ import { Avatar, GroupedInput, Modal, useToast } from './ui'
 import { describeDraft, parseQuick } from '../engine/parse'
 import { счётПоУмолчанию } from '../engine/stats'
 import { SchetVybor } from './SchetVybor'
+import { KategoriyaOkno } from './KategoriyaOkno'
+import { useKategoriyaMenyu } from './KategoriyaMenyu'
+import { деревоКатегорий, родитель } from '../engine/podkategorii'
+import { PALETTE } from '../lib/emoji'
+import type { Category } from '../lib/types'
 import { звукЗаписи } from '../lib/sound'
 import { addMonths, relDate, today } from '../lib/date'
-import { groupDigits, money } from '../lib/format'
+import { groupDigits, money, uid } from '../lib/format'
 import { Icon } from '../lib/icons'
 import type { Transaction, TxKind } from '../lib/types'
 import { т, тр } from '../i18n'
@@ -25,7 +30,7 @@ export function QuickAdd({
   date?: string
   onClose: () => void
 }) {
-  const { data, addTransaction, patchSettings } = useStore()
+  const { data, addTransaction, patchSettings, upsertCategory } = useStore()
   const app = useApp()
   const toast = useToast()
   const [text, setText] = useState(() => groupDigits(initial))
@@ -36,6 +41,10 @@ export function QuickAdd({
   // строки: нажали руками — значит, это и есть ответ.
   const [pickedCat, setPickedCat] = useState<string | undefined>()
   const [allCats, setAllCats] = useState(false)
+  // Поиск по категориям и заведение новой — прямо здесь, без ухода в раздел.
+  const [поиск, setПоиск] = useState('')
+  const [новая, setНовая] = useState<Category | null>(null)
+  const меню = useKategoriyaMenyu()
   // Счёт, выбранный руками в окне, главнее и подстановки, и «@счёта» в строке.
   const [pickedAcc, setPickedAcc] = useState<string | undefined>()
 
@@ -71,7 +80,9 @@ export function QuickAdd({
     if (kind === 'transfer') return []
     const wanted = kind === 'income' ? 'income' : 'expense'
     const pool = data.categories.filter((c) => !c.archived && c.kind === wanted)
-    if (allCats) return pool
+    // Поиск показывает все совпадения — главные и подкатегории по порядку.
+    if (поиск.trim()) return деревоКатегорий(pool, поиск).map((x) => x.cat)
+    if (allCats) return деревоКатегорий(pool).map((x) => x.cat)
 
     const since = addMonths(today(), -3)
     const uses = new Map<string, number>()
@@ -87,8 +98,11 @@ export function QuickAdd({
     const rest = pool
       .filter((c) => !isPinned(c.id))
       .sort((a, b) => (uses.get(b.id) || 0) - (uses.get(a.id) || 0) || order.get(a.id)! - order.get(b.id)!)
-    return [...head, ...rest].slice(0, 7)
-  }, [data.categories, data.transactions, kind, allCats, pinned])
+    const частые = [...head, ...rest].slice(0, 7)
+    // Выбранная руками (например, только что созданная) видна, даже если она не из частых.
+    const выбрана = pickedCat ? byId.get(pickedCat) : undefined
+    return выбрана && !частые.includes(выбрана) ? [выбрана, ...частые.slice(0, 6)] : частые
+  }, [data.categories, data.transactions, kind, allCats, pinned, поиск, pickedCat])
 
   const submit = () => {
     if (!defaultAccount) {
@@ -208,7 +222,26 @@ export function QuickAdd({
         onKeyDown={(e) => e.key === 'Enter' && submit()}
         style={{ fontSize: 18, padding: '10px 14px' }}
       />
-      {tiles.length > 0 && (
+      {kind !== 'transfer' && (
+        <input
+          type="search"
+          className="qa-poisk"
+          placeholder={т('Найти категорию')}
+          value={поиск}
+          onChange={(e) => setПоиск(e.target.value)}
+          // Enter в поиске выбирает первую найденную, а не записывает операцию.
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              if (tiles[0]) setPickedCat(tiles[0].id)
+            }
+          }}
+        />
+      )}
+      {kind !== 'transfer' && поиск.trim() && !tiles.length && (
+        <div className="faint small" style={{ margin: '6px 0' }}>{т('Ничего не нашлось — можно создать категорию.')}</div>
+      )}
+      {(tiles.length > 0 || kind !== 'transfer') && (
         <div className="qa-tiles">
           {tiles.map((c) => (
             <div key={c.id} className={'qa-tile' + (categoryId === c.id ? ' on' : '')}>
@@ -216,9 +249,11 @@ export function QuickAdd({
                 className="qa-tile-btn"
                 title={c.name}
                 onClick={() => setPickedCat(categoryId === c.id ? undefined : c.id)}
+                onContextMenu={меню.открыть(c)}
               >
                 <Avatar icon={c.icon} color={c.color} />
                 <span className="qa-tile-name" title={c.name}>{c.name}</span>
+                {родитель(c, data.categories) && <span className="tile-parent">{родитель(c, data.categories)!.name}</span>}
               </button>
               {allCats && (
                 <button
@@ -233,6 +268,24 @@ export function QuickAdd({
           ))}
           {kind !== 'transfer' && (
             <div className="qa-tile">
+              <button
+                className="qa-tile-btn"
+                title={т('Новая категория')}
+                onClick={() => setНовая({
+                  id: uid('cat'), name: поиск.trim(), kind: kind === 'income' ? 'income' : 'expense', icon: '⭐',
+                  color: PALETTE[data.categories.length % PALETTE.length],
+                  ...(kind === 'income' ? {} : { bucket: 'wants' as const }),
+                })}
+              >
+                <span className="avatar" style={{ background: 'var(--panel-2)', color: 'var(--muted)' }}>
+                  <Icon name="plus" size={15} />
+                </span>
+                <span className="qa-tile-name">{т('Создать')}</span>
+              </button>
+            </div>
+          )}
+          {kind !== 'transfer' && !поиск.trim() && (
+            <div className="qa-tile">
               <button className="qa-tile-btn" onClick={() => setAllCats((v) => !v)} title={allCats ? т('Свернуть') : т('Показать все и закрепить нужные')}>
                 <span className="avatar" style={{ background: 'var(--panel-2)', color: 'var(--muted)' }}>
                   <Icon name={allCats ? 'up' : 'dots'} size={15} />
@@ -246,6 +299,21 @@ export function QuickAdd({
       {allCats && (
         <div className="faint small" style={{ marginTop: -4, marginBottom: 10 }}>
           {т('Кружок с плюсом закрепляет категорию в частых, с галочкой — убирает.')}</div>
+      )}
+      <div className="faint small" style={{ marginTop: -2, marginBottom: 6 }}>
+        {т('Правый щелчок по категории — изменить, сделать подкатегорией, удалить.')}</div>
+      {меню.узелъ}
+      {новая && (
+        <KategoriyaOkno
+          value={новая}
+          onClose={() => setНовая(null)}
+          onSave={(c) => {
+            upsertCategory(c)
+            setPickedCat(c.id)
+            setПоиск('')
+            setНовая(null)
+          }}
+        />
       )}
       <div className="row" style={{ marginTop: 10, gap: 8, minHeight: 22 }}>
         <Icon name={ok ? 'check' : 'warn'} size={15} style={{ color: ok ? 'var(--good)' : 'var(--faint)' }} />

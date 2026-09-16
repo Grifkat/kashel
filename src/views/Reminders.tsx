@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react'
+import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { DateField } from '../components/DateField'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, toMinor, uid } from '../lib/format'
 import { humanDate, today } from '../lib/date'
-import { isCatalogIcon, сЗначкомъ } from '../lib/catalog'
+import { isCatalogIcon } from '../lib/catalog'
 import { Confirm, Field, Modal, MoneyInput, Tbl, Toggle, useToast } from '../components/ui'
 import { playFile, playTone, SOUNDS } from '../lib/sound'
 import { readAttachmentBase64, saveAttachment, bridge } from '../state/vault'
@@ -269,14 +270,12 @@ function ReminderModal({
               )}
               {r.event === 'limit-exceeded' && (
                 <Field label={т('Категория')}>
-                  <select value={r.categoryId ?? ''} onChange={(e) => patch({ categoryId: e.target.value || undefined })}>
-                    <option value="">{т('Любая с лимитом')}</option>
-                    {data.categories.filter((c) => !c.archived && c.plan).map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {сЗначкомъ(c.icon, c.name)}
-                      </option>
-                    ))}
-                  </select>
+                  <KategoriyaVybor
+                    value={r.categoryId ?? ''}
+                    onChange={(id) => patch({ categoryId: id || undefined })}
+                    cats={data.categories.filter((c) => !c.archived && c.plan)}
+                    pusto={т('Любая с лимитом')}
+                  />
                 </Field>
               )}
             </div>

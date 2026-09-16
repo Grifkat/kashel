@@ -20,6 +20,7 @@ import { Proekty } from '../components/Proekty'
 import { личное } from '../engine/project'
 import { Ogonek } from '../components/Ogonek'
 import { KreditDashbord } from '../components/KreditDashbord'
+import { подкатегории, поГлавным, раскладкаГлавной } from '../engine/podkategorii'
 import type { Transaction } from '../lib/types'
 import { т, тр } from '../i18n'
 
@@ -94,8 +95,33 @@ export default function Dashboard() {
     [личн.transactions, data.transactions, accountId],
   )
   const inRange = useMemo(() => scoped.filter((t) => inPeriod(t, period)), [scoped, period])
-  const totals = useMemo(() => categoryTotals(inRange, side), [inRange, side])
+  /*
+   * Главные категории и раскрытие. По умолчанию подкатегории сложены в
+   * главные; щелчок по главной с подкатегориями показывает, из чего она:
+   * подкатегории и строку «без подкатегории» — траты, записанные прямо в неё.
+   */
+  const [раскрыта, setРаскрыта] = useState<string | null>(null)
+  useEffect(() => setРаскрыта(null), [side])
+  const сложить = (сырые: ReturnType<typeof categoryTotals>) =>
+    раскрыта ? раскладкаГлавной(сырые, раскрыта, data.categories) : поГлавным(сырые, data.categories)
+  const totals = useMemo(() => сложить(categoryTotals(inRange, side)), [inRange, side, раскрыта, data.categories])
   const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories])
+  const естьПодкатегории = (id: string) => подкатегории(id, data.categories).length > 0
+  const имяСтроки = (id: string) => {
+    const c = catById.get(id)
+    if (!c) return т('Без категории')
+    return раскрыта && id === раскрыта ? т('{0} — без подкатегории', c.name) : c.name
+  }
+  /** Щелчок по категории: главная с подкатегориями раскрывается, прочее — к операциям. */
+  const открытьКатегорию = (id: string) => {
+    if (!раскрыта && естьПодкатегории(id)) {
+      setРаскрыта(id)
+      setActiveCat(undefined)
+      setHoverCat(undefined)
+      return
+    }
+    app.openTab('transactions', 'cat:' + id, { title: catById.get(id)?.name ?? т('Категория') })
+  }
 
   const sumSide = totals.reduce((s, t) => s + t.amount, 0)
   const income = inRange.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0)
@@ -116,9 +142,9 @@ export default function Dashboard() {
   const prevExpense = prevRange.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0)
   const prevByCat = useMemo(() => {
     const m = new Map<string, number>()
-    for (const c of categoryTotals(prevRange, side)) m.set(c.categoryId, c.amount)
+    for (const c of сложить(categoryTotals(prevRange, side))) m.set(c.categoryId, c.amount)
     return m
-  }, [prevRange, side])
+  }, [prevRange, side, раскрыта, data.categories])
   const prevNote = prev.partial
     ? т('{0}, за те же {1} {2}', вСтрочную(prev.label), prev.days, plural(prev.days, 'день', 'дня', 'дней'))
     : вСтрочную(prev.label)
@@ -132,7 +158,7 @@ export default function Dashboard() {
 
   const slices = totals.slice(0, 12).map((t) => {
     const c = catById.get(t.categoryId)
-    return { id: t.categoryId, label: c?.name ?? т('Без категории'), value: t.amount, color: c?.color ?? '#7c8794' }
+    return { id: t.categoryId, label: имяСтроки(t.categoryId), value: t.amount, color: c?.color ?? '#7c8794' }
   })
 
   const year = useMemo(() => monthlySeries(личн.transactions, addMonths(today(), -11), today()), [личн.transactions])
@@ -330,7 +356,7 @@ export default function Dashboard() {
             size={250}
             thickness={34}
             activeId={activeCat}
-            onSelect={setActiveCat}
+            onSelect={(id) => (id && !раскрыта && естьПодкатегории(id) ? открытьКатегорию(id) : setActiveCat(id))}
             onHover={setHoverCat}
             center={
               <div>
@@ -344,7 +370,7 @@ export default function Dashboard() {
                       {hidden ? '••••' : <Money value={centerCat ? totals.find((t) => t.categoryId === centerCat)?.amount ?? 0 : sumSide} />}
                     </div>
                     <div className="faint small">
-                      {centerCat ? catById.get(centerCat)?.name : side === 'expense' ? т('расходы') : т('доходы')}
+                      {centerCat ? имяСтроки(centerCat) : раскрыта ? catById.get(раскрыта)?.name : side === 'expense' ? т('расходы') : т('доходы')}
                     </div>
                   </>
                 )}
@@ -434,19 +460,37 @@ export default function Dashboard() {
         {/* cat-list — свой контейнер: что прятать в строке, решает ширина самой
             карточки, а не окна. */}
         <div className="card cat-list" style={{ padding: 'calc(10px * var(--dens)) calc(8px * var(--dens))' }} ref={catListRef}>
+          {раскрыта && (
+            <div className="row" style={{ gap: 8, padding: '2px 6px 8px' }}>
+              <button className="btn sm ghost" onClick={() => setРаскрыта(null)}>
+                <Icon name="left" size={13} /> {т(' Все категории')}</button>
+              <span className="strong">{catById.get(раскрыта)?.name}</span>
+              <span className="spacer" />
+              <button
+                className="btn sm ghost"
+                onClick={() => app.openTab('transactions', 'cat:' + раскрыта, { title: catById.get(раскрыта)?.name ?? т('Категория') })}
+              >
+                {т('Операции')}</button>
+            </div>
+          )}
           {totals.length === 0 && <div className="empty">{т('Нет операций за выбранный период')}</div>}
           {totals.map((t) => {
             const c = catById.get(t.categoryId)
+            const раскрываемая = !раскрыта && естьПодкатегории(t.categoryId)
             return (
               <div
                 key={t.categoryId}
                 className="cat-row"
+                title={раскрываемая ? т('Щёлкните, чтобы увидеть подкатегории') : undefined}
                 onMouseEnter={() => setActiveCat(t.categoryId)}
                 onMouseLeave={() => setActiveCat(undefined)}
-                onClick={() => app.openTab('transactions', 'cat:' + t.categoryId, { title: c?.name ?? т('Категория') })}
+                onClick={() => открытьКатегорию(t.categoryId)}
               >
                 <Avatar icon={c?.icon} color={c?.color} />
-                <span className="name">{c?.name ?? т('Без категории')}</span>
+                <span className="name">
+                  {имяСтроки(t.categoryId)}
+                  {раскрываемая && <Icon name="right" size={12} style={{ marginLeft: 4, opacity: 0.6 }} />}
+                </span>
                 <span className="cnt faint small nowrap">{тр('{0} оп.', t.count)}</span>
                 <Delta
                   cur={t.amount}

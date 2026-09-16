@@ -12,6 +12,7 @@ import { Avatar, MoneyInput, Tbl, useToast } from '../components/ui'
 import type { Bucket, Category, Money } from '../lib/types'
 import { личное } from '../engine/project'
 import { т, тр } from '../i18n'
+import { родитель, подкатегории, суммаСемьи } from '../engine/podkategorii'
 
 const BUCKET_TITLE: Record<Bucket, string> = { needs: т('Надо'), wants: т('Хочу'), savings: т('В будущее') }
 const BUCKET_COLOR: Record<Bucket, string> = { needs: '#4aa3e8', wants: '#e8833a', savings: '#4cc46a' }
@@ -43,7 +44,18 @@ export default function Budget() {
   const expense = monthTx.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0)
 
   const cats = data.categories.filter((c) => c.kind === 'expense' && !c.archived)
-  const planned = cats.reduce((s, c) => s + (c.plan ?? 0), 0)
+  /*
+   * Строки бюджета — главные категории; лимит главной покрывает и её
+   * подкатегории. Подкатегории идут под главной и могут иметь свой лимит
+   * внутри общего. Если у главной лимита нет, в общий план идут лимиты
+   * её подкатегорий.
+   */
+  const главные = cats.filter((c) => !родитель(c, data.categories))
+  const детиГлавной = (id: string) => подкатегории(id, data.categories)
+  const planned = главные.reduce(
+    (s, c) => s + (c.plan ?? детиГлавной(c.id).reduce((x, д) => x + (д.plan ?? 0), 0)),
+    0,
+  )
 
   const byBucket = useMemo(() => {
     const out: Record<Bucket, Money> = { needs: 0, wants: 0, savings: 0 }
@@ -65,8 +77,8 @@ export default function Budget() {
    */
   const [правимъ, setПравимъ] = useState<string | null>(null)
   const порядокъ = useRef<string[]>([])
-  const посчитанные = cats.map((c) => {
-    const spent = spentByCat.get(c.id) ?? 0
+  const посчитанные = главные.map((c) => {
+    const spent = суммаСемьи(c.id, spentByCat, data.categories)
     const projected = Math.round(spent / Math.max(0.05, progress))
     return { c, spent, projected, plan: c.plan ?? 0 }
   })
@@ -88,10 +100,12 @@ export default function Budget() {
     }
     const keys = fc.bases
     let changed = 0
-    for (const c of cats) {
-      const base = keys.find((b) => b.categoryId === c.id)
-      if (!base) continue
-      const norm = base.median + base.fixed
+    // Лимит ставим главным — по норме всей семьи; свои лимиты подкатегорий не трогаем.
+    for (const c of главные) {
+      const свои = [c.id, ...детиГлавной(c.id).map((д) => д.id)]
+      const bases = keys.filter((b) => свои.includes(b.categoryId))
+      if (!bases.length) continue
+      const norm = bases.reduce((s, b) => s + b.median + b.fixed, 0)
       if (norm <= 0) continue
       const factor = c.bucket === 'wants' ? 0.85 : 1
       const plan = Math.max(10000, Math.round((norm * factor) / 10000) * 10000)
@@ -181,7 +195,7 @@ export default function Budget() {
             </div>
             <div className="stat" style={{ flex: 1 }}>
               <span className="l">{т('Без лимита')}</span>
-              <span className="v">{cats.filter((c) => !c.plan).length}</span>
+              <span className="v">{главные.filter((c) => !c.plan).length}</span>
               <span className="d faint">{т('категорий')}</span>
             </div>
             <div className="stat" style={{ flex: 1 }}>
@@ -219,10 +233,11 @@ export default function Budget() {
             </tr>
           </thead>
           <tbody>
-            {rows.map(({ c, spent, projected, plan }) => {
+            {rows.flatMap(({ c, spent, projected, plan }) => {
               const use = plan ? (isCurrent ? projected : spent) / plan : 0
               const over = plan > 0 && use > 1
-              return (
+              const дети = детиГлавной(c.id)
+              return [
                 <tr key={c.id}>
                   <td>
                     <div className="row" style={{ gap: 8 }}>
@@ -271,11 +286,87 @@ export default function Budget() {
                         </div>
                       </>
                     ) : (
-                      <span className="faint small">{т('лимит не задан')}</span>
+                      <span className="faint small">
+                        {дети.some((д) => д.plan) ? т('лимиты только у подкатегорий') : т('лимит не задан')}</span>
                     )}
                   </td>
-                </tr>
-              )
+                </tr>,
+                ...(дети.length && (spentByCat.get(c.id) ?? 0) > 0
+                  ? [
+                      <tr key={c.id + ':own'} className="budget-pod">
+                        <td>
+                          <span className="faint">{т('{0} — без подкатегории', c.name)}</span>
+                        </td>
+                        <td className="col-opt" />
+                        <td className="r num">{money(spentByCat.get(c.id) ?? 0)}</td>
+                        {isCurrent && <td className="col-opt" />}
+                        <td />
+                        <td />
+                      </tr>,
+                    ]
+                  : []),
+                ...дети.map((д) => {
+                  const дПотрачено = spentByCat.get(д.id) ?? 0
+                  const дПрогноз = Math.round(дПотрачено / Math.max(0.05, progress))
+                  const дПлан = д.plan ?? 0
+                  const дДоля = дПлан ? (isCurrent ? дПрогноз : дПотрачено) / дПлан : 0
+                  const дСверх = дПлан > 0 && дДоля > 1
+                  return (
+                    <tr key={д.id} className="budget-pod">
+                      <td>
+                        <div className="row" style={{ gap: 8 }}>
+                          <Avatar icon={д.icon} color={д.color} size="sm" />
+                          <span
+                            style={{ cursor: 'pointer' }}
+                            title={т('Подкатегория «{0}»', c.name)}
+                            onClick={() => app.openTab('transactions', 'cat:' + д.id, { title: д.name })}
+                          >
+                            {д.name}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="col-opt" />
+                      <td className="r num">{money(дПотрачено)}</td>
+                      {isCurrent && (
+                        <td className={'r num col-opt ' + (дСверх ? 'neg' : '')}>{дПлан || дПотрачено ? money(дПрогноз) : '—'}</td>
+                      )}
+                      <td className="r">
+                        <MoneyInput
+                          className="num in-plan"
+                          value={дПлан || undefined}
+                          placeholder="—"
+                          title={т('Свой лимит подкатегории — внутри лимита главной')}
+                          onFocus={() => setПравимъ(д.id)}
+                          onBlur={() => setПравимъ(null)}
+                          onChange={(v, empty) => upsertCategory({ ...д, plan: empty ? undefined : v })}
+                        />
+                      </td>
+                      <td>
+                        {дПлан ? (
+                          <>
+                            <div className="bar-track">
+                              <div
+                                className="bar-fill"
+                                style={{
+                                  width: `${Math.min(100, дДоля * 100)}%`,
+                                  background: дСверх ? 'var(--alert)' : дДоля > 0.85 ? 'var(--warn)' : д.color,
+                                }}
+                              />
+                            </div>
+                            <div className={'small ' + (дСверх ? 'neg' : 'faint')} style={{ marginTop: 3 }}>
+                              {дСверх
+                                ? т('перерасход {0}', money((isCurrent ? дПрогноз : дПотрачено) - дПлан))
+                                : т('{0}% лимита', Math.round(дДоля * 100))}
+                            </div>
+                          </>
+                        ) : (
+                          <span className="faint small">{т('в общем лимите')}</span>
+                        )}
+                      </td>
+                    </tr>
+                  )
+                }),
+              ]
             })}
           </tbody>
         </Tbl>

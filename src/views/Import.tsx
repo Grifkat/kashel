@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { счётПоУмолчанию } from '../engine/stats'
 import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
@@ -205,18 +206,13 @@ export default function ImportView() {
                       {r.duplicate && <span className="badge warn" style={{ marginLeft: 8 }}>{т('похоже на повтор')}</span>}
                     </td>
                     <td>
-                      <select
+                      <KategoriyaVybor
                         value={r.categoryId ?? ''}
-                        onChange={(e) => setRows((l) => l.map((x, j) => (j === i ? { ...x, categoryId: e.target.value || undefined } : x)))}
-                        className="in-cat"
-                      >
-                        <option value="">—</option>
-                        {data.categories
-                          .filter((c) => !c.archived && c.kind === (r.amount > 0 ? 'income' : 'expense'))
-                          .map((c) => (
-                            <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
-                          ))}
-                      </select>
+                        onChange={(id) => setRows((l) => l.map((x, j) => (j === i ? { ...x, categoryId: id || undefined } : x)))}
+                        cats={data.categories.filter((c) => !c.archived && c.kind === (r.amount > 0 ? 'income' : 'expense'))}
+                        pusto="—"
+                        style={{ minWidth: 180 }}
+                      />
                     </td>
                     <td className={'r num ' + (r.amount > 0 ? 'pos' : '')}>{money(r.amount, { sign: true })}</td>
                   </tr>
@@ -253,15 +249,12 @@ function RulesEditor() {
             style={{ width: 240 }}
           />
           <Icon name="arrowRight" size={14} />
-          <select
+          <KategoriyaVybor
             value={r.categoryId}
-            onChange={(e) => setImportRules(data.importRules.map((x) => (x.id === r.id ? { ...x, categoryId: e.target.value } : x)))}
-            style={{ width: 200 }}
-          >
-            {data.categories.filter((c) => !c.archived).map((c) => (
-              <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
-            ))}
-          </select>
+            onChange={(id) => setImportRules(data.importRules.map((x) => (x.id === r.id ? { ...x, categoryId: id } : x)))}
+            cats={data.categories.filter((c) => !c.archived || c.id === r.categoryId)}
+            style={{ width: 220 }}
+          />
           <button className="icon-btn" onClick={() => setImportRules(data.importRules.filter((x) => x.id !== r.id))}>
             <Icon name="x" size={15} />
           </button>
@@ -277,12 +270,13 @@ function RulesEditor() {
           style={{ width: 240 }}
         />
         <Icon name="arrowRight" size={14} />
-        <select value={catId} onChange={(e) => setCatId(e.target.value)} style={{ width: 200 }}>
-          <option value="">{т('выберите категорию')}</option>
-          {data.categories.filter((c) => !c.archived).map((c) => (
-            <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
-          ))}
-        </select>
+        <KategoriyaVybor
+          value={catId}
+          onChange={setCatId}
+          cats={data.categories.filter((c) => !c.archived)}
+          pusto={т('выберите категорию')}
+          style={{ width: 220 }}
+        />
         <button
           className="btn sm"
           disabled={!draft.trim() || !catId}

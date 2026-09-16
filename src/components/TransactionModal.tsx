@@ -1,6 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { DateField } from './DateField'
-import { сЗначкомъ } from '../lib/catalog'
 import type { Money, Split, Transaction, TxKind } from '../lib/types'
 import { useStore } from '../state/store'
 import { PALETTE } from '../lib/emoji'
@@ -14,6 +13,9 @@ import { назначеніе, планъПлатежа } from '../engine/credit
 import { счётПоУмолчанию } from '../engine/stats'
 import { всеТеги } from '../engine/tegi'
 import { SchetVybor } from './SchetVybor'
+import { KategoriyaVybor } from './KategoriyaVybor'
+import { useKategoriyaMenyu } from './KategoriyaMenyu'
+import { деревоКатегорий, родитель } from '../engine/podkategorii'
 import { useApp } from '../App'
 import { звукЗаписи } from '../lib/sound'
 
@@ -80,6 +82,8 @@ export function TransactionModal({
   const [splits, setSplits] = useState<Split[]>(draft.splits ?? [])
   const [attachments, setAttachments] = useState<string[]>(draft.attachments ?? [])
   const [showAll, setShowAll] = useState(false)
+  const [поиск, setПоиск] = useState('')
+  const меню = useKategoriyaMenyu()
   /** Название новой статьи. null — окошко закрыто. */
   const [новая, setНовая] = useState<string | null>(null)
   const [confirmDel, setConfirmDel] = useState(false)
@@ -134,7 +138,8 @@ export function TransactionModal({
     () => [...cats].sort((a, b) => (частота.get(b.id) ?? 0) - (частота.get(a.id) ?? 0)).slice(0, 11),
     [cats, частота],
   )
-  const shown = showAll ? cats : ходовые
+  // Поиск и «Ещё» показывают категории по порядку: главная, под ней её подкатегории.
+  const shown = поиск.trim() ? деревоКатегорий(cats, поиск).map((x) => x.cat) : showAll ? деревоКатегорий(cats).map((x) => x.cat) : ходовые
   // Частые теги первыми: подсказка показывает то, чем пользуются.
   const allTags = useMemo(() => всеТеги(data).map((x) => x.тег), [data])
   const lastDate = useMemo(() => {
@@ -399,13 +404,33 @@ export function TransactionModal({
 
         {kind !== 'transfer' && !платёж && (
           <>
-            <div className="card-title">{т('Категория')}</div>
+            <div className="row" style={{ gap: 10, marginBottom: 8 }}>
+              <div className="card-title" style={{ margin: 0 }}>{т('Категория')}</div>
+              <input
+                type="search"
+                placeholder={т('Найти категорию')}
+                value={поиск}
+                onChange={(e) => setПоиск(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault()
+                    if (shown[0]) setCategoryId(shown[0].id)
+                  }
+                }}
+                style={{ maxWidth: 240 }}
+              />
+              <span className="faint small">{т('правый щелчок — изменить')}</span>
+            </div>
+            {поиск.trim() && !shown.length && (
+              <div className="faint small" style={{ marginBottom: 8 }}>{т('Ничего не нашлось — можно создать категорию.')}</div>
+            )}
             <div className="row wrap" style={{ gap: 8, marginBottom: 16 }}>
               {shown.map((c) => (
                 <button
                   key={c.id}
                   className="btn"
                   onClick={() => setCategoryId(categoryId === c.id ? undefined : c.id)}
+                  onContextMenu={меню.открыть(c)}
                   style={{
                     flexDirection: 'column',
                     width: 84,
@@ -423,9 +448,10 @@ export function TransactionModal({
                       подписью. «Татьяна. Режиссура и страницы» уезжала на
                       соседнюю плитку. Полное имя — во всплывающей подсказке. */}
                   <span className="tile-name" title={c.name}>{c.name}</span>
+                  {родитель(c, data.categories) && <span className="tile-parent">{родитель(c, data.categories)!.name}</span>}
                 </button>
               ))}
-              {cats.length > 11 && (
+              {cats.length > 11 && !поиск.trim() && (
                 <button className="btn" onClick={() => setShowAll((v) => !v)} style={{ flexDirection: 'column', width: 84, minHeight: 84, height: 'auto', gap: 6, padding: '8px 4px' }}>
                   <span className="avatar" style={{ background: 'var(--panel-2)' }}>
                     <Icon name={showAll ? 'up' : 'dots'} size={16} />
@@ -437,7 +463,7 @@ export function TransactionModal({
                   уходить в другой раздел ради одного названия — терять мысль. */}
               <button
                 className="btn"
-                onClick={() => setНовая('')}
+                onClick={() => setНовая(поиск.trim())}
                 style={{ flexDirection: 'column', width: 84, minHeight: 84, height: 'auto', gap: 6, padding: '8px 4px' }}
               >
                 <span className="avatar" style={{ background: 'var(--panel-2)' }}>
@@ -511,15 +537,12 @@ export function TransactionModal({
             </div>
             {splits.map((s, i) => (
               <div key={i} className="row" style={{ gap: 8, marginBottom: 7 }}>
-                <select
+                <KategoriyaVybor
                   value={s.categoryId}
-                  onChange={(e) => setSplits((l) => l.map((x, j) => (j === i ? { ...x, categoryId: e.target.value } : x)))}
-                  style={{ width: 200 }}
-                >
-                  {cats.map((c) => (
-                    <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
-                  ))}
-                </select>
+                  onChange={(id) => setSplits((l) => l.map((x, j) => (j === i ? { ...x, categoryId: id } : x)))}
+                  cats={cats}
+                  style={{ width: 220 }}
+                />
                 <MoneyInput
                   value={s.amount}
                   onChange={(v) => setSplits((l) => l.map((x, j) => (j === i ? { ...x, amount: v } : x)))}
@@ -544,6 +567,7 @@ export function TransactionModal({
         )}
       </Modal>
 
+      {меню.узелъ}
       {новая !== null && (
         <Modal
           title={т('Новая статья')}

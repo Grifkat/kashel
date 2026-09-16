@@ -7,17 +7,14 @@ import { money, uid } from '../lib/format'
 import { addMonths, today } from '../lib/date'
 import { categoryMonthly, categoryTotals, median } from '../engine/stats'
 import { historyKeys } from '../engine/forecast'
-import { Avatar, Confirm, Field, IconPicker, Modal, ColorPicker, MoneyInput, useToast } from '../components/ui'
+import { Avatar, Confirm, useToast } from '../components/ui'
 import { Spark } from '../components/charts'
-import type { Bucket, Category } from '../lib/types'
+import type { Category } from '../lib/types'
+import { BUCKETS, KategoriyaOkno } from '../components/KategoriyaOkno'
+import { деревоКатегорий, подкатегории, семья } from '../engine/podkategorii'
 import { личное } from '../engine/project'
 import { т, тр } from '../i18n'
 
-const BUCKETS: { k: Bucket; t: string; hint: string }[] = [
-  { k: 'needs', t: т('Надо'), hint: т('обязательные траты: жильё, еда, транспорт') },
-  { k: 'wants', t: т('Хочу'), hint: т('необязательные: кафе, развлечения, доставка') },
-  { k: 'savings', t: т('Вклад в будущее'), hint: т('накопления, обучение, здоровье-профилактика') },
-]
 
 export default function Categories() {
   const app = useApp()
@@ -36,7 +33,23 @@ export default function Categories() {
     [личн.transactions, kind, since],
   )
 
-  const list = data.categories.filter((c) => c.kind === kind && !c.archived)
+  // Главные с подкатегориями под ними; поиск ищет и по имени главной.
+  const [поиск, setПоиск] = useState('')
+  const [раскрытые, setРаскрытые] = useState<Set<string>>(new Set())
+  const переключить = (id: string) =>
+    setРаскрытые((м) => {
+      const н = new Set(м)
+      if (н.has(id)) н.delete(id)
+      else н.add(id)
+      return н
+    })
+  const дерево = деревоКатегорий(data.categories.filter((c) => c.kind === kind && !c.archived), поиск)
+  const главные = дерево.filter((x) => !x.главная).map((x) => x.cat)
+  const детиПоиска = new Map<string, Category[]>()
+  for (const x of дерево) {
+    if (!x.главная) continue
+    детиПоиска.set(x.главная.id, [...(детиПоиска.get(x.главная.id) ?? []), x.cat])
+  }
   const вАрхиве = data.categories.filter((c) => c.kind === kind && c.archived)
   const [архивОткрыт, setАрхивОткрыт] = useState(false)
 
@@ -62,13 +75,31 @@ export default function Categories() {
         </div>
       </div>
 
+      <input
+        type="search"
+        placeholder={т('Найти категорию')}
+        value={поиск}
+        onChange={(e) => setПоиск(e.target.value)}
+        style={{ maxWidth: 320, marginBottom: 14 }}
+      />
+      {!главные.length && <div className="empty">{т('Ничего не нашлось')}</div>}
       <div className="grid c2">
-        {list.map((c) => {
-          const t = totals.get(c.id)
-          const hist = categoryMonthly(личн.transactions, c.id, keys, false, c.kind)
+        {главные.map((c) => {
+          const дети = детиПоиска.get(c.id) ?? []
+          const всеДети = подкатегории(c.id, data.categories)
+          const свои = семья(c.id, data.categories)
+          // Главная считается вместе с подкатегориями: в ней всё, что к ней относится.
+          const t = [...свои].reduce<{ amount: number; count: number } | null>((acc, id) => {
+            const x = totals.get(id)
+            return x ? { amount: (acc?.amount ?? 0) + x.amount, count: (acc?.count ?? 0) + x.count } : acc
+          }, null)
+          const hist = [...свои]
+            .map((id) => categoryMonthly(личн.transactions, id, keys, false, c.kind))
+            .reduce((a, b) => a.map((v, i) => v + (b[i] ?? 0)))
           const norm = median(hist.filter((v) => v > 0))
           const avg = t ? Math.round(t.amount / 3) : 0
           const overPlan = c.plan && avg > c.plan
+          const раскрыта = раскрытые.has(c.id) || (!!поиск.trim() && дети.length > 0)
           return (
             <div key={c.id} className="card tight fx-glare" style={цвѣтъПодсвѣтки(c.color)}>
               <div className="row">
@@ -119,12 +150,53 @@ export default function Categories() {
                     <Icon name="scale" size={13} /> {тр(' Поставить лимит по медиане ({0})', money(Math.ceil(norm / 50000) * 50000))}</button>
                 )
               )}
+
+              {раскрыта && (
+                <div className="kat-deti">
+                  {/* Траты, записанные прямо в главную, — отдельной строкой. */}
+                  {(totals.get(c.id)?.amount ?? 0) > 0 && (
+                    <div className="row small kat-rebenok">
+                      <span className="faint" style={{ flex: 1 }}>{т('{0} — без подкатегории', c.name)}</span>
+                      <span className="num">{т('{0} в месяц', money(Math.round((totals.get(c.id)?.amount ?? 0) / 3)))}</span>
+                    </div>
+                  )}
+                  {дети.map((д) => (
+                    <div key={д.id} className="row small kat-rebenok">
+                      <Avatar icon={д.icon} color={д.color} size="sm" />
+                      <span style={{ flex: 1, minWidth: 0 }} className="schet-vybor-name">{д.name}</span>
+                      <span className="num faint">
+                        {totals.get(д.id) ? т('{0} в месяц', money(Math.round(totals.get(д.id)!.amount / 3))) : '—'}</span>
+                      {д.plan ? <span className="badge">{т('лимит {0}', money(д.plan))}</span> : null}
+                      <button className="icon-btn" onClick={() => app.openTab('transactions', 'cat:' + д.id, { title: д.name })} title={т('Операции')}>
+                        <Icon name="list" size={13} />
+                      </button>
+                      <button className="icon-btn" onClick={() => setEdit(д)} title={т('Изменить')}>
+                        <Icon name="edit" size={13} />
+                      </button>
+                      <button className="icon-btn" onClick={() => setDel(д)} title={т('Удалить')}>
+                        <Icon name="trash" size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div className="row" style={{ marginTop: 8, gap: 6 }}>
                 <button
                   className="btn sm ghost"
                   onClick={() => app.openTab('transactions', 'cat:' + c.id, { title: c.name })}
                 >
                   {тр('Операции{0}', t ? ` (${t.count})` : '')}</button>
+                {всеДети.length > 0 && (
+                  <button className="btn sm ghost" onClick={() => переключить(c.id)}>
+                    <Icon name={раскрыта ? 'up' : 'down'} size={13} /> {т(' Подкатегории: {0}', всеДети.length)}</button>
+                )}
+                <button
+                  className="btn sm ghost"
+                  title={т('Новая подкатегория в «{0}»', c.name)}
+                  onClick={() => setEdit({ id: uid('c'), name: '', kind: c.kind, icon: '⭐', color: c.color, parentId: c.id, bucket: c.bucket })}
+                >
+                  <Icon name="plus" size={13} /> {т(' Подкатегория')}</button>
                 <span className="spacer" />
                 <button className="btn sm danger" onClick={() => setDel(c)}>
                   <Icon name="trash" size={13} />
@@ -154,14 +226,10 @@ export default function Categories() {
       )}
 
       {edit && (
-        <CategoryModal
+        <KategoriyaOkno
           value={edit}
           onClose={() => setEdit(null)}
           onSave={(c) => {
-            if (!c.name.trim()) {
-              toast(т('Введите название категории'))
-              return
-            }
             upsertCategory(c)
             setEdit(null)
           }}
@@ -171,123 +239,15 @@ export default function Categories() {
       {del && (
         <Confirm
           title={т('Удалить «{0}»?', del.name)}
-          text={т('Операции этой категории останутся, но потеряют привязку. Если нужно сохранить историю — лучше пометить категорию архивной.')}
+          text={
+            подкатегории(del.id, data.categories).length
+              ? т('Операции этой категории останутся без категории, а её подкатегории станут главными. Если историю жалко — лучше убрать категорию в архив.')
+              : т('Операции этой категории останутся, но потеряют привязку. Если нужно сохранить историю — лучше пометить категорию архивной.')
+          }
           onConfirm={() => deleteCategory(del.id)}
           onClose={() => setDel(null)}
         />
       )}
     </div>
-  )
-}
-
-function CategoryModal({
-  value,
-  onSave,
-  onClose,
-}: {
-  value: Category
-  onSave: (c: Category) => void
-  onClose: () => void
-}) {
-  const [c, setC] = useState<Category>(value)
-  const [pick, setPick] = useState(false)
-  const patch = (p: Partial<Category>) => setC((x) => ({ ...x, ...p }))
-
-  return (
-    <>
-      <Modal
-        title={value.name ? т('Категория') : т('Создание категории')}
-        icon="tag"
-        onClose={onClose}
-        footer={
-          <>
-            <button className="btn" onClick={onClose}>{т('Отмена')}</button>
-            <button className="btn primary" onClick={() => onSave(c)}>{т('Сохранить')}</button>
-          </>
-        }
-      >
-        <div className="row" style={{ gap: 14, alignItems: 'flex-start' }}>
-          <button className="icon-trigger" onClick={() => setPick(true)} title={т('Выбрать иконку и цвет')}>
-            <Avatar icon={c.icon} color={c.color} size="lg" style={{ width: 54, height: 54 }} />
-          </button>
-          <div style={{ flex: 1 }}>
-            <Field label={т('Название категории')}>
-              <input type="text" autoFocus value={c.name} onChange={(e) => patch({ name: e.target.value })} />
-            </Field>
-          </div>
-        </div>
-
-        <div className="seg" style={{ marginBottom: 14 }}>
-          <button className={c.kind === 'expense' ? 'on' : ''} onClick={() => patch({ kind: 'expense' })}>{т('Расходы')}</button>
-          <button className={c.kind === 'income' ? 'on' : ''} onClick={() => patch({ kind: 'income' })}>{т('Доходы')}</button>
-        </div>
-
-        {c.kind === 'expense' && (
-          <>
-            <Field label={т('Планирую тратить в месяц')} hint={т('Оставьте пустым, если лимит не нужен')}>
-              <MoneyInput
-                value={c.plan || undefined}
-                placeholder={т('не задано')}
-                onChange={(v, empty) => patch({ plan: empty ? undefined : v })}
-              />
-            </Field>
-
-            <div className="card-title">{т('Роль в бюджете')}</div>
-            <div className="row wrap" style={{ gap: 7, marginBottom: 6 }}>
-              {BUCKETS.map((b) => (
-                <span
-                  key={b.k}
-                  className={'chip' + (c.bucket === b.k ? ' on' : '')}
-                  onClick={() => patch({ bucket: b.k })}
-                  title={b.hint}
-                >
-                  {b.t}
-                </span>
-              ))}
-            </div>
-            <div className="faint small" style={{ marginBottom: 14 }}>
-              {BUCKETS.find((b) => b.k === c.bucket)?.hint}
-            </div>
-          </>
-        )}
-
-        {c.kind === 'income' && (
-          <>
-            <div className="card-title">{т('Откуда доход')}</div>
-            <label className="row" style={{ gap: 8, alignItems: 'flex-start', marginBottom: 6 }}>
-              <input
-                type="checkbox"
-                checked={!!c.capital}
-                onChange={(e) => patch({ capital: e.target.checked })}
-                style={{ marginTop: 3 }}
-              />
-              <span>
-                <span>{т('Доход с капитала, а не с труда')}</span>
-                <span className="d faint small">
-                  {тр('{0}Дивиденды, купоны, аренда, проценты по вкладу. Отличить это от заработка сама программа не может: в операции видно только сумму, счёт и статью. Отметка ставится один раз и распространяется на всю историю по статье.', ' ')}</span>
-              </span>
-            </label>
-          </>
-        )}
-
-        <div className="card-title">{т('Цвет')}</div>
-        <ColorPicker value={c.color} onChange={(color) => patch({ color })} />
-
-        {/* Архив — вместо удаления: история остаётся при статье, а в списках
-            выбора её больше нет. Вернуть можно из списка «В архиве». */}
-        <label className="row" style={{ gap: 8, marginTop: 14 }}>
-          <input type="checkbox" checked={!!c.archived} onChange={(e) => patch({ archived: e.target.checked || undefined })} />
-          <span>{т('В архиве (скрыта из списков, история остаётся)')}</span>
-        </label>
-      </Modal>
-      {pick && (
-        <IconPicker
-          icon={c.icon}
-          color={c.color}
-          onChange={(icon, color) => patch({ icon, color })}
-          onClose={() => setPick(false)}
-        />
-      )}
-    </>
   )
 }

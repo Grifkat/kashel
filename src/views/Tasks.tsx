@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { счётПоУмолчанию } from '../engine/stats'
 import { DateField } from '../components/DateField'
 import { useStore } from '../state/store'
@@ -518,12 +519,12 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
           {!!t.amount && (
             <>
               <Field label={т('Категория')}>
-                <select value={t.categoryId ?? ''} onChange={(e) => patch({ categoryId: e.target.value || undefined })}>
-                  <option value="">—</option>
-                  {cats.map((c) => (
-                    <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
-                  ))}
-                </select>
+                <KategoriyaVybor
+                  value={t.categoryId ?? ''}
+                  onChange={(id) => patch({ categoryId: id || undefined })}
+                  cats={cats}
+                  pusto="—"
+                />
               </Field>
               <Field label={т('Счёт')}>
                 <select value={t.accountId ?? ''} onChange={(e) => patch({ accountId: e.target.value || undefined })}>

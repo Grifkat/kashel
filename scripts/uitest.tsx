@@ -1319,7 +1319,12 @@ async function пончикъ() {
 async function значкиВъСпискахъ() {
   console.log('\n— значки в списках —')
   await open('Операции')
-  const пункты = [...document.querySelectorAll('.view select option')].map((o) => (o.textContent || '').trim())
+  // Фильтр категорий теперь со списком и поиском — открываем его и читаем пункты.
+  click(document.querySelector('.view .kat-vybor'))
+  await wait(100)
+  const пункты = [...document.querySelectorAll('.kat-spisok .schet-opt, .view select option')].map((o) => (o.textContent || '').trim())
+  click(document.querySelector('.view .kat-vybor'))
+  await wait(50)
   const сЛатиницей = пункты.filter((т) => /^[a-z][a-z0-9-]+ /.test(т))
   check('списки нашлись', пункты.length > 10, `${пункты.length} пунктов`)
   check('ни в одном пункте нет имени значка', сЛатиницей.length === 0, сЛатиницей.slice(0, 3).join(' | '))
@@ -1977,7 +1982,7 @@ async function поВидео() {
   const карточка = [...document.querySelectorAll('.view .card')].find((к) => к.querySelector('.strong')?.textContent === 'Наличные')
   click([...(карточка?.querySelectorAll('.btn') ?? [])].find((б) => (б.textContent || '').trim() === 'Операции'))
   await wait(500)
-  const фильтръ = document.querySelector('.view .schet-vybor')
+  const фильтръ = document.querySelector('.view .schet-vybor:not(.kat-vybor)')
   check('«Операции» у счёта открываются с его фильтром', (фильтръ?.textContent || '').includes('Наличные'), фильтръ?.textContent ?? '')
   const vault = await loadVault()
   const съ = addMonths(today(), -3)
@@ -2167,6 +2172,116 @@ async function быстрыйВводСчётъ() {
   await wait(300)
 }
 
+/*
+ * Подкатегории: категория создаётся прямо из быстрого ввода, правым щелчком
+ * становится подкатегорией, отчёты складывают её в главную и раскрывают.
+ */
+async function подкатегорииЭкраны() {
+  console.log('\n— подкатегории —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение } })
+  }
+  const правыйЩелчок = (el: Element | undefined) =>
+    el?.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 50, clientY: 50 }))
+  const окно = () => byText('.modal', 'Быстрый ввод') as HTMLElement | null
+  const плитки = () => [...(окно()?.querySelectorAll('.qa-tile-btn') ?? [])]
+  const закрытьВвод = () => click(окно()?.querySelector('.icon-btn[title^="Закрыть"]'))
+  await open('Дашборд')
+  click(byText('.hero .btn', 'Расход'))
+  await wait(400)
+  ввести(окно()?.querySelector('.qa-poisk'), 'Таня Челяба')
+  await wait(150)
+  check('поиск в быстром вводе: ничего не нашлось', text().includes('Ничего не нашлось — можно создать категорию.'))
+  click(плитки().find((б) => (б.textContent || '').includes('Создать')))
+  await wait(300)
+  const новаяОкно = byText('.modal', 'Создание категории') as HTMLElement | null
+  check('«Создать» открывает окно новой категории с набранным именем',
+    !!новаяОкно && [...новаяОкно.querySelectorAll('input')].some((и) => (и as HTMLInputElement).value === 'Таня Челяба'))
+  click(byText('.modal-foot .btn.primary', 'Сохранить'))
+  await wait(300)
+  check('новая категория выбрана в быстром вводе', (окно()?.querySelector('.qa-tile.on')?.textContent || '').includes('Таня Челяба'))
+  ввести(окно()?.querySelector('input:not(.qa-poisk)'), 'билеты 1500')
+  await wait(150)
+  click(byText('.modal-foot .btn', 'Записать'))
+  await wait(1300)
+  let vault = await loadVault()
+  const таня = vault.categories.find((к) => к.name === 'Таня Челяба')
+  check('категория и запись сохранены', !!таня && vault.transactions.some((т) => т.categoryId === таня.id && т.amount === 1500_00))
+
+  click(byText('.hero .btn', 'Расход'))
+  await wait(400)
+  ввести(окно()?.querySelector('.qa-poisk'), 'челяб')
+  await wait(150)
+  const плитка = плитки().find((б) => (б.textContent || '').includes('Таня Челяба'))
+  check('поиск находит категорию', !!плитка)
+  правыйЩелчок(плитка)
+  await wait(150)
+  check('правый щелчок открывает меню категории', !!menuItem('Изменить') && !!menuItem('Удалить') && !!menuItem('Сделать подкатегорией'))
+  click(menuItem('Сделать подкатегорией'))
+  await wait(100)
+  click(all('.ctx-sub .ctx-item').find((б) => (б.textContent || '').trim() === 'Продукты'))
+  await wait(1300)
+  vault = await loadVault()
+  check('категория стала подкатегорией «Продуктов»', vault.categories.find((к) => к.id === таня?.id)?.parentId === vault.categories.find((к) => к.name === 'Продукты')?.id)
+  check('плитка подписана главной', (плитки().find((б) => (б.textContent || '').includes('Таня Челяба'))?.textContent || '').includes('Продукты'))
+  ввести(окно()?.querySelector('.qa-poisk'), 'продук')
+  await wait(150)
+  check('поиск по главной находит и подкатегорию', плитки().some((б) => (б.textContent || '').includes('Таня Челяба')))
+  закрытьВвод()
+  await wait(300)
+
+  await open('Дашборд')
+  const строки = () => all('.view .cat-row')
+  check('на сводке подкатегория сложена в главную', !строки().some((с) => (с.textContent || '').includes('Таня Челяба')))
+  click(строки().find((с) => (с.querySelector('.name')?.textContent || '').trim() === 'Продукты'))
+  await wait(300)
+  check('щелчок по главной раскрывает подкатегории', !!byText('.view .btn', 'Все категории') &&
+    строки().some((с) => (с.textContent || '').includes('Таня Челяба')) &&
+    строки().some((с) => (с.textContent || '').includes('Продукты — без подкатегории')))
+  click(byText('.view .btn', 'Все категории'))
+  await wait(300)
+  check('«Все категории» возвращает сложенный вид', !строки().some((с) => (с.textContent || '').includes('Таня Челяба')))
+
+  await open('Категории')
+  const карточка = all('.view .card').find((к) => [...к.querySelectorAll('.btn')].some((б) => (б.textContent || '').includes('Подкатегории: 1')))
+  check('в «Категориях» у главной кнопка подкатегорий', !!карточка && (карточка.textContent || '').includes('Продукты'))
+  click([...(карточка?.querySelectorAll('.btn') ?? [])].find((б) => (б.textContent || '').includes('Подкатегории: 1')))
+  await wait(200)
+  check('кнопка раскрывает подкатегории', (карточка?.querySelector('.kat-deti')?.textContent || '').includes('Таня Челяба'))
+
+  await open('Бюджет')
+  check('в «Бюджете» подкатегория под главной', all('.view tr.budget-pod').some((с) => (с.textContent || '').includes('Таня Челяба')))
+
+  await open('Операции')
+  click(document.querySelector('.view .kat-vybor'))
+  await wait(150)
+  ввести(document.querySelector('.kat-pop .kat-poisk'), 'продук')
+  await wait(150)
+  const пункты = all('.kat-spisok .schet-opt')
+  check('поиск в фильтре категорий', пункты.some((п) => (п.textContent || '').includes('Таня Челяба')) &&
+    !пункты.some((п) => (п.textContent || '').includes('Транспорт')))
+  click(пункты.find((п) => (п.textContent || '').trim() === 'Продукты'))
+  await wait(300)
+  check('фильтр главной показывает и записи подкатегории', text().includes('билеты'))
+
+  await open('Дашборд')
+  click(byText('.hero .btn', 'Расход'))
+  await wait(400)
+  ввести(окно()?.querySelector('.qa-poisk'), 'челяб')
+  await wait(150)
+  правыйЩелчок(плитки().find((б) => (б.textContent || '').includes('Таня Челяба')))
+  await wait(150)
+  click(menuItem('Удалить'))
+  await wait(200)
+  click((byText('.modal', 'Удалить «Таня Челяба»?') as HTMLElement | null)?.querySelector('.modal-foot .btn.primary'))
+  await wait(1300)
+  vault = await loadVault()
+  check('удаление из меню убирает категорию', !vault.categories.some((к) => к.id === таня?.id))
+  закрытьВвод()
+  await wait(300)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2185,6 +2300,7 @@ async function main() {
   await кредиты()
   await поВидео()
   await быстрыйВводСчётъ()
+  await подкатегорииЭкраны()
   await дашбордКредитаИУведомленія()
   await конструкторъОформленія()
   await themes()

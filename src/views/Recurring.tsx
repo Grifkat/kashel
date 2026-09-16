@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { счётПоУмолчанию } from '../engine/stats'
 import { DateField } from '../components/DateField'
 import { useApp } from '../App'
@@ -300,15 +301,15 @@ function RecurringModal({ value, onSave, onClose }: { value: Recurring; onSave: 
         </Field>
         {r.kind !== 'transfer' && (
           <Field label={т('Категория')}>
-            <select value={r.categoryId ?? ''} onChange={(e) => patch({ categoryId: e.target.value || undefined })}>
-              <option value="">{т('— выберите —')}</option>
-              {options.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {сЗначкомъ(c.icon, c.name)}
-                  {c.archived ? т(' (в архиве)') : c.kind !== r.kind ? т(' (другой вид)') : ''}
-                </option>
-              ))}
-            </select>
+            <KategoriyaVybor
+              value={r.categoryId ?? ''}
+              onChange={(id) => patch({ categoryId: id || undefined })}
+              cats={options}
+              pusto={т('— выберите —')}
+            />
+            {chosen && (chosen.archived || chosen.kind !== r.kind) && (
+              <div className="neg small">{chosen.archived ? т(' (в архиве)') : т(' (другой вид)')}</div>
+            )}
           </Field>
         )}
         {r.kind === 'transfer' && (

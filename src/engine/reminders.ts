@@ -4,6 +4,7 @@ import { money } from '../lib/format'
 import { balances, categoryMonthly } from './stats'
 import { occurrencesInMonth } from './forecast'
 import { т } from '../i18n'
+import { семья } from './podkategorii'
 
 /*
  * Когда напоминание должно сработать.
@@ -107,7 +108,9 @@ function overLimit(data: VaultData, pct: number, now: string, only?: string): st
   const out: string[] = []
   for (const c of data.categories) {
     if (c.archived || !c.plan || (only && c.id !== only)) continue
-    const spent = categoryMonthly(data.transactions, c.id, [mk], false, c.kind)[0]
+    // Лимит главной — на неё вместе с подкатегориями.
+    let spent = 0
+    for (const id of семья(c.id, data.categories)) spent += categoryMonthly(data.transactions, id, [mk], false, c.kind)[0]
     if (spent >= (c.plan * pct) / 100) out.push(т('{0} {1} из {2}', c.name, money(spent), money(c.plan)))
   }
   return out.length ? out.join(' · ') : null

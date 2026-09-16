@@ -5,6 +5,7 @@ import { streak } from './streak'
 import { forecast } from './forecast'
 import { личное } from './project'
 import { т } from '../i18n'
+import { семья } from './podkategorii'
 
 /*
  * Чинъ, награды и характеристики.
@@ -255,8 +256,9 @@ export function traits(data: VaultData, now: string = today()): Trait[] {
   const разнесено = txs.length ? 1 - безъКатегоріи / txs.length : 1
   const съЛимитомъ = data.categories.filter((c) => !c.archived && c.plan)
   const въЛимитѣ = съЛимитомъ.filter((c) => {
+    const свои = семья(c.id, data.categories)
     const потрачено = txs
-      .filter((t) => t.categoryId === c.id && monthKey(t.date) === monthKey(now))
+      .filter((t) => !!t.categoryId && свои.has(t.categoryId) && monthKey(t.date) === monthKey(now))
       .reduce((s, t) => s + t.amount, 0)
     return потрачено <= (c.plan ?? 0)
   }).length
@@ -939,7 +941,8 @@ const НАБОРЪ: Заданіе[] = [
       if (!съЛимитомъ.length) return 0
       const свои = мѣсяцаЗаписи(d, мк)
       const въПредѣлѣ = съЛимитомъ.filter((c) => {
-        const потрачено = свои.filter((t) => t.categoryId === c.id).reduce((s, t) => s + t.amount, 0)
+        const кат = семья(c.id, d.categories)
+        const потрачено = свои.filter((t) => !!t.categoryId && кат.has(t.categoryId)).reduce((s, t) => s + t.amount, 0)
         return потрачено <= (c.plan ?? 0)
       }).length
       return въПредѣлѣ / съЛимитомъ.length

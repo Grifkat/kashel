@@ -20,6 +20,7 @@ import { parseArchive } from '../src/engine/archive'
 import { вывестиТокены, значеніеДопустимо, контрастъ, очиститьТокены, простыяИзъТокеновъ, разобратьФайлТемы } from '../src/lib/svoitemy'
 import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
+import { безРодителя, вСемье, деревоКатегорий, нельзяВложить, поГлавным, раскладкаГлавной, семья, суммаСемьи, подкатегории } from '../src/engine/podkategorii'
 import {
   isImportant, isOverdue, isUrgent, plannedByMonth, priorityOf, quadrantOf, sortTasks,
 } from '../src/engine/tasks'
@@ -2745,6 +2746,58 @@ function разборОшибокъ() {
   check('архив хранит «доход с капитала» и важность задачи', д?.categories[0]?.capital === true && д?.tasks[0]?.priority === 2)
 }
 
+function подкатегорииПроверка() {
+  console.log('\n— подкатегории —')
+  const к = (id: string, over: Partial<import('../src/lib/types').Category> = {}) =>
+    ({ id, name: id, kind: 'expense' as const, icon: 'x', color: '#000', ...over })
+  const cats = [
+    к('Рабочие расходы', { plan: 10_000_00 }),
+    к('Таня Челяба', { parentId: 'Рабочие расходы' }),
+    к('Бензин', { parentId: 'Рабочие расходы', plan: 3_000_00 }),
+    к('Еда'),
+    к('Зарплата', { kind: 'income' }),
+    к('Чужая', { parentId: 'Зарплата' }), // родитель другого вида — не родитель
+  ]
+  const тр = (id: string, amount: number, over: Partial<Transaction> = {}): Transaction =>
+    ({ id: 't' + id + amount, date: today(), amount, kind: 'expense', accountId: 'a', categoryId: id, tags: [], createdAt: today(), ...over } as Transaction)
+  const txs = [тр('Рабочие расходы', 100), тр('Таня Челяба', 500), тр('Бензин', 250), тр('Еда', 70)]
+  const итоги = categoryTotals(txs, 'expense')
+  const главные = поГлавным(итоги, cats)
+  check('подкатегории складываются в главную', главные.find((x) => x.categoryId === 'Рабочие расходы')?.amount === 850
+    && главные.length === 2 && главные.every((x) => x.categoryId !== 'Таня Челяба'))
+  check('доли главных — от общей суммы', Math.abs(главные.reduce((s, x) => s + x.share, 0) - 1) < 1e-9)
+  const раскладка = раскладкаГлавной(итоги, 'Рабочие расходы', cats)
+  check('раскладка главной: подкатегории и её собственные траты',
+    раскладка.map((x) => x.categoryId).join() === 'Таня Челяба,Бензин,Рабочие расходы' && !раскладка.some((x) => x.categoryId === 'Еда'))
+  check('подкатегория с родителем другого вида остаётся главной', подкатегории('Зарплата', cats).length === 0)
+  check('семья главной — она и подкатегории', [...семья('Рабочие расходы', cats)].sort().join() === 'Бензин,Рабочие расходы,Таня Челяба')
+  check('у подкатегории семья — только она сама', семья('Бензин', cats).size === 1)
+  check('операция с долей в подкатегории попадает в фильтр главной',
+    вСемье(тр('Еда', 100, { splits: [{ categoryId: 'Таня Челяба', amount: 40 }, { categoryId: 'Еда', amount: 60 }] }), семья('Рабочие расходы', cats)))
+  check('суммаСемьи для главной — с подкатегориями',
+    суммаСемьи('Рабочие расходы', new Map(итоги.map((x) => [x.categoryId, x.amount])), cats) === 850)
+  check('в подкатегорию подкатегорию не вложить', !!нельзяВложить(к('Новая'), 'Бензин', cats))
+  check('главную с подкатегориями не вложить', !!нельзяВложить(cats[0], 'Еда', cats))
+  check('в себя не вложить и в чужой вид — тоже', !!нельзяВложить(cats[3], 'Еда', cats) && !!нельзяВложить(cats[3], 'Зарплата', cats))
+  check('обычную вложить можно', нельзяВложить(cats[3], 'Рабочие расходы', cats) === '')
+  const дерево = деревоКатегорий(cats.filter((c) => c.kind === 'expense'))
+  check('дерево: главная, под ней подкатегории',
+    дерево.map((x) => x.cat.id).join() === 'Рабочие расходы,Таня Челяба,Бензин,Еда,Чужая' && дерево[1].главная?.id === 'Рабочие расходы')
+  check('поиск по имени главной находит её подкатегории',
+    деревоКатегорий(cats, 'рабоч').map((x) => x.cat.id).join() === 'Рабочие расходы,Таня Челяба,Бензин')
+  check('поиск по подкатегории показывает и её главную',
+    деревоКатегорий(cats, 'челяб').map((x) => x.cat.id).join() === 'Рабочие расходы,Таня Челяба')
+  const д = { ...data, categories: cats }
+  const послеУдаления = безРодителя(д, 'Рабочие расходы')
+  check('после удаления главной подкатегории становятся главными',
+    послеУдаления.length === cats.length - 1 && послеУдаления.filter((c) => c.parentId === 'Рабочие расходы').length === 0)
+  const лимит: Reminder = { id: 'rem_lim', title: 'лимит', active: true, sound: 'soft', kind: 'event', event: 'limit-exceeded',
+    threshold: 100, categoryId: 'Рабочие расходы', repeat: 'once' } as Reminder
+  const сТратами = { ...д, transactions: [тр('Таня Челяба', 11_000_00)], reminders: [лимит] }
+  check('лимит главной покрывает траты подкатегорий (напоминание)', dueReminders(сТратами, today()).length === 1)
+  check('и без трат напоминание молчит', dueReminders({ ...сТратами, transactions: [] }, today()).length === 0)
+}
+
 void завершить()
 
 async function завершить() {
@@ -2758,6 +2811,7 @@ async function завершить() {
   await шифрованіе()
   тегиИУведомленія()
   разборОшибокъ()
+  подкатегорииПроверка()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

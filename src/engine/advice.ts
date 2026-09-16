@@ -5,6 +5,7 @@ import { money, moneyShort, months as monthsWord, pct, plural, times } from '../
 import { balances, categoryMonthly, categoryTotals, creditRemaining, isAsset, mean, median, stdev, trendSlope } from './stats'
 import { historyKeys, occurrencesInMonth, type ForecastResult } from './forecast'
 import { личное } from './project'
+import { родитель, суммаСемьи } from './podkategorii'
 import { т } from '../i18n'
 
 export type AdviceKind = 'cut' | 'income' | 'budget' | 'risk' | 'debt' | 'goal'
@@ -284,13 +285,19 @@ function rulePlanOverrun(c: Ctx): Advice[] {
   const bad: { cat: Category; spent: Money; projected: Money; plan: Money }[] = []
   for (const cat of c.data.categories) {
     if (cat.kind !== 'expense' || !cat.plan || cat.archived) continue
-    const spent = totals.get(cat.id) || 0
+    // Лимит главной — на неё вместе с подкатегориями.
+    const spent = суммаСемьи(cat.id, totals, c.data.categories)
     const projected = Math.round(spent / c.monthProgress)
     if (projected > cat.plan * 1.05) bad.push({ cat, spent, projected, plan: cat.plan })
   }
   if (!bad.length) return []
   bad.sort((a, b) => b.projected - b.plan - (a.projected - a.plan))
-  const overSum = bad.reduce((s, b) => s + (b.projected - b.plan), 0)
+  // Перерасход подкатегории уже сидит в перерасходе её главной — не считаем дважды.
+  const вГлавной = (b: (typeof bad)[number]) => {
+    const р = родитель(b.cat, c.data.categories)
+    return !!р && bad.some((x) => x.cat.id === р.id)
+  }
+  const overSum = bad.filter((b) => !вГлавной(b)).reduce((s, b) => s + (b.projected - b.plan), 0)
 
   return [{
     id: 'plan_overrun',
