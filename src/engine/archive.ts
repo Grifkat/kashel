@@ -1,7 +1,7 @@
 import { путьЗначкаДопустимъ } from '../lib/svoiznachki'
 import type {
   Account, AccountType, Bucket, CanvasDoc, CanvasEdge, CanvasNode, Category, Freq, Goal,
-  ImportRule, Money, Recurring, Reminder, ReminderEvent, ReminderRepeat, ReminderSound,
+  ImportRule, Money, Notice, Recurring, Reminder, ReminderEvent, ReminderRepeat, ReminderSound,
   RankBranch, Scenario, Settings, Side, Task, TaskList, Transaction, TxKind, VaultData,
 } from '../lib/types'
 import { migrateSettings } from '../state/defaults'
@@ -235,6 +235,9 @@ function normAccount(v: unknown, drop: Drop): Account | null {
             monthlyPayment: money(credit.monthlyPayment),
             ...(credit.purpose === 'cash' || credit.purpose === 'purchase' ? { purpose: credit.purpose } : {}),
             ...(credit.v === 2 ? { v: 2 as const } : {}),
+            ...(bool(credit.remind) ? { remind: true } : {}),
+            ...(isDate(str(credit.remindFrom)) ? { remindFrom: str(credit.remindFrom) } : {}),
+            ...(opt(credit.payFrom) ? { payFrom: opt(credit.payFrom) } : {}),
           },
         }
       : {}),
@@ -298,6 +301,30 @@ function normRecurring(v: unknown, drop: Drop): Recurring | null {
     tags: strList(r.tags),
     note: opt(r.note),
     active: r.active !== false,
+  }
+}
+
+/** Уведомление из архива: неизвестный вид или статус не пропускаем. */
+function normNotice(v: unknown, drop: Drop): Notice | null {
+  const r = asRaw(v)
+  const id = str(r.id)
+  const accountId = str(r.accountId)
+  const dueDate = str(r.dueDate)
+  if (!id || !accountId || !isDate(dueDate) || r.kind !== 'credit_payment') {
+    drop.n++
+    return null
+  }
+  const txIds = strList(r.txIds)
+  return {
+    id,
+    kind: 'credit_payment',
+    accountId,
+    dueDate,
+    amount: Math.abs(money(r.amount)),
+    createdAt: str(r.createdAt) || new Date().toISOString(),
+    status: oneOf(r.status, ['pending', 'paid', 'skipped'] as const, 'pending'),
+    ...(opt(r.resolvedAt) ? { resolvedAt: opt(r.resolvedAt) } : {}),
+    ...(txIds.length ? { txIds } : {}),
   }
 }
 
@@ -597,6 +624,7 @@ export function parseArchive(text: string): ParseResult {
     scenarios: list(d.scenarios).map((x) => normScenario(x, drop)).filter((x): x is Scenario => !!x),
     importRules: list(d.importRules).map((x) => normRule(x, drop)).filter((x): x is ImportRule => !!x),
     settings: migrateSettings(asRaw(d.settings) as Partial<Settings>),
+    notifications: list(d.notifications).map((x) => normNotice(x, drop)).filter((x): x is Notice => !!x),
   }
 
   const notes: Record<string, string> = {}

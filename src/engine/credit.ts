@@ -413,3 +413,46 @@ export function перевестиКредиты(data: VaultData): {
   })
   return { accounts, transactions, статьи, месяцы: [...месяцы], changed }
 }
+
+/** Ближайший день платежа — сегодняшний тоже считается. null — дат нет. */
+export function следующийПлатёж(c: NonNullable<Account['credit']>, now: string = today()): string | null {
+  return датыПлатежей(c, addMonths(now, 2)).find((д) => д >= now) ?? null
+}
+
+/** Платёж, записанный в программе: расход с пометкой кредита или перевод на него. */
+export const этоПлатёжПо = (acc: Account, t: Transaction): boolean =>
+  (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id) ||
+  (t.kind === 'transfer' && t.toAccountId === acc.id)
+
+export interface СводкаКредита extends Кредит {
+  /** Сколько брали. */
+  principal: Money
+  /** Сколько из суммы кредита уже погашено. */
+  выплачено: Money
+  /** Доля погашенного, 0..1 — для полосы, как у целей. */
+  доля: number
+  следующій: string | null
+  /** Внесённые платежи, свежие впереди. */
+  платежи: Transaction[]
+}
+
+/**
+ * Всё про один кредит для его дашборда: сколько осталось, сколько погашено,
+ * когда следующий платёж и какие платежи уже были. Цифра долга — та же, что
+ * на карточке и в шапке: остаток счёта.
+ */
+export function сводкаКредита(acc: Account, data: VaultData, now: string = today()): СводкаКредита {
+  const k = creditState(acc, data, now)
+  const principal = acc.credit?.principal ?? 0
+  const выплачено = Math.max(0, principal - k.debt)
+  return {
+    ...k,
+    principal,
+    выплачено,
+    доля: principal > 0 ? Math.min(1, выплачено / principal) : 0,
+    следующій: acc.credit ? следующийПлатёж(acc.credit, now) : null,
+    платежи: data.transactions
+      .filter((t) => этоПлатёжПо(acc, t))
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+  }
+}

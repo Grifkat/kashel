@@ -34,6 +34,7 @@ export const emptyVault = (): VaultData => ({
   transactions: [],
   recurring: [],
   reminders: [],
+  notifications: [],
   tasks: [],
   taskLists: [],
   honors: { branch: 'civil', awarded: {} },

@@ -7,7 +7,7 @@ import { buildAdvice } from '../src/engine/advice'
 import { runQuery } from '../src/engine/query'
 import { parseQuick, describeDraft } from '../src/engine/parse'
 import { parseCsv, guessColumns, buildPreview, parseAmountCell, parseDateCell } from '../src/engine/csv'
-import { accountBalance, balances, categoryMonthly, creditRemaining, categoryTotals, comparablePrev, entryDate, makePeriod, monthlySeries, yearSummary, type PeriodKind } from '../src/engine/stats'
+import { accountBalance, balances, categoryMonthly, creditRemaining, счётПоУмолчанию, categoryTotals, comparablePrev, entryDate, makePeriod, monthlySeries, yearSummary, type PeriodKind } from '../src/engine/stats'
 import { DIGIT_SEP, groupDigits, money, toMinor, uid } from '../src/lib/format'
 import { addDays, addMonths, diffDays, monthKey, parseISO, startOfWeek, today, порядокъДней } from '../src/lib/date'
 import { разобратьДату, сеткаМесяца } from '../src/components/DateField'
@@ -27,7 +27,10 @@ import {
   address, awards, freshAwards, levelOf, RANKS, romanClass, standing, traits, xpBreakdown, XP_STEPS,
 } from '../src/engine/honors'
 import { знакъЕсть, ключъЗнака } from '../src/lib/znaki'
-import { creditState, schedule, whatIf, перевестиКредиты, планъПлатежа, разложитьПлатёжъ, датыПлатежей, остатокПослѣ, подсказкаОстатка, СТАТЬЯ_ПЛАТЕЖЕЙ, СТАТЬЯ_ПРОЦЕНТОВ } from '../src/engine/credit'
+import { всеТеги, переименоватьТег } from '../src/engine/tegi'
+import { ждущія, новыеУведомления, отклонить, подтвердитьПлатёж } from '../src/engine/uvedomleniya'
+import type { Notice } from '../src/lib/types'
+import { creditState, schedule, whatIf, следующийПлатёж, сводкаКредита, перевестиКредиты, планъПлатежа, разложитьПлатёжъ, датыПлатежей, остатокПослѣ, подсказкаОстатка, СТАТЬЯ_ПЛАТЕЖЕЙ, СТАТЬЯ_ПРОЦЕНТОВ } from '../src/engine/credit'
 import { личное, projectState, projectsSummary, проектная } from '../src/engine/project'
 import { НАСТАВЛЕНІЕ, наказЯзыка, полнаяВыгрузка, сводкаДляМодели } from '../src/engine/svodka'
 import { ОПИСАННЫЕ } from '../src/lib/znakiText'
@@ -2515,6 +2518,98 @@ function переводъ() {
   check('по-русски оболочка не трогаетъ фразы', языкОболочки.м('Файл') === 'Файл')
 }
 
+/*
+ * Теги, счёт по умолчанию, уведомления о платежах и сводка кредита.
+ */
+function тегиИУведомленія() {
+  console.log('\n— теги —')
+  const тх = (id: string, date: string, tags: string[], accountId = 'a1', createdAt = '2026-09-01T00:00:00Z') =>
+    ({ id, kind: 'expense' as const, date, amount: 100_00, accountId, tags, createdAt })
+  const наборъ = {
+    ...data,
+    transactions: [
+      тх('t1', '2026-08-01', ['ройка', 'такси']),
+      тх('t2', '2026-09-02', ['тройка']),
+      тх('t3', '2026-09-03', ['ройка', 'тройка']),
+      тх('t4', '2026-07-04', ['кофе']),
+    ],
+    recurring: [{ id: 'r1', title: 'Проезд', kind: 'expense' as const, amount: 1, accountId: 'a1', freq: 'monthly' as const,
+      interval: 1, startDate: '2026-01-01', autoPost: false, tags: ['ройка'], active: true }],
+  }
+  const все = всеТеги(наборъ)
+  check('частые теги впереди', все[0].тег === 'ройка' || все[0].тег === 'тройка', JSON.stringify(все))
+  const слито = переименоватьТег(наборъ, 'ройка', ' #тройка ')
+  check('опечатка переименована и слита без дублей',
+    слито.transactions[0].tags.join(',') === 'тройка,такси' && слито.transactions[2].tags.join(',') === 'тройка',
+    JSON.stringify(слито.transactions.map((t) => t.tags)))
+  check('затронуты ровно два месяца', слито.месяцы.sort().join(',') === '2026-08,2026-09' && слито.операций === 2, слито.месяцы.join(','))
+  check('и регулярное правило тоже', слито.recurring[0].tags.join(',') === 'тройка')
+  check('чужие операции не тронуты', слито.transactions[3] === наборъ.transactions[3])
+  const убрано = переименоватьТег(наборъ, 'кофе', '')
+  check('пустое имя удаляет тег', убрано.transactions[3].tags.length === 0 && убрано.операций === 1)
+
+  console.log('\n— счёт по умолчанию —')
+  const счета = [
+    { id: 'a1', name: 'Т', type: 'card' as const, icon: 'x', color: '#000', initialBalance: 0 },
+    { id: 'a2', name: 'Я', type: 'card' as const, icon: 'x', color: '#000', initialBalance: 0 },
+    { id: 'a3', name: 'Старый', type: 'card' as const, icon: 'x', color: '#000', initialBalance: 0, archived: true },
+  ]
+  check('открытый счёт главнее всего', счётПоУмолчанию(счета, [], 'a2') === 'a2')
+  check('убранный в архив не подставляется', счётПоУмолчанию(счета, [], 'a3') === 'a1')
+  check('иначе — счёт последней записанной операции',
+    счётПоУмолчанию(счета, [тх('x', '2026-01-01', [], 'a1', '2026-09-01'), тх('y', '2025-01-01', [], 'a2', '2026-09-02')]) === 'a2')
+  check('без операций — первая карта', счётПоУмолчанию(счета, []) === 'a1')
+
+  console.log('\n— уведомления о платежах —')
+  const карта = { id: 'card', name: 'Карта', type: 'card' as const, icon: 'x', color: '#000', initialBalance: 100_000_00 }
+  const кредитъ = { id: 'loan', name: 'Диван', type: 'credit' as const, icon: 'x', color: '#f00', initialBalance: -44_000_00,
+    credit: { principal: 44_000_00, ratePct: 0, termMonths: 10, startDate: '2026-06-25', paymentDay: 10,
+      monthlyPayment: 4_400_00, purpose: 'purchase' as const, v: 2 as const, remind: true, remindFrom: '2026-08-01' } }
+  const хр = { ...data, accounts: [карта, кредитъ], transactions: [] as typeof data.transactions, notifications: [] as Notice[] }
+  const новые = новыеУведомления(хр, '2026-09-10')
+  check('в день платежа заводятся уведомления с дня включения',
+    новые.map((n) => n.dueDate).join(',') === '2026-08-10,2026-09-10' && новые.every((n) => n.status === 'pending' && n.amount === 4_400_00),
+    новые.map((n) => n.dueDate).join(','))
+  check('до дня платежа — ничего', новыеУведомления({ ...хр, accounts: [карта, { ...кредитъ, credit: { ...кредитъ.credit, remindFrom: '2026-09-01' } }] }, '2026-09-09').length === 0)
+  check('без галочки — ничего', новыеУведомления({ ...хр, accounts: [карта, { ...кредитъ, credit: { ...кредитъ.credit, remind: false } }] }, '2026-09-10').length === 0)
+  check('уже заведённое второй раз не заводится', новыеУведомления({ ...хр, notifications: новые }, '2026-09-10').length === 0)
+  const сПлатежомъ = { ...хр, transactions: [{ id: 'pp', kind: 'expense' as const, date: '2026-09-05', amount: 4_400_00,
+    accountId: 'card', debtId: 'loan', debtPrincipal: 4_400_00, tags: [], createdAt: '' }] }
+  check('платёж уже внесён руками — не спрашиваем',
+    новыеУведомления(сПлатежомъ, '2026-09-10').map((n) => n.dueDate).join(',') === '2026-08-10',
+    новыеУведомления(сПлатежомъ, '2026-09-10').map((n) => n.dueDate).join(','))
+  check('погашенный кредит не напоминает', новыеУведомления({ ...хр, accounts: [карта, { ...кредитъ, initialBalance: 0 }] }, '2026-09-10').length === 0)
+
+  const n = новые[1]
+  const ответъ = подтвердитьПлатёж(хр, n, { счётъ: 'card', сумма: 4_400_00 })
+  check('«прошёл» даёт план платежа на день по графику',
+    !!ответъ && ответъ.планъ.операціи.length === 1 && ответъ.планъ.операціи[0].date === '2026-09-10' && ответъ.планъ.операціи[0].debtId === 'loan')
+  const отвѣченное = ответъ!.уведомленіе(['tx1'])
+  check('и уведомление уходит в историю с операциями', отвѣченное.status === 'paid' && отвѣченное.txIds?.[0] === 'tx1' && !!отвѣченное.resolvedAt)
+  check('платить с самого кредита нельзя и тут', подтвердитьПлатёж(хр, n, { счётъ: 'loan', сумма: 100 }) === null)
+  check('«не прошёл» закрывает без операций', отклонить(n).status === 'skipped' && !отклонить(n).txIds)
+  check('ждущие — только без ответа', ждущія({ ...хр, notifications: [отвѣченное, новые[0]] }).length === 1)
+
+  console.log('\n— сводка кредита —')
+  check('следующий платёж — ближайший, сегодняшний тоже', следующийПлатёж(кредитъ.credit, '2026-09-10') === '2026-09-10'
+    && следующийПлатёж(кредитъ.credit, '2026-09-11') === '2026-10-10')
+  const платёжъ = { id: 'pp2', kind: 'expense' as const, date: '2026-09-10', amount: 4_400_00, accountId: 'card',
+    debtId: 'loan', debtPrincipal: 4_400_00, tags: [], createdAt: '' }
+  const св = сводкаКредита(кредитъ, { ...хр, transactions: [платёжъ] }, '2026-09-11')
+  check('сводка: осталось, погашено и доля', св.debt === 39_600_00 && св.выплачено === 4_400_00 && Math.abs(св.доля - 0.1) < 1e-9,
+    `${св.debt} ${св.выплачено} ${св.доля}`)
+  check('сводка: платежи и следующий', св.платежи.length === 1 && св.следующій === '2026-10-10')
+
+  const архивъ = { kashel: 'vault', formatVersion: 1, app: 'Кошель', exportedAt: '2026-09-14T00:00:00Z', counts: {},
+    data: { ...хр, notifications: [отвѣченное, новые[0], { id: 'bad', kind: 'чужое' }] }, notes: {}, canvases: {}, attachments: {} }
+  const р = parseArchive(JSON.stringify(архивъ))
+  check('архив хранит уведомления и отбрасывает чужие',
+    р.ok && р.archive.data.notifications?.length === 2 && р.archive.data.notifications[0].txIds?.[0] === 'tx1')
+  check('архив хранит галочку напоминания',
+    р.ok && р.archive.data.accounts.find((a) => a.id === 'loan')?.credit?.remind === true
+      && р.archive.data.accounts.find((a) => a.id === 'loan')?.credit?.remindFrom === '2026-08-01')
+}
+
 void завершить()
 
 async function завершить() {
@@ -2526,6 +2621,7 @@ async function завершить() {
   конструкторъТемъ()
   await полнаяВыгрузкаПровѣрка()
   await шифрованіе()
+  тегиИУведомленія()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

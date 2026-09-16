@@ -77,7 +77,10 @@ function seedStorage() {
   const { transactions, ...core } = data
   const ls = dom.window.localStorage
   ls.clear()
-  ls.setItem('kashel:data.json', JSON.stringify(core))
+  // Одно ждущее уведомление о платеже — для проверки колокольчика.
+  const уведомленіе = { id: 'n_test', kind: 'credit_payment', accountId: 'acc_credit', dueDate: today(),
+    amount: 9_150_00, createdAt: new Date().toISOString(), status: 'pending' }
+  ls.setItem('kashel:data.json', JSON.stringify({ ...core, notifications: [уведомленіе] }))
   const byMonth = new Map<string, typeof transactions>()
   for (const t of transactions) {
     const mk = t.date.slice(0, 7)
@@ -1909,10 +1912,19 @@ async function кредиты() {
   click(вкладка)
   await wait(300)
   const окно = document.querySelector('.modal') as HTMLElement
-  const счета = [...окно.querySelectorAll('select')]
-  const откуда = счета[0] as HTMLSelectElement
-  check('платить с самого кредита нельзя', !!откуда && ![...откуда.options].some((о) => о.value === 'acc_credit'))
-  check('кредит выбран', счета.some((с) => (с as HTMLSelectElement).value === 'acc_credit'))
+  // Счета выбираются своим списком со значками: откроем его и посмотрим пункты.
+  const выборы = [...окно.querySelectorAll('.schet-vybor')] as HTMLElement[]
+  click(выборы[0])
+  await wait(150)
+  const пунктыОткуда = [...document.querySelectorAll('.schet-pop .schet-opt')].map((о) => (о.textContent || '').trim())
+  check('в списке счетов — значки, а не служебные имена',
+    document.querySelectorAll('.schet-pop .schet-opt .avatar').length === пунктыОткуда.length && !пунктыОткуда.some((п) => /credit-card/.test(п)),
+    пунктыОткуда.join(' | '))
+  check('платить с самого кредита нельзя', пунктыОткуда.length > 0 && !пунктыОткуда.includes('Рассрочка на технику'), пунктыОткуда.join(' | '))
+  document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+  await wait(150)
+  check('Escape закрыл только список', !document.querySelector('.schet-pop') && !!document.querySelector('.modal'))
+  check('кредит выбран', (выборы[1]?.textContent || '').includes('Рассрочка на технику'), выборы[1]?.textContent ?? '')
   check('сумма — платёж по графику', ((окно.querySelector('input[inputmode="decimal"]') as HTMLInputElement)?.value || '').replace(/\s/g, '') === '9150')
   check('видно, сколько уйдёт в расходы', (окно.textContent || '').includes('В расходы попадёт'))
   check('категории для платежа не спрашиваются', !(окно.textContent || '').includes('Категория'))
@@ -1937,6 +1949,124 @@ async function кредиты() {
     стало.categories.some((к) => к.id === 'cat_credit_pay') && стало.categories.some((к) => к.id === 'cat_credit_interest'))
 }
 
+/** Ввести текст в поле так, чтобы React увидел (см. примечание в besjeda). */
+function вписатьВъ(поле: HTMLInputElement, что: string) {
+  поле.focus()
+  поле.dispatchEvent(new dom.window.Event('focusin', { bubbles: true }))
+  поле.value = что
+  ;(поле as any)._valueTracker?.setValue('')
+  поле.dispatchEvent(new dom.window.Event('input', { bubbles: true }))
+  поле.dispatchEvent(new dom.window.KeyboardEvent('keyup', { key: 'а', bubbles: true }))
+}
+
+/*
+ * Пункты из видео: операции счёта открываются с его фильтром, новая запись
+ * берёт этот счёт, подсказка тега не теряет набранное, теги правятся разом.
+ */
+async function поВидео() {
+  console.log('\n— пункты из видео —')
+  await open('Счета')
+  const карточка = [...document.querySelectorAll('.view .card')].find((к) => к.querySelector('.strong')?.textContent === 'Наличные')
+  click([...(карточка?.querySelectorAll('.btn') ?? [])].find((б) => (б.textContent || '').trim() === 'Операции'))
+  await wait(500)
+  const фильтръ = document.querySelector('.view .schet-vybor')
+  check('«Операции» у счёта открываются с его фильтром', (фильтръ?.textContent || '').includes('Наличные'), фильтръ?.textContent ?? '')
+  const vault = await loadVault()
+  const съ = addMonths(today(), -3)
+  const наличныхъ = vault.transactions.filter((т) => (т.accountId === 'acc_cash' || т.toAccountId === 'acc_cash') && т.date >= съ && т.date <= today()).length
+  const заголовокъ = (document.querySelector('.view .view-sub')?.textContent || '').trim()
+  check('и показывают только его операции', заголовокъ.startsWith(`${наличныхъ} `), `${заголовокъ} против ${наличныхъ}`)
+
+  click(byText('.view-head .btn', 'Добавить'))
+  await wait(400)
+  const счётЗаписи = document.querySelector('.modal .schet-vybor')
+  check('новая запись берёт открытый счёт', (счётЗаписи?.textContent || '').includes('Наличные'), счётЗаписи?.textContent ?? '')
+
+  // Подсказка тега: нажатие мыши не уводит фокус из поля.
+  const полеТега = [...document.querySelectorAll('.modal input')].find((и) => (и as HTMLInputElement).placeholder === 'Добавить тег и Enter') as HTMLInputElement
+  вписатьВъ(полеТега, 'ра')
+  await wait(100)
+  const подсказка = byText('.modal .chip', '#работа')
+  check('подсказка тега нашлась по началу слова', !!подсказка)
+  const нажатие = new dom.window.MouseEvent('mousedown', { bubbles: true, cancelable: true })
+  подсказка?.dispatchEvent(нажатие)
+  check('нажатие на подсказку не уводит фокус (недописанное не добавится)', нажатие.defaultPrevented)
+  click(подсказка)
+  await wait(100)
+  const поставлены = [...document.querySelectorAll('.modal .chip.on')].map((ч) => (ч.textContent || '').trim())
+  check('добавился весь тег, а не набранный кусок', поставлены.some((т) => т.startsWith('#работа')) && !поставлены.some((т) => т.startsWith('#ра ')), поставлены.join(' | '))
+  click(byText('.modal-foot .btn', 'Отмена'))
+  await wait(300)
+
+  // Правка тегов разом.
+  await open('Операции')
+  const сброс = byText('.view .btn', 'Сбросить')
+  if (сброс) click(сброс)
+  await wait(200)
+  click(byText('.view .btn', 'Править теги'))
+  await wait(400)
+  const строка = [...document.querySelectorAll('.modal .row')].find((р) => ((р.querySelector('input') as HTMLInputElement | null)?.value) === 'закупка')
+  check('в окне тегов есть тег из операций', !!строка)
+  const поле = строка?.querySelector('input') as HTMLInputElement
+  // Поле внутри окна-портала: события ввода до React здесь не доходят,
+  // поэтому зовём его обработчик напрямую — так же, как в других проверках.
+  const свойства = Object.entries(поле).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+  свойства?.onChange?.({ target: { value: 'закупки' } })
+  await wait(150)
+  const кнопкаПереименовать = [...(строка?.querySelectorAll('.btn') ?? [])].find((б) => (б.textContent || '').includes('Переименовать')) as HTMLButtonElement
+  check('кнопка «Переименовать» ожила после правки', !!кнопкаПереименовать && !кнопкаПереименовать.disabled)
+  click(кнопкаПереименовать)
+  await wait(1300)
+  const послѣ = await loadVault()
+  check('тег переименован во всех операциях',
+    !послѣ.transactions.some((т) => т.tags.includes('закупка')) && послѣ.transactions.some((т) => т.tags.includes('закупки')))
+  click(byText('.modal-foot .btn', 'Готово'))
+  await wait(300)
+}
+
+/*
+ * Дашборд кредита и уведомление о платеже. В хранилище заранее лежит одно
+ * ждущее уведомление по «Рассрочке на технику» (см. seedStorage).
+ */
+async function дашбордКредитаИУведомленія() {
+  console.log('\n— дашборд кредита и уведомления —')
+  await open('Дашборд')
+  click(byText('.hero .btn', 'Итого'))
+  await wait(200)
+  click([...document.querySelectorAll('.hero .cat-row')].find((р) => (р.textContent || '').includes('Рассрочка на технику')))
+  await wait(400)
+  const панель = document.querySelector('.kredit-dash')
+  const vault = await loadVault()
+  const долгъ = creditRemaining(vault.accounts.find((a) => a.id === 'acc_credit')!, vault.transactions)
+  check('при выборе кредита на главной — его дашборд', !!панель && (панель.textContent || '').includes('Осталось погасить'))
+  check('и в нём тот же долг', (панель?.textContent || '').replace(/\s/g, '').includes(money(долгъ).replace(/\s/g, '')), money(долгъ))
+  check('есть следующий платёж и кнопка платежа',
+    (панель?.textContent || '').includes('Следующий платёж') && !!byText('.kredit-dash .btn', 'Внести платёж'))
+  click(byText('.hero .btn', 'Рассрочка на технику'))
+  await wait(200)
+  click([...document.querySelectorAll('.hero .cat-row')].find((р) => (р.textContent || '').includes('Итого')))
+  await wait(300)
+  check('на «Итого» панели кредита нет', !document.querySelector('.kredit-dash'))
+
+  const колокольчикъ = [...document.querySelectorAll('.ribbon .ribbon-btn')].find((б) => (б.getAttribute('title') || '').startsWith('Уведомления')) as HTMLElement
+  check('на колокольчике — число ждущих', колокольчикъ?.querySelector('.nav-badge')?.textContent === '1', колокольчикъ?.getAttribute('title') ?? '')
+  click(колокольчикъ)
+  await wait(400)
+  check('в окне — платёж по кредиту', (document.querySelector('.modal')?.textContent || '').includes('Платёж по кредиту «Рассрочка на технику»'))
+  const былоОпераций = (await loadVault()).transactions.length
+  click(byText('.modal .btn', 'Платёж прошёл'))
+  await wait(1300)
+  const стало = await loadVault()
+  const ответъ = стало.notifications?.find((n) => n.id === 'n_test')
+  check('ответ сохранён в истории с операцией', ответъ?.status === 'paid' && (ответъ.txIds?.length ?? 0) === 1, JSON.stringify(ответъ))
+  check('и платёж записан', стало.transactions.length === былоОпераций + 1
+    && стало.transactions.some((т) => т.id === ответъ?.txIds?.[0] && т.debtId === 'acc_credit'))
+  check('в окне — история', (document.querySelector('.modal')?.textContent || '').includes('прошёл'))
+  check('число на колокольчике ушло', !колокольчикъ.querySelector('.nav-badge'))
+  click(byText('.modal-foot .btn', 'Закрыть'))
+  await wait(300)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -1952,6 +2082,8 @@ async function main() {
   await недѣляИКалендарикъ()
   await пополненіеЦѣли()
   await кредиты()
+  await поВидео()
+  await дашбордКредитаИУведомленія()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

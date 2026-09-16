@@ -11,6 +11,10 @@ import { formatAmountInput, groupDigits, money, toMinor, uid } from '../lib/form
 import { readAttachmentBase64, saveAttachment, bridge } from '../state/vault'
 import { т, тр } from '../i18n'
 import { назначеніе, планъПлатежа } from '../engine/credit'
+import { счётПоУмолчанию } from '../engine/stats'
+import { всеТеги } from '../engine/tegi'
+import { SchetVybor } from './SchetVybor'
+import { useApp } from '../App'
 
 const KIND_LABEL: Record<TxKind, string> = {
   expense: т('Расход'),
@@ -37,17 +41,35 @@ export function TransactionModal({
    */
   const кредиты = data.accounts.filter((a) => !a.archived && a.type === 'credit' && a.credit)
   const платёжПоКредиту = (() => {
-    if (draft.kind !== 'expense' || !draft.debtId || draft.accountId === draft.debtId) return false
+    if (!draft.debtId || draft.accountId === draft.debtId) return false
     const к = data.accounts.find((a) => a.id === draft.debtId)
-    return !!к && к.type === 'credit' && назначеніе(к) === 'purchase'
+    if (!к || к.type !== 'credit') return false
+    // Новая запись с пометкой кредита — это кнопка «Внести платёж».
+    if (!isEdit) return true
+    return draft.kind === 'expense' && назначеніе(к) === 'purchase'
   })()
   const [платёж, setПлатёж] = useState(платёжПоКредиту)
+  // Кнопка «Внести платёж» открывает окно с картой, а не с самим кредитом.
+  useEffect(() => {
+    if (!платёжПоКредиту || isEdit) return
+    const свой = data.accounts.find((a) => a.id === accountId)
+    if (свой && свой.type !== 'credit') return
+    const платитьСъ = data.accounts.find((a) => a.id === draft.accountId && a.type !== 'credit')
+      ?? data.accounts.find((a) => a.id === счётПоУмолчанию(data.accounts.filter((x) => x.type !== 'credit'), data.transactions))
+    if (платитьСъ) setAccountId(платитьСъ.id)
+    const к = data.accounts.find((a) => a.id === draft.debtId)
+    if (к?.credit?.monthlyPayment && !amountStr) {
+      setAmountStr(formatAmountInput(String(к.credit.monthlyPayment / 100).replace('.', ',')))
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   const [кредитId, setКредитId] = useState(draft.debtId ?? кредиты[0]?.id ?? '')
   const кредитъ = кредиты.find((a) => a.id === кредитId)
   const [amountStr, setAmountStr] = useState(
     draft.amount ? formatAmountInput(String((draft.amount / 100).toFixed(2)).replace(/\.00$/, '').replace('.', ',')) : '',
   )
-  const [accountId, setAccountId] = useState(draft.accountId ?? data.accounts.find((a) => a.type === 'card')?.id ?? data.accounts[0]?.id ?? '')
+  const app = useApp()
+  const [accountId, setAccountId] = useState(draft.accountId ?? счётПоУмолчанию(data.accounts, data.transactions, app.entryAccount))
   const [toAccountId, setToAccountId] = useState(draft.toAccountId ?? data.accounts.find((a) => a.type === 'savings')?.id ?? '')
   const [categoryId, setCategoryId] = useState(draft.categoryId)
   const [date, setDate] = useState(draft.date ?? today())
@@ -111,10 +133,8 @@ export function TransactionModal({
     [cats, частота],
   )
   const shown = showAll ? cats : ходовые
-  const allTags = useMemo(
-    () => [...new Set(data.transactions.flatMap((t) => t.tags))].sort(),
-    [data.transactions],
-  )
+  // Частые теги первыми: подсказка показывает то, чем пользуются.
+  const allTags = useMemo(() => всеТеги(data).map((x) => x.тег), [data])
   const lastDate = useMemo(() => {
     const sorted = [...data.transactions].sort((a, b) => (a.date < b.date ? 1 : -1))
     return sorted.find((t) => t.date < today())?.date ?? addDays(today(), -2)
@@ -319,33 +339,29 @@ export function TransactionModal({
           </div>
           <div style={{ width: 190 }}>
             <Field label={kind === 'transfer' || платёж ? т('Со счёта') : т('Счёт')}>
-              <select value={accountId} onChange={(e) => setAccountId(e.target.value)}>
-                {data.accounts.filter((a) => !a.archived && !(платёж && a.type === 'credit')).map((a) => (
-                  <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
-                ))}
-              </select>
+              <SchetVybor
+                value={accountId}
+                onChange={setAccountId}
+                accounts={data.accounts.filter((a) => !a.archived && !(платёж && a.type === 'credit'))}
+              />
             </Field>
           </div>
           {платёж && (
             <div style={{ width: 190 }}>
               <Field label={т('Кредит')}>
-                <select value={кредитId} onChange={(e) => setКредитId(e.target.value)}>
-                  {кредиты.map((a) => (
-                    <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
-                  ))}
-                </select>
+                <SchetVybor value={кредитId} onChange={setКредитId} accounts={кредиты} />
               </Field>
             </div>
           )}
           {kind === 'transfer' && (
             <div style={{ width: 190 }}>
               <Field label={т('На счёт')}>
-                <select value={toAccountId} onChange={(e) => setToAccountId(e.target.value)}>
-                  <option value="">—</option>
-                  {data.accounts.filter((a) => !a.archived && a.id !== accountId).map((a) => (
-                    <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
-                  ))}
-                </select>
+                <SchetVybor
+                  value={toAccountId}
+                  onChange={setToAccountId}
+                  vse="—"
+                  accounts={data.accounts.filter((a) => !a.archived && a.id !== accountId)}
+                />
               </Field>
             </div>
           )}

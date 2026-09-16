@@ -19,6 +19,7 @@ import { Kredity } from '../components/Kredity'
 import { Proekty } from '../components/Proekty'
 import { личное } from '../engine/project'
 import { Ogonek } from '../components/Ogonek'
+import { KreditDashbord } from '../components/KreditDashbord'
 import type { Transaction } from '../lib/types'
 import { т, тр } from '../i18n'
 
@@ -39,6 +40,7 @@ export default function Dashboard() {
   const [side, setSide] = useState<'expense' | 'income'>('expense')
   const [period, setPeriod] = useState<Period>(() => makePeriod('month', today(), data.settings.firstDayOfWeek))
   const [accountId, setAccountId] = useState<string>('__all__')
+  const кредитъ = data.accounts.find((a) => a.id === accountId && a.type === 'credit' && a.credit)
   const [pickAccount, setPickAccount] = useState(false)
   const [activeCat, setActiveCat] = useState<string | undefined>()
   // Кусок под курсором показывается в середине сразу, не дожидаясь щелчка.
@@ -63,6 +65,12 @@ export default function Dashboard() {
     // Уборка за собой: закрытая вкладка не должна диктовать дату живым.
     return () => setEntryDate(tabId, null)
   }, [tabId, entry, setEntryDate])
+  // Выбранный в шапке счёт — и счёт новой записи.
+  const { setEntryAccount } = app
+  useEffect(() => {
+    setEntryAccount(tabId, accountId === '__all__' ? null : accountId)
+    return () => setEntryAccount(tabId, null)
+  }, [tabId, accountId, setEntryAccount])
 
   // Подстановка обязана быть видна до нажатия: молча ушедшая в пролистанный
   // месяц трата потом ищется в сегодняшнем дне и не находится.
@@ -232,6 +240,13 @@ export default function Dashboard() {
         <div className="hero-label">
           {тр('чистый капитал {0}{1}', hidden ? '••••' : money(bal.net), bal.liabilities < 0 && т(' · обязательства {0}', hidden ? '••••' : money(bal.liabilities)))}</div>
       </div>
+
+      {/* ------------------------------------------------ дашборд кредита */}
+      {кредитъ && (
+        <div style={{ marginBottom: 18 }}>
+          <KreditDashbord acc={кредитъ} />
+        </div>
+      )}
 
       {/* ------------------------------------------------ пустое хранилище */}
       {!data.accounts.length && (

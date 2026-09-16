@@ -1717,6 +1717,22 @@ kbd {
   margin: 0;
 }
 .ribbon-btn { position: relative; }
+/* Число ждущих ответа уведомлений на колокольчике. */
+.nav-badge {
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  background: var(--alert);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 700;
+  line-height: 16px;
+  text-align: center;
+}
 
 /* ------------------------------------------------------ проекты */
 /* Полоса освоения смѣты — та же шкала, что у лимита кредита, но своим цвѣтомъ:
@@ -1841,3 +1857,46 @@ input.invalid { border-color: var(--alert) !important; }
 [data-accent-text] .btn.primary,
 [data-accent-text] .datepop-day.sel,
 [data-accent-text] .qa-pin.on { color: var(--accent-text) !important; }
+
+/* ------------------------------------------------ выбор счёта со значком */
+/* Та же рамка, что у обычного поля, плюс полоска цвета счёта слева. */
+.schet-vybor {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 34px;
+  padding: 4px 10px 4px 8px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--schet);
+  border-radius: var(--radius);
+  text-align: left;
+  cursor: pointer;
+}
+.schet-vybor:focus-visible, .schet-vybor[aria-expanded='true'] { border-color: var(--accent); border-left-color: var(--schet); outline: none; }
+.schet-vybor-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.schet-pop {
+  position: fixed;
+  z-index: 1000;
+  max-height: 320px;
+  overflow-y: auto;
+  padding: 5px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--panel-blur);
+}
+.schet-opt {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--schet);
+  cursor: pointer;
+}
+.schet-opt.cur { background: var(--hover); }
+.schet-opt.sel { color: var(--text-strong); font-weight: 600; }

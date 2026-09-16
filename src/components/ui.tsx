@@ -598,7 +598,14 @@ export function TagInput({ tags, onChange, suggestions = [] }: { tags: string[];
     if (v && !tags.includes(v)) onChange([...tags, v])
     setDraft('')
   }
-  const hints = suggestions.filter((s) => !tags.includes(s) && (!draft || s.includes(draft.toLowerCase()))).slice(0, 6)
+  /*
+   * Подсказки. Пока ничего не набрано — первые из частых, чтобы не завалить
+   * окно; стоит начать набирать — все совпадения, без обрезки: иначе нужный
+   * тег просто не появлялся, если похожих было больше шести.
+   */
+  const needle = draft.trim().replace(/^#/, '').toLowerCase()
+  const совпали = suggestions.filter((s) => !tags.includes(s) && (!needle || s.toLowerCase().includes(needle)))
+  const hints = needle ? совпали : совпали.slice(0, 10)
 
   return (
     <div>
@@ -628,7 +635,16 @@ export function TagInput({ tags, onChange, suggestions = [] }: { tags: string[];
       {hints.length > 0 && (
         <div className="row wrap" style={{ gap: 5, marginTop: 6 }}>
           {hints.map((h) => (
-            <span key={h} className="chip" onClick={() => add(h)}>#{h}</span>
+            <span
+              key={h}
+              className="chip"
+              // Фокус остаётся в поле: иначе уход из поля успевал добавить
+              // недописанное («#пяте»), а подсказка пропадала раньше щелчка.
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => add(h)}
+            >
+              #{h}
+            </span>
           ))}
         </div>
       )}

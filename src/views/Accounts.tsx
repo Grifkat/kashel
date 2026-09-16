@@ -13,6 +13,7 @@ import { Spark } from '../components/charts'
 import { проектный } from '../engine/project'
 import type { Account, AccountType, VaultData } from '../lib/types'
 import { подсказкаОстатка } from '../engine/credit'
+import { SchetVybor } from '../components/SchetVybor'
 import { т, тр } from '../i18n'
 
 const TYPES: { k: AccountType; t: string; hint: string }[] = [
@@ -86,7 +87,10 @@ export default function Accounts() {
           <Spark values={spark.get(a.id) ?? []} color={a.color} width={100} height={32} />
         </div>
         <div className="row" style={{ marginTop: 8 }}>
-          <button className="btn sm ghost" onClick={() => app.openTab('transactions')}>{т('Операции')}</button>
+          <button className="btn sm ghost" onClick={() => app.openTab('transactions', 'acc:' + a.id, { title: a.name })}>{т('Операции')}</button>
+          {a.type === 'credit' && a.credit && (
+            <button className="btn sm" onClick={() => app.editTransaction({ debtId: a.id })}>{т('Внести платёж')}</button>
+          )}
           <span className="spacer" />
           <button className="btn sm danger" onClick={() => setDel(a)}>
             <Icon name="trash" size={13} />
@@ -249,6 +253,27 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
               <input type="number" min={1} max={31} value={a.credit.paymentDay} onChange={(e) => patch({ credit: { ...a.credit!, paymentDay: Number(e.target.value) } })} />
             </Field>
           </div>
+          <div style={{ margin: '4px 0 6px' }}>
+            <Toggle
+              checked={!!a.credit.remind}
+              onChange={(v) => patch({
+                credit: { ...a.credit!, remind: v || undefined, remindFrom: v ? a.credit!.remindFrom ?? today() : undefined },
+              })}
+              label={т('Напоминать в день платежа')}
+            />
+          </div>
+          <div className="faint small" style={{ marginBottom: 12, lineHeight: 1.5 }}>
+            {т('В день платежа придёт уведомление (колокольчик слева): ответьте, прошёл ли платёж, — и он запишется сам.')}</div>
+          {a.credit.remind && (
+            <Field label={т('Платить с')}>
+              <SchetVybor
+                value={a.credit.payFrom ?? ''}
+                onChange={(id) => patch({ credit: { ...a.credit!, payFrom: id || undefined } })}
+                vse={т('Спросить в уведомлении')}
+                accounts={data.accounts.filter((x) => !x.archived && x.type !== 'credit' && x.type !== 'debt')}
+              />
+            </Field>
+          )}
           </>
         )}
 

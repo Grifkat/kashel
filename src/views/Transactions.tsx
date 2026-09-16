@@ -1,8 +1,11 @@
-import React, { useMemo, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { DateField } from '../components/DateField'
 import { сЗначкомъ } from '../lib/catalog'
 import { Amount, useAnimatedList } from '../components/anim'
-import { useApp } from '../App'
+import { useApp, useTabId } from '../App'
+import { SchetVybor } from '../components/SchetVybor'
+import { TegiOkno } from '../components/TegiOkno'
+import { всеТеги } from '../engine/tegi'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, plural, toMinor } from '../lib/format'
@@ -21,10 +24,20 @@ export default function Transactions({ filter }: { filter?: string }) {
   const initialCat = filter?.startsWith('cat:') ? filter.slice(4) : ''
   // Календарь открывает конкретный день — период сразу сжимается до него.
   const initialDay = filter?.startsWith('day:') ? filter.slice(4) : ''
+  // Кнопка «Операции» на карточке счёта открывает раздел уже со своим счётом.
+  const initialAcc = filter?.startsWith('acc:') ? filter.slice(4) : ''
   const [q, setQ] = useState('')
   const [kind, setKind] = useState<'all' | 'expense' | 'income' | 'transfer'>('all')
   const [catId, setCatId] = useState(initialCat)
-  const [accId, setAccId] = useState('')
+  const [accId, setAccId] = useState(initialAcc)
+  const [теги, setТеги] = useState(false)
+  // Выбранный счёт — и счёт новой записи из этой вкладки.
+  const tabId = useTabId()
+  const { setEntryAccount } = app
+  useEffect(() => {
+    setEntryAccount(tabId, accId || null)
+    return () => setEntryAccount(tabId, null)
+  }, [tabId, accId, setEntryAccount])
   const [tag, setTag] = useState('')
   const [from, setFrom] = useState(initialDay || addMonths(today(), -3))
   const [to, setTo] = useState(initialDay || today())
@@ -37,7 +50,7 @@ export default function Transactions({ filter }: { filter?: string }) {
 
   const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories])
   const accById = useMemo(() => new Map(data.accounts.map((a) => [a.id, a])), [data.accounts])
-  const allTags = useMemo(() => [...new Set(data.transactions.flatMap((t) => t.tags))].sort(), [data.transactions])
+  const allTags = useMemo(() => всеТеги(data).map((x) => x.тег), [data])
 
   const rows = useMemo(() => {
     const needle = q.trim().toLowerCase()
@@ -46,7 +59,8 @@ export default function Transactions({ filter }: { filter?: string }) {
         if (t.date < from || t.date > to) return false
         if (kind !== 'all' && t.kind !== kind) return false
         if (catId && t.categoryId !== catId && !t.splits?.some((s) => s.categoryId === catId)) return false
-        if (accId && t.accountId !== accId && t.toAccountId !== accId) return false
+        // Платёж по кредиту списан с карты, но относится и к самому кредиту.
+        if (accId && t.accountId !== accId && t.toAccountId !== accId && t.debtId !== accId) return false
         if (tag && !t.tags.includes(tag)) return false
         if (onlyUncat && (t.categoryId || t.splits?.length || t.kind === 'transfer')) return false
         if (needle) {
@@ -146,7 +160,7 @@ export default function Transactions({ filter }: { filter?: string }) {
           )}
           <button className="btn" onClick={exportCsv}>
             <Icon name="upload" size={15} /> {т(' Экспорт CSV')}</button>
-          <button className="btn primary" onClick={() => app.editTransaction({})}>
+          <button className="btn primary" onClick={() => app.editTransaction(accId ? { accountId: accId } : {})}>
             <Icon name="plus" size={15} /> {т(' Добавить')}</button>
         </div>
       </div>
@@ -176,12 +190,13 @@ export default function Transactions({ filter }: { filter?: string }) {
               <option key={c.id} value={c.id}>{сЗначкомъ(c.icon, c.name)}</option>
             ))}
           </select>
-          <select value={accId} onChange={(e) => setAccId(e.target.value)} style={{ width: 150 }}>
-            <option value="">{т('Все счета')}</option>
-            {data.accounts.filter((a) => !a.archived).map((a) => (
-              <option key={a.id} value={a.id}>{сЗначкомъ(a.icon, a.name)}</option>
-            ))}
-          </select>
+          <SchetVybor
+            value={accId}
+            onChange={setAccId}
+            vse={т('Все счета')}
+            accounts={data.accounts.filter((a) => !a.archived)}
+            style={{ width: 190 }}
+          />
           <DateField allowEmpty value={from} onChange={setFrom} style={{ width: 145 }} placeholder={т('с какого')} />
           <DateField allowEmpty value={to} onChange={setTo} style={{ width: 145 }} placeholder={т('по какое')} />
           <button className={'chip' + (onlyUncat ? ' on' : '')} onClick={() => setOnlyUncat((v) => !v)}>
@@ -207,8 +222,11 @@ export default function Transactions({ filter }: { filter?: string }) {
                 #{t}
               </span>
             ))}
+            <button className="btn sm ghost" onClick={() => setТеги(true)} title={т('Переименовать или удалить теги')}>
+              <Icon name="edit" size={13} /> {т(' Править теги')}</button>
           </div>
         )}
+        {теги && <TegiOkno onClose={() => setТеги(false)} />}
       </div>
 
       {rows.length > 0 && (

@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { useApp } from '../App'
 import { Avatar, GroupedInput, Modal, useToast } from './ui'
 import { describeDraft, parseQuick } from '../engine/parse'
+import { счётПоУмолчанию } from '../engine/stats'
 import { addMonths, relDate, today } from '../lib/date'
 import { groupDigits, money } from '../lib/format'
 import { Icon } from '../lib/icons'
@@ -34,7 +35,8 @@ export function QuickAdd({
   const [pickedCat, setPickedCat] = useState<string | undefined>()
   const [allCats, setAllCats] = useState(false)
 
-  const defaultAccount = data.accounts.find((a) => a.type === 'card') ?? data.accounts[0]
+  const entryAccount = app.entryAccount
+  const defaultAccount = data.accounts.find((a) => a.id === счётПоУмолчанию(data.accounts, data.transactions, entryAccount))
   const draft = useMemo(
     () =>
       parseQuick(text, data.categories, data.accounts, {

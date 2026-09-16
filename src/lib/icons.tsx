@@ -91,6 +91,12 @@ const P: Record<string, React.ReactNode> = {
   download: <path d="M12 3.5v12M7.5 11l4.5 4.5 4.5-4.5M4 20.5h16" />,
   upload: <path d="M12 16V4M7.5 8.5 12 4l4.5 4.5M4 20.5h16" />,
   warn: <path d="M12 3.5 22 20H2zM12 10v4.5M12 17.5h.01" />,
+  bell: (
+    <>
+      <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z" />
+      <path d="M10 20.5a2.2 2.2 0 0 0 4 0" />
+    </>
+  ),
   bulb: (
     <>
       <path d="M12 3a6 6 0 0 0-3.5 10.9V16h7v-2.1A6 6 0 0 0 12 3z" />

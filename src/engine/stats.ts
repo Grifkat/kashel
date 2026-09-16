@@ -469,3 +469,24 @@ export function buildCategoryMap(categories: Category[]): Map<string, Category> 
 export const UNCATEGORIZED: Category = {
   id: '__none__', name: т('Без категории'), kind: 'expense', icon: '❓', color: '#7c8794',
 }
+
+/**
+ * Счёт, который подставляется в новую запись.
+ *
+ * Первым — счёт, открытый в разделе (фильтр «Операций», выбранный на
+ * дашборде): человек смотрит на него и пишет про него. Иначе — счёт последней
+ * записанной операции: карта, которой пользуются, обычно та же. И только
+ * если записей нет — первая карта. Раньше всегда стояла первая карта, и её
+ * приходилось перещёлкивать каждый раз.
+ */
+export function счётПоУмолчанию(accounts: Account[], txs: Transaction[], открытый?: string | null): string {
+  const живые = accounts.filter((a) => !a.archived)
+  if (открытый && живые.some((a) => a.id === открытый)) return открытый
+  let последняя: Transaction | undefined
+  for (const t of txs) {
+    if (!живые.some((a) => a.id === t.accountId)) continue
+    if (!последняя || t.createdAt > последняя.createdAt) последняя = t
+  }
+  if (последняя) return последняя.accountId
+  return (живые.find((a) => a.type === 'card') ?? живые[0])?.id ?? ''
+}

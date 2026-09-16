@@ -96,6 +96,15 @@ export interface Account {
      * при открытии хранилища (engine/credit, перевестиКредиты).
      */
     v?: 2
+    /**
+     * Напоминать в день платежа: программа заводит уведомление и спрашивает,
+     * прошёл ли платёж. Подтверждение записывает платёж по правилам кредита.
+     */
+    remind?: boolean
+    /** С какого дня напоминать — со дня, когда галочку поставили, а не с начала кредита. */
+    remindFrom?: string
+    /** С какого счёта обычно платите — подставляется в уведомление. */
+    payFrom?: string
   }
   // Долг человеку или человека мне
   debt?: {
@@ -491,4 +500,26 @@ export interface VaultData {
   scenarios: Scenario[]
   importRules: ImportRule[]
   settings: Settings
+  /** Хранилище уведомлений: ждущие ответа и история. Нет — значит пока не было ни одного. */
+  notifications?: Notice[]
+}
+
+/**
+ * Уведомление, на которое человек отвечает.
+ *
+ * Сейчас одно — «сегодня платёж по кредиту: прошёл?». Ответ остаётся в
+ * истории: видно, когда и что подтвердили, и какие операции записались.
+ */
+export interface Notice {
+  id: string
+  kind: 'credit_payment'
+  accountId: string
+  /** День платежа по графику. */
+  dueDate: string
+  amount: Money
+  createdAt: string
+  status: 'pending' | 'paid' | 'skipped'
+  resolvedAt?: string
+  /** Операции, записанные при подтверждении. */
+  txIds?: string[]
 }

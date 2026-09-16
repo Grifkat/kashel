@@ -6,6 +6,7 @@ import { Icon } from '../lib/icons'
 import { money, months as monthsWord, pct, plural, toMinor } from '../lib/format'
 import { addMonths, diffDays, humanDate, today } from '../lib/date'
 import { accountBalance, creditRemaining } from '../engine/stats'
+import { KreditDashbord } from '../components/KreditDashbord'
 import { LineChart } from '../components/charts'
 import { Avatar } from '../components/ui'
 import type { Account, Money } from '../lib/types'
@@ -82,7 +83,6 @@ export default function Debts() {
         const fastPlan = schedule(left, cr.ratePct, cr.monthlyPayment, extra)
         const baseInterest = basePlan.reduce((s, r) => s + r.interest, 0)
         const fastInterest = fastPlan.reduce((s, r) => s + r.interest, 0)
-        const paid = cr.principal - left
         const worthIt = cr.ratePct > depositRate
 
         return (
@@ -94,22 +94,12 @@ export default function Debts() {
                 <div className="faint small">
                   {тр('{0} годовых · платёж {1} до {2} числа', pct(cr.ratePct, 1), money(cr.monthlyPayment), cr.paymentDay)}</div>
               </div>
-              <div className="stat" style={{ alignItems: 'flex-end' }}>
-                <span className="l">{т('Осталось')}</span>
-                <span className="v neg">{money(left)}</span>
-              </div>
             </div>
 
-            <div className="bar-track" style={{ height: 8, marginTop: 14 }}>
-              <div
-                className="bar-fill"
-                style={{ width: `${cr.principal ? (paid / cr.principal) * 100 : 0}%`, background: 'var(--good)' }}
-              />
-            </div>
-            <div className="row small faint" style={{ marginTop: 5 }}>
-              <span>{тр('выплачено {0}', money(paid))}</span>
-              <span className="spacer" />
-              <span>{тр('тело кредита {0}', money(cr.principal))}</span>
+            {/* Сколько осталось, погашение полосой, следующий платёж и кнопка
+                платежа — та же панель, что на главной при выборе кредита. */}
+            <div style={{ marginTop: 14 }}>
+              <KreditDashbord acc={a} compact />
             </div>
 
             <div className="grid c2" style={{ marginTop: 18 }}>

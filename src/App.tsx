@@ -15,6 +15,7 @@ import { ThemePicker } from './components/ThemePicker'
 import { ArchiveProvider } from './components/ArchiveHost'
 import { ReminderHost } from './components/ReminderHost'
 import { HonorsHost } from './components/HonorsHost'
+import { UvedomleniyaHost, UvedomleniyaKnopka } from './components/Uvedomleniya'
 import { PomodoroProvider, clock, usePomodoro } from './components/PomodoroHost'
 import { Boundary } from './components/Boundary'
 import { VaultFailureScreen } from './components/VaultFailure'
@@ -110,6 +111,9 @@ interface AppApi {
    */
   entryDate: string | null
   setEntryDate(tabId: string, date: string | null): void
+  /** Счёт, открытый во вкладке (фильтр операций, счёт на дашборде), — для новой записи. */
+  entryAccount: string | null
+  setEntryAccount(tabId: string, id: string | null): void
   openSearch(q?: string): void
   rightOpen: boolean
   toggleRight(): void
@@ -159,6 +163,7 @@ export default function App() {
   // смотрят на разные месяцы, и запись должна идти по той вкладке, на
   // которую человек сейчас смотрит, а не по той, что открылась позже.
   const [entryDates, setEntryDates] = useState<Record<string, string>>({})
+  const [entryAccounts, setEntryAccounts] = useState<Record<string, string>>({})
   const [searchOpen, setSearchOpen] = useState<string | null>(null)
   const [editing, setEditing] = useState<Transaction | Partial<Transaction> | null>(null)
   const [rightOpen, setRightOpen] = useState(true)
@@ -317,6 +322,17 @@ export default function App() {
     })
   }, [])
 
+  const setEntryAccount = useCallback<AppApi['setEntryAccount']>((tabId, id) => {
+    setEntryAccounts((m) => {
+      if ((m[tabId] ?? null) === id) return m
+      const next = { ...m }
+      if (id) next[tabId] = id
+      else delete next[tabId]
+      return next
+    })
+  }, [])
+  const entryAccount = activeTab ? entryAccounts[activeTab.id] ?? null : null
+
   // Сегодняшний день наружу не отдаём: он и так стоит по умолчанию, а так
   // непустое значение здесь означает ровно одно — дата будет не сегодняшняя.
   const entryDate = useMemo(() => {
@@ -337,13 +353,15 @@ export default function App() {
       openQuickAdd,
       entryDate,
       setEntryDate,
+      entryAccount,
+      setEntryAccount,
       openSearch: (q?: string) => setSearchOpen(q ?? ''),
       rightOpen,
       toggleRight: () => setRightOpen((v) => !v),
       sidebarOpen,
       toggleSidebar: () => setSidebarOpen((v) => !v),
     }),
-    [openTab, closeTab, activeTab, panes, focusPane, splitPane, resetWorkspace, rightOpen, sidebarOpen, openQuickAdd, entryDate, setEntryDate],
+    [openTab, closeTab, activeTab, panes, focusPane, splitPane, resetWorkspace, rightOpen, sidebarOpen, openQuickAdd, entryDate, setEntryDate, entryAccount, setEntryAccount],
   )
 
   // ------------------------------------------------------------ клавиатура
@@ -406,6 +424,7 @@ export default function App() {
       <PomodoroProvider>
       <ReminderHost />
       <HonorsHost />
+      <UvedomleniyaHost />
       <div className="app">
         <Ribbon onTheme={() => setThemeOpen(true)} />
         <Sidebar />
@@ -573,6 +592,7 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
         </button>
       ))}
       <div className="ribbon-spacer" />
+      <UvedomleniyaKnopka className="ribbon-btn" />
       <button
         className="ribbon-btn"
         title={т('Оформление: {0}. Клик — галерея, средняя кнопка — светлая/тёмная', store.data.settings.customThemes?.find((тм) => тм.id === store.data.settings.customTheme)?.name ??
