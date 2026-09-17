@@ -400,12 +400,17 @@ function normTask(v: unknown, drop: Drop): Task | null {
     ...(r.matrix && [1, 2, 3, 4].includes(asRaw(r.matrix).q as number)
       ? { matrix: { q: asRaw(r.matrix).q as 1 | 2 | 3 | 4, due: str(asRaw(r.matrix).due), p: Math.round(num(asRaw(r.matrix).p)) } }
       : {}),
-    ...(amount
+    ...(r.moneyKind === 'time'
       ? {
-          amount,
-          moneyKind: r.moneyKind === 'income' ? ('income' as const) : ('expense' as const),
+          moneyKind: 'time' as const,
+          ...(num(r.minutes) > 0 ? { minutes: Math.round(num(r.minutes)) } : {}),
         }
-      : {}),
+      : amount
+        ? {
+            amount,
+            moneyKind: r.moneyKind === 'income' ? ('income' as const) : ('expense' as const),
+          }
+        : {}),
     ...(r.categoryId == null ? {} : { categoryId: str(r.categoryId) }),
     ...(r.accountId == null ? {} : { accountId: str(r.accountId) }),
     ...(r.listId == null ? {} : { listId: str(r.listId) }),

@@ -4,7 +4,7 @@ import { accountBalance, balances, categoryTotals, creditRemaining } from '../..
 import { renderMarkdown } from '../../lib/markdown'
 import { CatalogGlyph, Icon } from '../../lib/icons'
 import { humanDate } from '../../lib/date'
-import { PRIORITIES, isOverdue, priorityOf } from '../../engine/tasks'
+import { PRIORITIES, isOverdue, priorityOf, времяЗадачи, форматВремени } from '../../engine/tasks'
 import { isCatalogIcon } from '../../lib/catalog'
 import { этоСвойЗначокъ, useСвойЗначокъ } from '../../lib/svoiznachki'
 import { QueryBlock } from '../QueryBlock'
@@ -398,10 +398,11 @@ export function NodeBody({
           <span className={просрочена ? 'neg' : ''}>
             {t.due ? т('срок {0}', humanDate(t.due, true)) : т('без срока')}</span>
           {важность > 0 && <span>{т(' · важность: {0}', PRIORITIES[важность].t.toLowerCase())}</span>}
-          {!!t.amount && (
+          {!!t.amount && t.moneyKind !== 'time' && (
             <span className={t.moneyKind === 'income' ? 'pos' : ''}>
               {' · '}{t.moneyKind === 'income' ? '+' : '−'}{money(t.amount)}</span>
           )}
+          {времяЗадачи(t) > 0 && <span>{' · ⏱ '}{форматВремени(времяЗадачи(t))}</span>}
         </div>
         {t.note && <div className="cnode-task-note faint small">{t.note}</div>}
       </div>

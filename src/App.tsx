@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { буква } from './lib/klavishi'
 import { ClickSparkLayer, ShinyText, useПодсвѣткаЗаКурсоромъ } from './components/effects'
 import { useAnimLevel } from './components/anim'
 import { MotionConfig, motion } from 'motion/react'
@@ -380,29 +381,29 @@ export default function App() {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
       const inField = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)
-      if (mod && e.key.toLowerCase() === 'p' && !e.shiftKey) {
+      if (mod && буква(e) === 'p' && !e.shiftKey) {
         e.preventDefault()
         setPaletteOpen(true)
-      } else if (mod && e.key.toLowerCase() === 'n') {
+      } else if (mod && буква(e) === 'n') {
         e.preventDefault()
         openQuickAdd()
-      } else if (mod && e.shiftKey && e.key.toLowerCase() === 'f') {
+      } else if (mod && e.shiftKey && буква(e) === 'f') {
         e.preventDefault()
         setSearchOpen('')
-      } else if (mod && e.key.toLowerCase() === 's') {
+      } else if (mod && буква(e) === 's') {
         e.preventDefault()
         void store.saveNow().catch(() => {})
-      } else if (mod && e.key.toLowerCase() === 'w') {
+      } else if (mod && буква(e) === 'w') {
         e.preventDefault()
         const p = panes[focusPane]
         if (p) closeTab(focusPane, p.active)
       } else if (mod && e.key === '\\') {
         e.preventDefault()
         splitPane()
-      } else if (mod && e.key.toLowerCase() === 'b' && !inField) {
+      } else if (mod && буква(e) === 'b' && !inField) {
         e.preventDefault()
         setSidebarOpen((v) => !v)
-      } else if (mod && e.key.toLowerCase() === 'i' && !inField) {
+      } else if (mod && буква(e) === 'i' && !inField) {
         e.preventDefault()
         setRightOpen((v) => !v)
       }

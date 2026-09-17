@@ -69,7 +69,23 @@
   stroke-width: 2;
   cursor: grab;
   pointer-events: all;
+  /* Концы связи видны при наведении на связь и у выделенной — за них её перецепляют. */
+  opacity: 0;
+  transition: opacity .12s ease;
 }
+.cv-edge:hover .cv-end,
+.cv-end.on,
+.cv-end:hover { opacity: 1; }
+
+/* Карточку тащат над связью — связь подсвечена: отпустите, и карточка встанет в разрыв. */
+.cv-edge.insert path:not(.cv-hit) {
+  stroke: var(--accent);
+  stroke-width: 5;
+  stroke-dasharray: 10 6;
+  opacity: 1;
+}
+/* Связь, чей конец сейчас тянут, — бледная: вместо неё рисуется пунктир. */
+.cv-edge.moving path:not(.cv-hit) { opacity: 0.2; }
 
 .cv-guide {
   stroke: var(--accent);

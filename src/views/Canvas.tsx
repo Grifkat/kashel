@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { буква } from '../lib/klavishi'
 import { useУдаление } from '../components/Udalenie'
 import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
@@ -9,6 +10,7 @@ import { addMonths, today } from '../lib/date'
 import { CANVAS_COLORS, DEFAULT_QUICK_COLORS, colorName } from '../lib/emoji'
 import { deleteCanvas, listCanvases, listNotes, readCanvas, readNote, renameCanvas, writeCanvas } from '../state/vault'
 import { TaskModal, пустая as пустаяЗадача } from './Tasks'
+import { криваяСвязи, связьПодКарточкой, встроитьВСвязь } from '../components/canvas/vstavka'
 import { sortTasks } from '../engine/tasks'
 import { safeFileName } from '../engine/archive'
 import type { EdgeShape, Task } from '../lib/types'
@@ -18,7 +20,7 @@ import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData } 
 import { ColorPalette } from '../components/canvas/ColorPalette'
 import { FIT_MODES, TextToolbar, wrapSelection } from '../components/canvas/TextToolbar'
 import {
-  anchor, bestSides, boundsOf, curveOf, inRect, lineOf, midpoint, pathOf, rectFrom, rectsOverlap,
+  anchor, bestSides, boundsOf, curveOf, inRect, lineOf, midpoint, pathOf, pointAt, rectFrom, rectsOverlap,
   sideTowards, snapToNeighbours, SIDES, type Guide, type Point, type Rect,
 } from '../components/canvas/geometry'
 import type {
@@ -93,6 +95,15 @@ const DEFAULT_SIZE: Record<CanvasNodeKind, { w: number; h: number }> = {
 let clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[] } | null = null
 
 type DragMode = 'pan' | 'marquee' | 'node' | 'resize' | 'edge' | 'edge-end'
+
+/** С чем связать новую карточку: новая связь от узла или перенос конца готовой. */
+interface СвязатьС {
+  id: string
+  side: Side
+  /** Готовая связь, чей конец переезжает на новую карточку. */
+  edge?: string
+  end?: 'from' | 'to'
+}
 
 interface DragState {
   mode: DragMode
@@ -178,6 +189,10 @@ export default function CanvasView({ name }: { name?: string }) {
   const [новоеИмя, setНовоеИмя] = useState<string | null>(null)
   /** Открытое окно задачи. */
   const [задача, setЗадача] = useState<Task | null>(null)
+  /** Связь, в которую встанет перетаскиваемая карточка, если её отпустить. */
+  const [вставкаВ, setВставкаВ] = useState<string | null>(null)
+  /** Связь, конец которой сейчас тащат, — рисуется бледной. */
+  const [тащимКонец, setТащимКонец] = useState<string | null>(null)
   const [palette, setPalette] = useState<Set<string> | null>(null)
   const areaRef = useRef<HTMLTextAreaElement>(null)
 
@@ -389,10 +404,21 @@ export default function CanvasView({ name }: { name?: string }) {
   )
 
   const insertNode = useCallback(
-    (type: CanvasNodeKind, at: Point, extra?: Partial<CanvasNode>, connectFrom?: { id: string; side: Side }) => {
+    (type: CanvasNodeKind, at: Point, extra?: Partial<CanvasNode>, connectFrom?: СвязатьС) => {
       const node = addNode(type, at, extra)
-      const edges = [...docRef.current.edges]
-      if (connectFrom) {
+      let edges = [...docRef.current.edges]
+      if (connectFrom?.edge) {
+        // Конец готовой связи отпустили на пустом месте — связь переезжает на новую карточку.
+        const e = edges.find((x) => x.id === connectFrom.edge)
+        const other = e && nodeById.get(connectFrom.end === 'from' ? e.toNode : e.fromNode)
+        if (e && other) {
+          const [кНовой] = bestSides(node, other)
+          edges = edges.map((x) =>
+            x.id !== e.id ? x
+              : connectFrom.end === 'from' ? { ...x, fromNode: node.id, fromSide: кНовой }
+                : { ...x, toNode: node.id, toSide: кНовой })
+        }
+      } else if (connectFrom) {
         const src = nodeById.get(connectFrom.id)
         if (src) {
           const [fs, ts] = bestSides(src, node)
@@ -468,13 +494,29 @@ export default function CanvasView({ name }: { name?: string }) {
     toast(т('Скопировано узлов: {0}', nodes.length))
   }, [sel, toast])
 
-  const paste = useCallback(() => {
+  /**
+   * Вставка. С клавиатуры — в середину видимой части доски, из меню — туда,
+   * где щёлкнули. Раньше копия вставала рядом с оригиналом, и если доску
+   * успели прокрутить, вставленное оказывалось за краем экрана.
+   */
+  const paste = useCallback((at?: Point) => {
     if (!clipboard?.nodes.length) return
+    const r = wrapRef.current?.getBoundingClientRect()
+    const цель = at ?? (r ? toWorld(r.left + r.width / 2, r.top + r.height / 2) : { x: 0, y: 0 })
+    const рамка = boundsOf(clipboard.nodes)!
+    let dx = Math.round(цель.x - (рамка.x + рамка.width / 2))
+    let dy = Math.round(цель.y - (рамка.y + рамка.height / 2))
+    // Вставляют дважды в одно место — следующая копия чуть сдвинута, а не прямо поверх.
+    const первый = clipboard.nodes[0]
+    while (docRef.current.nodes.some((n) => n.x === первый.x + dx && n.y === первый.y + dy)) {
+      dx += 24
+      dy += 24
+    }
     const map = new Map<string, string>()
     const nodes = clipboard.nodes.map((n) => {
       const id = uid('n')
       map.set(n.id, id)
-      return { ...n, id, x: n.x + 24, y: n.y + 24 }
+      return { ...n, id, x: n.x + dx, y: n.y + dy }
     })
     const edges = clipboard.edges.map((e) => ({
       ...e,
@@ -489,7 +531,7 @@ export default function CanvasView({ name }: { name?: string }) {
     })
     setSel(new Set(nodes.map((n) => n.id)))
     toast(т('Вставлено узлов: {0}', nodes.length))
-  }, [commit, toast])
+  }, [commit, toast, toWorld])
 
   const duplicate = useCallback(
     (id: string) => {
@@ -545,7 +587,7 @@ export default function CanvasView({ name }: { name?: string }) {
 
   // ------------------------------------------------------------- меню
   const nodeMenuItems = useCallback(
-    (at: Point, connectFrom?: { id: string; side: Side }): MenuItem[] => [
+    (at: Point, connectFrom?: СвязатьС): MenuItem[] => [
       {
         id: 'text',
         label: т('Текстовая карточка'),
@@ -654,7 +696,7 @@ export default function CanvasView({ name }: { name?: string }) {
       y: clientY,
       items: [
         { id: 'add', label: т('Добавить'), icon: 'plus', children: nodeMenuItems(at) },
-        { id: 'paste', label: т('Вставить'), icon: 'copy', hint: 'Ctrl+V', disabled: !clipboard?.nodes.length, onClick: paste },
+        { id: 'paste', label: т('Вставить'), icon: 'copy', hint: 'Ctrl+V', disabled: !clipboard?.nodes.length, onClick: () => paste(at) },
         { id: 'all', label: т('Выделить всё'), icon: 'check', hint: 'Ctrl+A', onClick: () => setSel(new Set(doc.nodes.map((n) => n.id))) },
         { id: 'fit', label: т('Вписать всё'), icon: 'fit', onClick: () => zoomToFit() },
       ],
@@ -960,6 +1002,11 @@ export default function CanvasView({ name }: { name?: string }) {
       if (d.mode === 'node' || d.mode === 'resize') {
         const next = dragResult(d, e.clientX, e.clientY, true)
         if (next) touch(next)
+        // Одна карточка без своих связей над линией — подсвечиваем, куда встанет. Alt — не встраивать.
+        if (d.mode === 'node' && d.id && d.start?.size === 1) {
+          const под = next && !e.altKey ? связьПодКарточкой(next, d.id) : null
+          setВставкаВ((было) => (было === под ? было : под))
+        }
         return
       }
       if (d.mode === 'edge' && d.id) {
@@ -994,8 +1041,17 @@ export default function CanvasView({ name }: { name?: string }) {
         return
       }
 
+      setВставкаВ(null)
+      setТащимКонец(null)
       if ((d.mode === 'node' || d.mode === 'resize') && d.moved && d.before) {
-        const final = dragResult(d, e.clientX, e.clientY) ?? docRef.current
+        let final = dragResult(d, e.clientX, e.clientY) ?? docRef.current
+        if (d.mode === 'node' && d.id && d.start?.size === 1 && !e.altKey) {
+          const под = связьПодКарточкой(final, d.id)
+          if (под) {
+            final = встроитьВСвязь(final, под, d.id, () => uid('e'))
+            toast(т('Карточка встроена в связь'))
+          }
+        }
         setDoc(final)
         setPast((p) => [...p, d.before!].slice(-HISTORY_LIMIT))
         setFuture([])
@@ -1038,14 +1094,29 @@ export default function CanvasView({ name }: { name?: string }) {
 
       if (d.mode === 'edge-end' && d.id) {
         setGhost(null)
+        if (!d.moved) return
         const w = toWorld(e.clientX, e.clientY)
+        const edge = docRef.current.edges.find((x) => x.id === d.id)
+        if (!edge) return
+        const другой = d.end === 'from' ? edge.toNode : edge.fromNode
         const target = docRef.current.nodes.find((n) => inRect(n, w))
         if (target) {
+          // На свою же вторую карточку связь не замыкаем.
+          if (target.id === другой) return
           const patch: Partial<CanvasEdge> =
             d.end === 'from'
               ? { fromNode: target.id, fromSide: sideTowards(target, w) }
               : { toNode: target.id, toSide: sideTowards(target, w) }
           patchEdge(d.id, patch)
+        } else {
+          // Пустое место — создать там карточку и перецепить связь на неё. Закрыли меню — всё как было.
+          const сторона = d.end === 'from' ? edge.toSide : edge.fromSide
+          setMenu({
+            x: e.clientX,
+            y: e.clientY,
+            title: т('Что здесь создать?'),
+            items: nodeMenuItems(w, { id: другой, side: сторона, edge: edge.id, end: d.end }),
+          })
         }
       }
     }
@@ -1056,7 +1127,7 @@ export default function CanvasView({ name }: { name?: string }) {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', up)
     }
-  }, [toWorld, commit, patchEdge, persist, current, nodeMenuItems, touch, dragResult])
+  }, [toWorld, commit, patchEdge, persist, current, nodeMenuItems, touch, dragResult, toast])
 
   // ------------------------------------------------------------ клавиши
   useEffect(() => {
@@ -1070,7 +1141,7 @@ export default function CanvasView({ name }: { name?: string }) {
         const el = areaRef.current
         const mod2 = e.ctrlKey || e.metaKey
         if (!el || e.target !== el || !mod2 || !editing) return
-        const wrap = { b: ['**', '**'], i: ['*', '*'], u: ['<u>', '</u>'] }[e.key.toLowerCase()]
+        const wrap = { b: ['**', '**'], i: ['*', '*'], u: ['<u>', '</u>'] }[буква(e)]
         if (!wrap) return
         e.preventDefault()
         patchNode(editing, { text: wrapSelection(el, wrap[0], wrap[1]) }, false)
@@ -1078,22 +1149,22 @@ export default function CanvasView({ name }: { name?: string }) {
       }
       const mod = e.ctrlKey || e.metaKey
 
-      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+      if (mod && буква(e) === 'z' && !e.shiftKey) {
         e.preventDefault()
         undo()
-      } else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+      } else if (mod && (буква(e) === 'y' || (буква(e) === 'z' && e.shiftKey))) {
         e.preventDefault()
         redo()
-      } else if (mod && e.key.toLowerCase() === 'c') {
+      } else if (mod && буква(e) === 'c') {
         e.preventDefault()
         copySelection()
-      } else if (mod && e.key.toLowerCase() === 'v') {
+      } else if (mod && буква(e) === 'v') {
         e.preventDefault()
         paste()
-      } else if (mod && e.key.toLowerCase() === 'd') {
+      } else if (mod && буква(e) === 'd') {
         e.preventDefault()
         if (sel.size === 1) duplicate([...sel][0])
-      } else if (mod && e.key.toLowerCase() === 'a') {
+      } else if (mod && буква(e) === 'a') {
         e.preventDefault()
         setSel(new Set(docRef.current.nodes.map((n) => n.id)))
       } else if (mod && (e.key === '=' || e.key === '+')) {
@@ -1143,10 +1214,7 @@ export default function CanvasView({ name }: { name?: string }) {
     const a = nodeById.get(e.fromNode)
     const b = nodeById.get(e.toNode)
     if (!a || !b) return null
-    const shape: EdgeShape = e.shape ?? doc.edgeShape ?? 'curve'
-    return shape === 'line'
-      ? lineOf(anchor(a, e.fromSide), anchor(b, e.toSide))
-      : curveOf(anchor(a, e.fromSide), e.fromSide, anchor(b, e.toSide), e.toSide)
+    return криваяСвязи(doc, e)
   }
 
   if (!current) {
@@ -1213,7 +1281,10 @@ export default function CanvasView({ name }: { name?: string }) {
             const arrow = e.arrow ?? 'end'
             const from = nodeById.get(e.fromNode)
             return (
-              <g key={e.id} className={'cv-edge' + (on ? ' on' : '')}>
+              <g
+                key={e.id}
+                className={'cv-edge' + (on ? ' on' : '') + (вставкаВ === e.id ? ' insert' : '') + (тащимКонец === e.id ? ' moving' : '')}
+              >
                 {/* Широкая прозрачная дорожка — попасть мышью по кривой иначе тяжело. */}
                 <path
                   d={pathOf(c)}
@@ -1252,20 +1323,35 @@ export default function CanvasView({ name }: { name?: string }) {
                     {e.flow && amount > 0 ? moneyShort(amount) : ''}
                   </text>
                 )}
-                {on && (
-                  <>
-                    <circle className="cv-end" cx={c.p0.x} cy={c.p0.y} r={6 / view.k}
+                {/* Концы связи: видны у выделенной и при наведении — потяните, чтобы перецепить. */}
+                {(['from', 'to'] as const).map((конец) => {
+                  // Кружок чуть отступает от карточки по самой линии: на краю карточки
+                  // сидит её ручка новой связи, и попасть в конец там было нельзя.
+                  const длина = Math.hypot(c.p3.x - c.p0.x, c.p3.y - c.p0.y) || 1
+                  const доля = Math.min(0.3, 22 / длина)
+                  const p = pointAt(c, конец === 'from' ? доля : 1 - доля)
+                  return (
+                    <circle
+                      key={конец}
+                      className={'cv-end' + (on ? ' on' : '')}
+                      data-end={конец}
+                      cx={p.x}
+                      cy={p.y}
+                      r={(on ? 8 : 7) / view.k}
                       onMouseDown={(ev) => {
+                        if (ev.button !== 0) return
                         ev.stopPropagation()
-                        drag.current = { mode: 'edge-end', id: e.id, end: 'from', sx: ev.clientX, sy: ev.clientY, ox: 0, oy: 0 }
-                      }} />
-                    <circle className="cv-end" cx={c.p3.x} cy={c.p3.y} r={6 / view.k}
-                      onMouseDown={(ev) => {
-                        ev.stopPropagation()
-                        drag.current = { mode: 'edge-end', id: e.id, end: 'to', sx: ev.clientX, sy: ev.clientY, ox: 0, oy: 0 }
-                      }} />
-                  </>
-                )}
+                        setSelEdge(e.id)
+                        setSel(new Set())
+                        setMenu(null)
+                        setТащимКонец(e.id)
+                        drag.current = { mode: 'edge-end', id: e.id, end: конец, sx: ev.clientX, sy: ev.clientY, ox: 0, oy: 0 }
+                      }}
+                    >
+                      <title>{т('Потяните, чтобы перецепить связь')}</title>
+                    </circle>
+                  )
+                })}
               </g>
             )
           })}

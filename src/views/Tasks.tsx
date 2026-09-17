@@ -13,7 +13,7 @@ import { clock, usePomodoro } from '../components/PomodoroHost'
 import { playTone } from '../lib/sound'
 import {
   daysWithTasks, isImportant, isOverdue, plannedTotals, PRIORITIES, priorityOf, QUADRANTS, quadrantOf,
-  sortTasks, tasksOn, вЧетверть, переключитьВажность, type Priority, type Quadrant,
+  sortTasks, tasksOn, вЧетверть, переключитьВажность, времяВперёд, времяЗадачи, форматВремени, type Priority, type Quadrant,
 } from '../engine/tasks'
 import { useApp } from '../App'
 import type { Task } from '../lib/types'
@@ -44,6 +44,7 @@ export default function Tasks() {
   const открытые = (data.tasks ?? []).filter((t) => !t.done)
   const просрочено = открытые.filter((t) => isOverdue(t)).length
   const деньги = plannedTotals(data)
+  const время = времяВперёд(data, today(), data.settings.firstDayOfWeek)
 
   return (
     <div className="view">
@@ -53,6 +54,10 @@ export default function Tasks() {
           <div className="view-sub">
             {открытые.length} {plural(открытые.length, 'дело', 'дела', 'дел')}
             {просрочено > 0 && <span className="neg"> {тр(' · {0} просрочено', просрочено)}</span>}
+            {(время.неделя > 0 || время.месяц > 0) && (
+              <span className="tasks-time">
+                {т(' · ⏱ на неделю {0}, на месяц {1}', форматВремени(время.неделя), форматВремени(время.месяц))}</span>
+            )}
             {(деньги.out > 0 || деньги.in > 0) && (
               <>
                 {тр('{0}обещано потратить ', ' · ')}<b>{money(деньги.out)}</b>
@@ -135,11 +140,12 @@ function Строка({ t, onEdit }: { t: Task; onEdit: (t: Task) => void }) {
           <Icon name="sparkle" size={13} />
         </span>
       )}
-      {!!t.amount && (
+      {!!t.amount && t.moneyKind !== 'time' && (
         <span className={'amt num ' + (t.moneyKind === 'income' ? 'pos' : '')}>
           {t.moneyKind === 'income' ? '+' : '−'}{money(t.amount)}
         </span>
       )}
+      {времяЗадачи(t) > 0 && <span className="task-time small">⏱ {форматВремени(времяЗадачи(t))}</span>}
       {t.due && (
         <span className={'small ' + (late ? 'neg' : 'faint')} style={{ minWidth: 74, textAlign: 'right' }}>
           {humanDate(t.due)}
@@ -366,6 +372,7 @@ function Матрица({ onEdit }: { onEdit: (t: Task) => void }) {
                     >
                       <Icon name={isImportant(t) ? 'sparkle' : 'circle'} size={13} />
                     </button>
+                    {времяЗадачи(t) > 0 && <span className="task-time small">⏱ {форматВремени(времяЗадачи(t))}</span>}
                     {t.due && (
                       <span className={'small ' + (isOverdue(t) ? 'neg' : 'faint')}>{humanDate(t.due)}</span>
                     )}
@@ -482,6 +489,8 @@ export function TaskModal({ value, onClose }: { value: Task; onClose: () => void
   const patch = (p: Partial<Task>) => setT((x) => ({ ...x, ...p }))
   const есть = (data.tasks ?? []).some((x) => x.id === value.id)
   const cats = data.categories.filter((c) => !c.archived && c.kind === (t.moneyKind === 'income' ? 'income' : 'expense'))
+  const времяНаЗадачу = t.moneyKind === 'time'
+  const минутыИз = (ч: number, м: number): number | undefined => (ч * 60 + м > 0 ? ч * 60 + м : undefined)
 
   /** Закрыть задачу и сразу записать трату: ради этого сумма у задачи и нужна. */
   const записатьОперацию = () => {
@@ -568,25 +577,62 @@ export function TaskModal({ value, onClose }: { value: Task; onClose: () => void
           ))}
         </div>
         <div className="faint small" style={{ marginBottom: 14 }}>
-          {тр('{0}. Въ матрицу идёт средняя и выше.', PRIORITIES.find((p) => p.p === priorityOf(t))?.hint)}</div>
+          {тр('{0}. В матрицу идёт средняя и выше.', PRIORITIES.find((p) => p.p === priorityOf(t))?.hint)}</div>
 
-        <div className="card-title">{т('Деньги')}</div>
+        <div className="card-title">{времяНаЗадачу ? т('Время') : т('Деньги')}</div>
         <div className="faint small" style={{ marginBottom: 10, lineHeight: 1.6 }}>
-          {тр('Сумма необязательна. Если её указать, задача попадёт в прогноз как разовая{0} в месяц своего срока, а закрыть её можно сразу с записью операции. Без срока сумма в прогноз не идёт — некуда её ставить.', t.moneyKind === 'income' ? т(' прибыль') : т(' трата'))}</div>
+          {времяНаЗадачу
+            ? т('Задача не про деньги: на неё уходит только время. Сколько — по желанию; оно видно у задачи и в итоге недели и месяца, а в прогноз и платежи задача не идёт.')
+            : тр('Сумма необязательна. Если её указать, задача попадёт в прогноз как разовая{0} в месяц своего срока, а закрыть её можно сразу с записью операции. Без срока сумма в прогноз не идёт — некуда её ставить.', t.moneyKind === 'income' ? т(' прибыль') : т(' трата'))}</div>
         <div className="grid c2">
-          <Field label={т('Сумма')}>
-            <MoneyInput value={t.amount} onChange={(v) => patch({ amount: v || undefined })} />
-          </Field>
+          {времяНаЗадачу ? (
+            <Field label={т('Сколько времени (по желанию)')}>
+              <div className="row task-time-input" style={{ gap: 6 }}>
+                <input
+                  type="number"
+                  min={0}
+                  className="task-hours"
+                  value={t.minutes ? Math.floor(t.minutes / 60) || '' : ''}
+                  placeholder="0"
+                  onChange={(e) => patch({ minutes: минутыИз(Number(e.target.value) || 0, (t.minutes ?? 0) % 60) })}
+                  style={{ width: 70 }}
+                />
+                <span className="faint">{т('ч')}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  className="task-mins"
+                  value={t.minutes ? t.minutes % 60 || '' : ''}
+                  placeholder="0"
+                  onChange={(e) => patch({ minutes: минутыИз(Math.floor((t.minutes ?? 0) / 60), Math.min(59, Number(e.target.value) || 0)) })}
+                  style={{ width: 70 }}
+                />
+                <span className="faint">{т('мин')}</span>
+              </div>
+            </Field>
+          ) : (
+            <Field label={т('Сумма')}>
+              <MoneyInput value={t.amount} onChange={(v) => patch({ amount: v || undefined })} />
+            </Field>
+          )}
           <Field label={т('Это')}>
             <select
+              className="task-kind"
               value={t.moneyKind ?? 'expense'}
-              onChange={(e) => patch({ moneyKind: e.target.value as 'expense' | 'income', categoryId: undefined })}
+              onChange={(e) => {
+                const вид = e.target.value as 'expense' | 'income' | 'time'
+                patch(вид === 'time'
+                  ? { moneyKind: 'time', amount: undefined, categoryId: undefined, accountId: undefined }
+                  : { moneyKind: вид, minutes: undefined, categoryId: undefined })
+              }}
             >
               <option value="expense">{т('Трата')}</option>
               <option value="income">{т('Приход')}</option>
+              <option value="time">{т('Потраченное время')}</option>
             </select>
           </Field>
-          {!!t.amount && (
+          {!!t.amount && !времяНаЗадачу && (
             <>
               <Field label={т('Категория')}>
                 <KategoriyaVybor
@@ -612,7 +658,7 @@ export function TaskModal({ value, onClose }: { value: Task; onClose: () => void
           <input type="text" value={t.note ?? ''} onChange={(e) => patch({ note: e.target.value || undefined })} placeholder={т('Подробности')} />
         </Field>
 
-        {есть && !!t.amount && !t.done && (
+        {есть && !!t.amount && !времяНаЗадачу && !t.done && (
           <div className="row wrap" style={{ gap: 8, marginTop: 14 }}>
             <button className="btn" onClick={записатьОперацию}>
               <Icon name="check" size={14} /> {тр(' Закрыть и записать {0}', money(t.amount))}</button>

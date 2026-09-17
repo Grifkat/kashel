@@ -272,7 +272,9 @@ export async function полнаяВыгрузка(
   if (задачи.length) {
     п(т('# Задачи'))
     for (const з of задачи) {
-      const сумма = з.amount ? `, ${рубли(з.amount)} (${з.moneyKind === 'income' ? т('приход') : т('расход')})` : ''
+      const сумма = з.moneyKind === 'time'
+        ? (з.minutes ? т(', время {0} мин', з.minutes) : т(', только время'))
+        : з.amount ? `, ${рубли(з.amount)} (${з.moneyKind === 'income' ? т('приход') : т('расход')})` : ''
       п(`- ${з.done ? т('[сделано]') : т('[в работе]')} ${з.title}${з.due ? т(', срок {0}', з.due) : ''}${сумма}${з.note ? ` — ${з.note}` : ''}`)
     }
     п('')

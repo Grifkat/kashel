@@ -277,8 +277,14 @@ export interface Task {
   matrix?: { q: 1 | 2 | 3 | 4; due: string; p: number }
   /** Планируемая сумма. Пусто — задача не про деньги. */
   amount?: Money
-  /** Куда пойдёт сумма: трата или приход. Осмысленно только вместе с amount. */
-  moneyKind?: 'expense' | 'income'
+  /**
+   * Что это за задача по деньгам: трата, приход или только потраченное
+   * время ('time') — тогда денег нет вовсе, а minutes (по желанию) — сколько
+   * времени на неё уйдёт.
+   */
+  moneyKind?: 'expense' | 'income' | 'time'
+  /** Сколько времени займёт задача, минуты. Только у moneyKind 'time'. */
+  minutes?: number
   categoryId?: string
   accountId?: string
   /** Список-проект. Пусто — «Входящие». */

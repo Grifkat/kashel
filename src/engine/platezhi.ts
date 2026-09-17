@@ -134,7 +134,7 @@ function регулярные(data: VaultData, mk: string, now: string): Пла�
 
 function задачи(data: VaultData, mk: string, now: string): ПлатёжМесяца[] {
   return (data.tasks ?? [])
-    .filter((t: Task) => !!t.amount && t.moneyKind !== 'income' && !!t.due && monthKey(t.due) === mk)
+    .filter((t: Task) => !!t.amount && t.moneyKind !== 'income' && t.moneyKind !== 'time' && !!t.due && monthKey(t.due) === mk)
     .map((t) => ({
       id: `task:${t.id}`, вид: 'task' as const, название: t.title || т('Задача'), дата: t.due!,
       сумма: t.amount!, внесено: t.done ? t.amount! : 0,

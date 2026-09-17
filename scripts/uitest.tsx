@@ -2637,6 +2637,129 @@ async function правкиЭкраны() {
   check('подсказка огонька объясняет, что засчитывается', (огонёк?.getAttribute('title') || '').includes('Засчитывается день'))
 }
 
+/*
+ * Канвас: встраивание карточки в связь, перенос конца связи, копирование на
+ * русской раскладке и вставка в середину экрана. Задача «на время».
+ */
+async function связиИВремя() {
+  console.log('\n— канвас: связи и вставка —')
+  const ls = dom.window.localStorage
+  await open('Канвас')
+  await wait(600)
+  const имя = (document.querySelector('.canvas-tools select') as HTMLSelectElement).value
+  const доска = () => JSON.parse(ls.getItem(`kashel:canvas/${имя}.canvas`) || '{"nodes":[],"edges":[]}')
+  const вид = () => {
+    const м = (document.querySelector('.canvas-layer') as HTMLElement).style.transform.match(/translate\(([-\d.]+)px, ([-\d.]+)px\) scale\(([-\d.]+)\)/)!
+    return { x: Number(м[1]), y: Number(м[2]), k: Number(м[3]) }
+  }
+  const наЭкран = (x: number, y: number) => ({ x: x * вид().k + вид().x, y: y * вид().k + вид().y })
+  const узлы = () => all('.cnode') as HTMLElement[]
+
+  // --- новая карточка, поставленная на линию, встаёт в разрыв
+  const до = доска()
+  const связь = до.edges[0]
+  const A = до.nodes.find((n: { id: string }) => n.id === связь.fromNode)
+  const B = до.nodes.find((n: { id: string }) => n.id === связь.toNode)
+  const якорь = (n: { x: number; y: number; width: number; height: number }, s: string) =>
+    s === 'top' ? { x: n.x + n.width / 2, y: n.y } : s === 'bottom' ? { x: n.x + n.width / 2, y: n.y + n.height }
+      : s === 'left' ? { x: n.x, y: n.y + n.height / 2 } : { x: n.x + n.width, y: n.y + n.height / 2 }
+  const p0 = якорь(A, связь.fromSide)
+  const p3 = якорь(B, связь.toSide)
+  const середина = { x: (p0.x + p3.x) / 2, y: (p0.y + p3.y) / 2 }
+  const былоУзлов = узлы().length
+  click(byText('.canvas-tools .btn', 'Добавить'))
+  await wait(150)
+  click(menuItem('Текстовая карточка'))
+  await wait(700)
+  const новая = доска().nodes.find((n: { id: string }) => !до.nodes.some((x: { id: string }) => x.id === n.id))
+  check('карточка добавлена', узлы().length === былоУзлов + 1 && !!новая)
+  key('Escape')
+  await wait(100)
+  const элемент = узлы()[узлы().length - 1]
+  const старт = наЭкран(новая.x + новая.width / 2, новая.y + новая.height / 2)
+  const финиш = наЭкран(середина.x, середина.y)
+  mouse(элемент, 'mousedown', старт.x, старт.y)
+  mouse(dom.window, 'mousemove', (старт.x + финиш.x) / 2, (старт.y + финиш.y) / 2)
+  mouse(dom.window, 'mousemove', финиш.x, финиш.y)
+  await wait(100)
+  check('связь под карточкой подсвечена', !!document.querySelector('.cv-edge.insert'))
+  mouse(dom.window, 'mouseup', финиш.x, финиш.y)
+  await wait(700)
+  const после = доска()
+  const кНовой = после.edges.find((e: { toNode: string }) => e.toNode === новая.id)
+  const отНовой = после.edges.find((e: { fromNode: string }) => e.fromNode === новая.id)
+  check('карточка встала в разрыв связи',
+    !после.edges.some((e: { id: string }) => e.id === связь.id) && кНовой?.fromNode === связь.fromNode && отНовой?.toNode === связь.toNode,
+    JSON.stringify([кНовой, отНовой]))
+
+  // --- конец связи на пустое место: меню и новая карточка
+  const концы = all('.cv-end') as HTMLElement[]
+  check('у связей есть концы, за которые их тянут', концы.length === после.edges.length * 2)
+  const конец = концы.find((c) => c.getAttribute('data-end') === 'to')!
+  const пусто = наЭкран(3000, 3000)
+  mouse(конец, 'mousedown', 10, 10)
+  mouse(dom.window, 'mousemove', пусто.x, пусто.y)
+  await wait(80)
+  check('пока тянут конец — пунктир и бледная связь', !!document.querySelector('.cv-ghost') && !!document.querySelector('.cv-edge.moving'))
+  mouse(dom.window, 'mouseup', пусто.x, пусто.y)
+  await wait(250)
+  check('на пустом месте — меню «Что здесь создать?»', text().includes('Что здесь создать?'))
+  const связейБыло = доска().edges.length
+  click(menuItem('Текстовая карточка'))
+  await wait(700)
+  const теперь = доска()
+  const созданная = теперь.nodes.find((n: { id: string }) => !после.nodes.some((x: { id: string }) => x.id === n.id))
+  check('связь перецепилась на новую карточку, новых связей не прибавилось',
+    !!созданная && теперь.edges.length === связейБыло && теперь.edges.some((e: { toNode: string }) => e.toNode === созданная.id))
+  key('Escape')
+  await wait(100)
+
+  // --- Ctrl+C / Ctrl+V на русской раскладке, вставка в середину экрана
+  const выбрать = узлы()[0]
+  mouse(выбрать, 'mousedown', 5, 5)
+  mouse(dom.window, 'mouseup', 5, 5)
+  await wait(100)
+  key('с', { ctrlKey: true, code: 'KeyC' })
+  await wait(150)
+  check('Ctrl+C на русской раскладке копирует', text().includes('Скопировано узлов: 1'))
+  const узловДо = доска().nodes.length
+  key('м', { ctrlKey: true, code: 'KeyV' })
+  await wait(700)
+  const сВставкой = доска()
+  const вставленная = сВставкой.nodes[сВставкой.nodes.length - 1]
+  const центр = { x: -вид().x / вид().k, y: -вид().y / вид().k } // в jsdom поле нулевого размера: середина экрана — его угол
+  check('Ctrl+V на русской раскладке вставляет', сВставкой.nodes.length === узловДо + 1)
+  check('вставка — в середину экрана',
+    Math.abs(вставленная.x + вставленная.width / 2 - центр.x) < 30 && Math.abs(вставленная.y + вставленная.height / 2 - центр.y) < 30,
+    `${вставленная.x + вставленная.width / 2},${вставленная.y + вставленная.height / 2} против ${центр.x},${центр.y}`)
+
+  console.log('\n— задача «потраченное время» —')
+  await open('Задачи')
+  click(byText('.view-head .btn', 'Задача'))
+  await wait(300)
+  const окно = () => byText('.modal', 'Новая задача') as HTMLElement | null
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+  ввести(окно()?.querySelector('input[placeholder="Найти юриста"]'), 'Раскадровка')
+  ввести(окно()?.querySelector('.task-kind'), 'time')
+  await wait(150)
+  check('«Потраченное время» — вместо суммы часы и минуты', !!окно()?.querySelector('.task-hours') && !окно()?.querySelector('.modal-body input.in-money, .money-input'))
+  ввести(окно()?.querySelector('.task-hours'), '2')
+  await wait(50)
+  ввести(окно()?.querySelector('.task-mins'), '30')
+  await wait(50)
+  click(byText('.modal-foot .btn.primary', 'Сохранить'))
+  await wait(1300)
+  const v = await loadVault()
+  const задача = v.tasks.find((t) => t.title === 'Раскадровка')
+  check('задача сохранена как время: 2 ч 30 мин, без денег', задача?.moneyKind === 'time' && задача?.minutes === 150 && !задача?.amount, JSON.stringify(задача))
+  click(all('.view button').find((б) => (б.textContent || '').trim() === 'Список'))
+  await wait(250)
+  check('в списке видно ⏱ 2 ч 30 мин', text().includes('⏱ 2 ч 30 мин'))
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2659,6 +2782,7 @@ async function main() {
   await дашбордКредитаИУведомленія()
   await погашениеЭкраны()
   await правкиЭкраны()
+  await связиИВремя()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

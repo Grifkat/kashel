@@ -22,13 +22,15 @@ import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
 import { платежиМесяца } from '../src/engine/platezhi'
 import { lineOf } from '../src/components/canvas/geometry'
+import { связьПодКарточкой, встроитьВСвязь } from '../src/components/canvas/vstavka'
+import { буква } from '../src/lib/klavishi'
 import { СТАТЬЯ_ШТРАФОВ, новыйДолг, несверенныеДолги, отметитьУчётКредитов, планДолга, просрочкаКредита, сверитьДолг } from '../src/engine/pogashenie'
 import { ВЕРСИЯ, ВЫПУСКИ, выпускВерсии, непросмотренныеВыпуски, сравнитьВерсии } from '../src/lib/versiya'
 import { имяКопии, лишниеЕжедневные, разобратьИмяКопии, упорядочитьКопии } from '../src/state/rezerv'
 import { вернутьЗапись, вернутьКатегорию, вернутьСчёт, вернутьТег, вставитьНазад, снимокЗаписи, снимокКатегории, снимокСчёта, снимокТега } from '../src/engine/otmena'
 import { безРодителя, вСемье, деревоКатегорий, нельзяВложить, поГлавным, раскладкаГлавной, семья, суммаСемьи, подкатегории } from '../src/engine/podkategorii'
 import {
-  isImportant, isOverdue, isUrgent, plannedByMonth, priorityOf, quadrantOf, sortTasks, вЧетверть, переключитьВажность, daysWithTasks,
+  isImportant, isOverdue, isUrgent, plannedByMonth, priorityOf, quadrantOf, sortTasks, вЧетверть, переключитьВажность, daysWithTasks, форматВремени, времяВперёд, plannedTotals,
 } from '../src/engine/tasks'
 import {
   address, awards, freshAwards, levelOf, RANKS, romanClass, standing, traits, xpBreakdown, XP_STEPS,
@@ -3079,6 +3081,51 @@ function правкиПоВидео() {
     ра?.data.tasks[0]?.matrix?.q === 4 && ра?.data.activityDays?.join() === '2026-09-01')
 }
 
+function правки103() {
+  console.log('\n— клавиши при любой раскладке —')
+  check('Ctrl+C на русской раскладке узнаётся по клавише', буква({ key: 'с', code: 'KeyC' }) === 'c' && буква({ key: 'м', code: 'KeyV' }) === 'v')
+  check('без кода клавиши — по букве', буква({ key: 'Z', code: '' }) === 'z' && буква({ key: '=', code: 'Equal' }) === '=')
+
+  console.log('\n— карточка встраивается в связь —')
+  const узел = (id: string, x: number, y: number, w = 100, h = 60) => ({ id, type: 'text' as const, x, y, width: w, height: h })
+  const доска = {
+    nodes: [узел('A', 0, 0), узел('B', 600, 0), узел('N', 250, 0), узел('C', 250, 400)],
+    edges: [{ id: 'e1', fromNode: 'A', fromSide: 'right' as const, toNode: 'B', toSide: 'left' as const, color: '#f00', arrow: 'both' as const, label: 'путь', shape: 'line' as const }],
+  }
+  check('карточка на линии — связь под ней найдена', связьПодКарточкой(доска, 'N') === 'e1')
+  check('карточка в стороне — не найдена', связьПодКарточкой(доска, 'C') === null)
+  const связанная = { ...доска, edges: [...доска.edges, { id: 'e2', fromNode: 'N', fromSide: 'bottom' as const, toNode: 'C', toSide: 'top' as const }] }
+  check('карточка со своими связями не встраивается', связьПодКарточкой(связанная, 'N') === null)
+  let n = 0
+  const разрез = встроитьВСвязь(доска, 'e1', 'N', () => 'x' + ++n)
+  const [первая, вторая] = разрез.edges
+  check('связь разрезана: A → N → B', разрез.edges.length === 2 && первая.fromNode === 'A' && первая.toNode === 'N' && вторая.fromNode === 'N' && вторая.toNode === 'B')
+  check('концы у A и B остались на своих сторонах', первая.fromSide === 'right' && вторая.toSide === 'left' && первая.toSide === 'left' && вторая.fromSide === 'right')
+  check('обе половины — того же вида, подпись у первой', первая.color === '#f00' && вторая.arrow === 'both' && вторая.shape === 'line' && первая.label === 'путь' && !вторая.label)
+  check('изогнутая связь тоже находится', связьПодКарточкой({ ...доска, edges: [{ ...доска.edges[0], shape: undefined }] }, 'N') === 'e1')
+
+  console.log('\n— задача «потраченное время» —')
+  const з = (over: Partial<Task>): Task => ({ id: 'tt' + Math.random(), title: 'дело', done: false, important: false, tags: [], order: 0, createdAt: '2026-01-01', ...over })
+  check('время пишется по-человечески', форматВремени(150) === '2 ч 30 мин' && форматВремени(45) === '45 мин' && форматВремени(180) === '3 ч')
+  const задачи = [
+    з({ moneyKind: 'time', minutes: 90, due: '2026-09-18' }),
+    з({ moneyKind: 'time', minutes: 60, due: '2026-09-28' }),
+    з({ moneyKind: 'time', minutes: 30, due: '2026-10-02' }),
+    з({ moneyKind: 'time', minutes: 30, due: '2026-09-18', done: true }),
+    з({ moneyKind: 'time', due: '2026-09-18' }),
+    з({ moneyKind: 'expense', amount: 500_00, due: '2026-09-18' }),
+  ]
+  const вперёд = времяВперёд({ ...data, tasks: задачи }, '2026-09-17', 1)
+  check('итог времени: неделя и месяц, без закрытых и без пустых', вперёд.неделя === 90 && вперёд.месяц === 150, JSON.stringify(вперёд))
+  check('задача на время не идёт в деньги задач', plannedTotals({ ...data, tasks: [з({ moneyKind: 'time', minutes: 60, amount: 100_00, due: '2026-09-20' })] }).out === 0)
+  check('и в платежи месяца не идёт', !платежиМесяца({ ...data, accounts: [], recurring: [], tasks: [з({ moneyKind: 'time', amount: 100_00, due: '2026-09-20' })] }, '2026-09', '2026-09-17').список.length)
+  const арх = { kashel: 'vault', formatVersion: 1, app: 'Кошель', exportedAt: '2026-09-14T00:00:00Z', counts: {},
+    data: { ...data, tasks: [з({ id: 'tm', moneyKind: 'time', minutes: 75 }), з({ id: 'tn', moneyKind: 'time' })] }, notes: {}, canvases: {}, attachments: {} }
+  const р = parseArchive(JSON.stringify(арх))
+  const ра = р.ok ? р.archive.data.tasks : []
+  check('архив хранит «потраченное время» и минуты', ра[0]?.moneyKind === 'time' && ра[0]?.minutes === 75 && ра[1]?.moneyKind === 'time' && ра[1]?.minutes === undefined)
+}
+
 void завершить()
 
 async function завершить() {
@@ -3096,6 +3143,7 @@ async function завершить() {
   копииОтменаВерсии()
   погашениеПроверка()
   правкиПоВидео()
+  правки103()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

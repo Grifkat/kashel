@@ -111,7 +111,7 @@ export function plannedByMonth(data: VaultData, now: string = today()): Map<stri
   // раздваиваются, а раньше показать их линии всё равно негде.
   const firstForecast = monthKey(addMonths(now, 1))
   for (const t of data.tasks ?? []) {
-    if (t.done || !t.amount || !t.due) continue
+    if (t.done || !t.amount || !t.due || t.moneyKind === 'time') continue
     const mk = monthKey(t.due)
     const key = mk <= monthKey(now) ? firstForecast : mk
     const signed = t.moneyKind === 'income' ? t.amount : -t.amount
@@ -125,12 +125,46 @@ export function plannedTotals(data: VaultData, now: string = today()): { out: Mo
   let outSum = 0
   let inSum = 0
   for (const t of data.tasks ?? []) {
-    if (t.done || !t.amount || !t.due) continue
+    if (t.done || !t.amount || !t.due || t.moneyKind === 'time') continue
     if (t.moneyKind === 'income') inSum += t.amount
     else outSum += t.amount
   }
   void now
   return { out: outSum, in: inSum }
+}
+
+/* ------------------------------------------------------------------ время */
+
+/** «2 ч 30 мин», «45 мин», «3 ч». */
+export function форматВремени(минуты: number): string {
+  const ч = Math.floor(минуты / 60)
+  const м = Math.round(минуты % 60)
+  if (ч && м) return т('{0} ч {1} мин', ч, м)
+  if (ч) return т('{0} ч', ч)
+  return т('{0} мин', м)
+}
+
+/** Время задачи «на время» — если его указали. */
+export const времяЗадачи = (t: Task): number => (t.moneyKind === 'time' && t.minutes && t.minutes > 0 ? t.minutes : 0)
+
+/**
+ * Сколько времени запланировано на текущую неделю и месяц: открытые задачи
+ * «на время» со сроком в этот промежуток (просроченные — тоже, они ещё впереди).
+ */
+export function времяВперёд(data: VaultData, now: string = today(), firstDay = 1): { неделя: number; месяц: number } {
+  const d = new Date(now + 'T00:00:00')
+  const сдвиг = (d.getDay() - firstDay + 7) % 7
+  const конецНедели = addDays(now, 6 - сдвиг)
+  const конецМесяца = monthKey(now)
+  let неделя = 0
+  let месяц = 0
+  for (const t of data.tasks ?? []) {
+    const мин = времяЗадачи(t)
+    if (!мин || t.done || !t.due) continue
+    if (t.due <= конецНедели) неделя += мин
+    if (monthKey(t.due) <= конецМесяца) месяц += мин
+  }
+  return { неделя, месяц }
 }
 
 /** Задачи со сроком в этот день. Нужен и календарю, и напоминаниям. */

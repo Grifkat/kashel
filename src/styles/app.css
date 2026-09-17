@@ -1994,3 +1994,5 @@ input.invalid { border-color: var(--alert) !important; }
   .platezh { flex-wrap: wrap; }
   .platezh-status { min-width: 0; }
 }
+.task-time { color: var(--info); white-space: nowrap; }
+.tasks-time { white-space: nowrap; }
