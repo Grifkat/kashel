@@ -2811,6 +2811,38 @@ async function настройкаСводки() {
   check('после «Готово» заголовки блоков пропали', !document.querySelector('.dash-block-bar'))
 }
 
+/* Ставка кредита, посчитанная по платежу и сроку. */
+async function ставкаКредита() {
+  console.log('\n— ставка по платежу —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+  await open('Счета')
+  const карточка = all('.view .card').find((к) => к.querySelector('.strong')?.textContent === 'Рассрочка на технику')
+  click(карточка?.querySelector('.icon-btn'))
+  await wait(400)
+  const окно = () => document.querySelector('.modal') as HTMLElement | null
+  const ставка = () => окно()?.querySelector('.credit-rate') as HTMLInputElement
+  const былаСтавка = ставка()?.value
+  ввести(ставка(), '0')
+  await wait(250)
+  check('при нулевой ставке программа предлагает свою', (окно()?.textContent || '').includes('Похоже, ставка около'),
+    (document.querySelector('.stavka-podskazka')?.textContent || '').slice(0, 90))
+  click(byText('.stavka-podskazka .btn', 'Не надо'))
+  await wait(200)
+  check('«Не надо» убирает предложение, но оставляет кнопку', !(окно()?.textContent || '').includes('Похоже, ставка около')
+    && !!byText('.stavka-podskazka .btn', 'Посчитать ставку') && ставка()?.value === '0')
+  click(byText('.stavka-podskazka .btn', 'Посчитать ставку'))
+  await wait(250)
+  const посчитана = Number(ставка()?.value)
+  check('«Посчитать ставку» подставляет ставку', посчитана > 0 && Math.abs(посчитана - Number(былаСтавка)) < 6,
+    `${былаСтавка} → ${ставка()?.value}`)
+  check('и дальше видно, что ставка сходится с платежом', (окно()?.textContent || '').includes('Ставка сходится с платежом'))
+  click(byText('.modal-foot .btn', 'Отмена'))
+  await wait(300)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2835,6 +2867,7 @@ async function main() {
   await правкиЭкраны()
   await связиИВремя()
   await настройкаСводки()
+  await ставкаКредита()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

@@ -6,7 +6,8 @@ import { Money, useДеньги } from '../components/anim'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
-import { money, uid } from '../lib/format'
+import { money, pct, plural, uid } from '../lib/format'
+import { прикидкаСтавки } from '../engine/stavka'
 import { addMonths, humanDate, today } from '../lib/date'
 import { accountBalance, balanceTimeline, balances, creditRemaining, isAsset } from '../engine/stats'
 import { Avatar, Confirm, ColorPicker, Field, IconPicker, Modal, MoneyInput, Toggle, useToast } from '../components/ui'
@@ -277,7 +278,12 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
               <MoneyInput value={a.credit.principal} onChange={(v) => patch({ credit: { ...a.credit!, principal: v } })} />
             </Field>
             <Field label={т('Ставка, % годовых')}>
-              <input type="number" value={a.credit.ratePct} onChange={(e) => patch({ credit: { ...a.credit!, ratePct: Number(e.target.value) } })} />
+              <input
+                type="number"
+                className="credit-rate"
+                value={a.credit.ratePct}
+                onChange={(e) => patch({ credit: { ...a.credit!, ratePct: Number(e.target.value) } })}
+              />
             </Field>
             <Field label={т('Ежемесячный платёж')}>
               <MoneyInput value={a.credit.monthlyPayment} onChange={(v) => patch({ credit: { ...a.credit!, monthlyPayment: v } })} />
@@ -292,6 +298,7 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
               <input type="number" min={1} max={31} value={a.credit.paymentDay} onChange={(e) => patch({ credit: { ...a.credit!, paymentDay: Number(e.target.value) } })} />
             </Field>
           </div>
+          <СтавкаПодсказка a={a} data={data} patch={patch} />
           <div style={{ margin: '4px 0 6px' }}>
             <Toggle
               checked={!!a.credit.remind}
@@ -363,6 +370,45 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
         />
       )}
     </>
+  )
+}
+
+/**
+ * Ставка, посчитанная по сумме, платежу и сроку.
+ *
+ * Банк не всегда пишет процент — «Яндекс» в рассрочке, например, не пишет,
+ * — но платёж, долг и число платежей известны, а из них ставка выводится
+ * однозначно (engine/stavka). Программа предлагает её сама и подставляет
+ * только по нажатию: молча менять то, что человек ввёл руками, нельзя.
+ */
+function СтавкаПодсказка({ a, data, patch }: { a: Account; data: VaultData; patch: (p: Partial<Account>) => void }) {
+  const [отклонена, setОтклонена] = useState(false)
+  const прикидка = useMemo(() => прикидкаСтавки(a, data), [a, data])
+  const своя = a.credit?.ratePct ?? 0
+  if (!прикидка) return null
+  const сходится = Math.abs(своя - прикидка.ставка) < 0.05
+  const поставить = () => patch({ credit: { ...a.credit!, ratePct: прикидка.ставка } })
+  const пояснение = т('{0} {1} по {2} на {3} — это {4} годовых, переплата {5} ({6}).',
+    прикидка.платежей, plural(прикидка.платежей, 'платёж', 'платежа', 'платежей'),
+    money(прикидка.платёж), money(прикидка.долг), pct(прикидка.ставка, 2), money(прикидка.переплата),
+    прикидка.по === 'contract' ? т('по сумме кредита и сроку') : т('по остатку долга'))
+  return (
+    <div className="row wrap stavka-podskazka" style={{ gap: 8, marginTop: -4, marginBottom: 12 }}>
+      {сходится ? (
+        <span className="faint small">{т('Ставка сходится с платежом: ')}{пояснение}</span>
+      ) : своя > 0 || отклонена ? (
+        <>
+          <span className="faint small">{пояснение}</span>
+          <button className="btn sm" onClick={поставить}>{т('Посчитать ставку')}</button>
+        </>
+      ) : (
+        <>
+          <span className="small">{т('Похоже, ставка около {0} годовых. ', pct(прикидка.ставка, 2))}<span className="faint">{пояснение}</span></span>
+          <button className="btn sm primary" onClick={поставить}>{т('Подставить')}</button>
+          <button className="btn sm ghost" onClick={() => setОтклонена(true)}>{т('Не надо')}</button>
+        </>
+      )}
+    </div>
   )
 }
 
