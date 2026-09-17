@@ -2767,6 +2767,9 @@ async function настройкаСводки() {
   const порядок = () => all('.view .dash-block').map((b) => (b.querySelector('.dash-block-bar .strong')?.textContent || '').trim())
   const блок = (имя: string) => all('.view .dash-block').find((b) => (b.querySelector('.dash-block-bar .strong')?.textContent || '').trim() === имя)
   check('в обычном виде заголовков блоков нет', !document.querySelector('.dash-block-bar'))
+  const кнопка = byText('.view .btn', 'Настроить вид') as HTMLElement
+  check('кнопка «Настроить вид» стоит в строке периода, а не отдельной полосой',
+    (кнопка?.closest('.row')?.textContent || '').includes('Месяц'), кнопка?.closest('.row')?.textContent?.slice(0, 60))
   click(byText('.view .btn', 'Настроить вид'))
   await wait(300)
   check('у блоков появились заголовки и стрелки', порядок().length >= 5 && порядок()[0] === 'Платежи этого месяца',

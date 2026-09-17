@@ -249,6 +249,15 @@ export default function Dashboard() {
   }
 
 
+  const кнопкаНастроить = настройка ? null : (
+    <button
+      className="btn sm ghost"
+      title={т('Порядок блоков на «Сводке»')}
+      onClick={() => setНастройка(true)}
+    >
+      <Icon name="panel" size={13} /> {т(' Настроить вид')}</button>
+  )
+
   /*
    * Блоки «Сводки». Что показывать и в каком порядке — решает человек
    * (настройки, dashBlocks): шапка со счётом всегда наверху, остальное
@@ -329,6 +338,8 @@ export default function Dashboard() {
             />
           </div>
         )}
+        <span className="spacer" />
+        {кнопкаНастроить}
       </div>
 
       {/* ------------------------------------------------ донат и категории */}
@@ -673,15 +684,14 @@ export default function Dashboard() {
       )}
 
       {/* ------------------------------------------------ блоки: порядок и видимость свои */}
-      <div className="row" style={{ marginBottom: 10 }}>
-        <span className="spacer" />
-        <button
-          className={'btn sm ' + (настройка ? 'primary' : 'ghost')}
-          title={т('Порядок блоков на «Сводке»')}
-          onClick={() => setНастройка((v) => !v)}
-        >
-          <Icon name="panel" size={13} /> {настройка ? т(' Готово') : т(' Настроить вид')}</button>
-      </div>
+      {/* Кнопка живёт в строке периода — отдельной полосы она не занимает.
+          Если тот блок скрыт, ставим её сюда, иначе настройку было бы не открыть. */}
+      {!видимые.includes('categories') && !настройка && (
+        <div className="row" style={{ marginBottom: 10 }}>
+          <span className="spacer" />
+          {кнопкаНастроить}
+        </div>
+      )}
 
       {настройка && (
         <div className="card dash-nastройка" style={{ marginBottom: 16 }}>
@@ -690,6 +700,7 @@ export default function Dashboard() {
               <Icon name="panel" size={14} /> {т(' Что показывать на «Сводке»')}</div>
             <span className="spacer" />
             <button className="btn sm ghost" onClick={() => patchSettings({ dashBlocks: undefined })}>{т('Как было')}</button>
+            <button className="btn sm primary" onClick={() => setНастройка(false)}>{т('Готово')}</button>
           </div>
           <div className="faint small">
             {т('Блоки переставляются стрелками или перетаскиванием за заголовок. Шапка со счётом всегда наверху.')}</div>
