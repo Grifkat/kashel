@@ -154,7 +154,7 @@ const REMINDER_REPEATS = ['once', 'weekly', 'monthly', 'yearly'] as const
 const REMINDER_EVENTS: readonly ReminderEvent[] =
   ['recurring-due', 'task-due', 'no-entries', 'limit-exceeded', 'big-expense', 'low-balance']
 const SIDES = ['top', 'right', 'bottom', 'left'] as const
-const NODE_KINDS = ['text', 'note', 'account', 'category', 'goal', 'flow', 'query', 'scenario', 'group'] as const
+const NODE_KINDS = ['text', 'note', 'account', 'category', 'goal', 'flow', 'query', 'scenario', 'group', 'task'] as const
 
 /** Счётчик отброшенного: показываем итог, а не молчим о потере. */
 interface Drop {
@@ -397,6 +397,9 @@ function normTask(v: unknown, drop: Drop): Task | null {
     ...(isDate(str(r.due)) ? { due: str(r.due) } : {}),
     important: r.important === true,
     ...([0, 1, 2, 3].includes(r.priority as number) ? { priority: r.priority as 0 | 1 | 2 | 3 } : {}),
+    ...(r.matrix && [1, 2, 3, 4].includes(asRaw(r.matrix).q as number)
+      ? { matrix: { q: asRaw(r.matrix).q as 1 | 2 | 3 | 4, due: str(asRaw(r.matrix).due), p: Math.round(num(asRaw(r.matrix).p)) } }
+      : {}),
     ...(amount
       ? {
           amount,
@@ -541,6 +544,7 @@ function normEdge(v: unknown): CanvasEdge | null {
     ...(typeof r.label === 'string' ? { label: r.label } : {}),
     ...(opt(r.arrow) ? { arrow: oneOf(r.arrow, ['end', 'both', 'none'] as const, 'end') } : {}),
     ...(bool(r.flow) ? { flow: true } : {}),
+    ...(r.shape === 'line' || r.shape === 'curve' ? { shape: r.shape } : {}),
   }
 }
 
@@ -555,6 +559,7 @@ function normCanvas(v: unknown): CanvasDoc {
       .map(normEdge)
       .filter((e): e is CanvasEdge => !!e && ids.has(e.fromNode) && ids.has(e.toNode)),
     ...(opt(r.cardStyle) ? { cardStyle: oneOf(r.cardStyle, ['rich', 'minimal', 'flat'] as const, 'rich') } : {}),
+    ...(r.edgeShape === 'line' || r.edgeShape === 'curve' ? { edgeShape: r.edgeShape } : {}),
     ...(strList(r.quickColors).length ? { quickColors: strList(r.quickColors) } : {}),
   }
 }
@@ -631,6 +636,7 @@ export function parseArchive(text: string): ParseResult {
     importRules: list(d.importRules).map((x) => normRule(x, drop)).filter((x): x is ImportRule => !!x),
     settings: migrateSettings(asRaw(d.settings) as Partial<Settings>),
     notifications: list(d.notifications).map((x) => normNotice(x, drop)).filter((x): x is Notice => !!x),
+    activityDays: strList(d.activityDays).filter(isDate).slice(-800),
   }
 
   const notes: Record<string, string> = {}

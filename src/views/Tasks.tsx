@@ -12,8 +12,8 @@ import { Confirm, Field, Modal, MoneyInput, useToast } from '../components/ui'
 import { clock, usePomodoro } from '../components/PomodoroHost'
 import { playTone } from '../lib/sound'
 import {
-  daysWithTasks, isOverdue, plannedTotals, PRIORITIES, priorityOf, QUADRANTS, quadrantOf,
-  sortTasks, tasksOn, type Priority,
+  daysWithTasks, isImportant, isOverdue, plannedTotals, PRIORITIES, priorityOf, QUADRANTS, quadrantOf,
+  sortTasks, tasksOn, вЧетверть, переключитьВажность, type Priority, type Quadrant,
 } from '../engine/tasks'
 import { useApp } from '../App'
 import type { Task } from '../lib/types'
@@ -86,7 +86,7 @@ export default function Tasks() {
   )
 }
 
-const пустая = (n: number, due?: string): Task => ({
+export const пустая = (n: number, due?: string): Task => ({
   id: uid('task'), title: '', done: false, important: false, priority: 0, due,
   tags: [], order: n, createdAt: today(),
 })
@@ -260,11 +260,12 @@ function Календарь({ onEdit, sel, setSel }: {
             return (
               <button
                 key={день}
-                className={'task-cal-day' + (день === sel ? ' on' : '') + (день === today() ? ' now' : '')}
+                className={'task-cal-day' + (день === sel ? ' on' : '') + (день === today() ? ' now' : '')
+                  + (отмечены.has(день) ? ' has p' + отмечены.get(день) : '')}
+                title={отмечены.has(день) ? т('Есть задачи · важность: {0}', PRIORITIES[отмечены.get(день)!].t.toLowerCase()) : undefined}
                 onClick={() => setSel(день)}
               >
                 {i + 1}
-                {отмечены.has(день) && <span className="task-cal-dot" />}
               </button>
             )
           })}
@@ -282,41 +283,109 @@ function Календарь({ onEdit, sel, setSel }: {
 
 // ----------------------------------------------------------------- матрица
 
+/** Сколько задач видно в четверти, пока её не раскрыли. */
+const ВИДНО_В_ЧЕТВЕРТИ = 5
+
 function Матрица({ onEdit }: { onEdit: (t: Task) => void }) {
   const { data, upsertTask } = useStore()
   const открытые = (data.tasks ?? []).filter((t) => !t.done)
+  // Перетаскивание: id запоминаем сами — dataTransfer есть не во всех средах.
+  const [тащим, setТащим] = useState<string | null>(null)
+  const [над, setНад] = useState<Quadrant | null>(null)
+  const [раскрыты, setРаскрыты] = useState<Set<Quadrant>>(new Set())
+
+  const бросить = (q: Quadrant) => {
+    const t = открытые.find((x) => x.id === тащим)
+    setТащим(null)
+    setНад(null)
+    if (t && quadrantOf(t) !== q) upsertTask(вЧетверть(t, q))
+  }
 
   return (
     <>
       <div className="grid c2 matrix">
         {QUADRANTS.map((q) => {
           const свои = sortTasks(открытые.filter((t) => quadrantOf(t) === q.q))
+          const раскрыта = раскрыты.has(q.q)
+          const видимые = раскрыта ? свои : свои.slice(0, ВИДНО_В_ЧЕТВЕРТИ)
           return (
-            <div key={q.q} className={'card quad ' + q.tone}>
+            <div
+              key={q.q}
+              className={'card quad ' + q.tone + (над === q.q ? ' drop' : '')}
+              data-quad={q.q}
+              onDragOver={(e) => {
+                if (!тащим) return
+                e.preventDefault()
+                if (над !== q.q) setНад(q.q)
+              }}
+              onDragLeave={(e) => {
+                if (!(e.currentTarget as HTMLElement).contains(e.relatedTarget as Node)) setНад(null)
+              }}
+              onDrop={(e) => {
+                e.preventDefault()
+                бросить(q.q)
+              }}
+            >
               <div className="card-title">
                 <span className="quad-mark">{'I'.repeat(q.q <= 3 ? q.q : 0) || 'IV'}</span>
                 {q.title}
                 <span className="spacer" />
                 <span className="faint small" style={{ textTransform: 'none', letterSpacing: 0 }}>{q.hint}</span>
               </div>
-              {свои.map((t) => (
-                <div key={t.id} className="cat-row">
-                  <button
-                    className="icon-btn"
-                    title={t.important ? т('Снять «важно»') : т('Отметить важным')}
-                    onClick={() => upsertTask({ ...t, important: !t.important })}
+              {видимые.map((t) => {
+                const важность = priorityOf(t)
+                return (
+                  <div
+                    key={t.id}
+                    className={'cat-row task-row matrix-task p' + важность + (тащим === t.id ? ' dragging' : '')}
+                    draggable
+                    title={т('Перетащите в другую четверть')}
+                    onDragStart={(e) => {
+                      setТащим(t.id)
+                      try { e.dataTransfer?.setData('text/plain', t.id) } catch { /* среда без переноса */ }
+                    }}
+                    onDragEnd={() => { setТащим(null); setНад(null) }}
                   >
-                    <Icon name={t.important ? 'sparkle' : 'circle'} size={14} />
-                  </button>
-                  <span className="name" style={{ cursor: 'pointer' }} onClick={() => onEdit(t)}>
-                    {t.title || т('Без названия')}
-                  </span>
-                  {t.due && (
-                    <span className={'small ' + (isOverdue(t) ? 'neg' : 'faint')}>{humanDate(t.due)}</span>
-                  )}
-                </div>
-              ))}
-              {!свои.length && <div className="empty">{т('Пусто')}</div>}
+                    <button
+                      className="icon-btn"
+                      title={т('Сделано')}
+                      onClick={() => {
+                        playTone('bell')
+                        upsertTask({ ...t, done: true, doneAt: today() })
+                      }}
+                    >
+                      <Icon name="circle" size={15} />
+                    </button>
+                    <span className="name" style={{ cursor: 'pointer' }} onClick={() => onEdit(t)}>
+                      {t.title || т('Без названия')}
+                    </span>
+                    <button
+                      className="icon-btn task-flag"
+                      title={isImportant(t) ? т('Снять важность') : т('Сделать важной')}
+                      onClick={() => upsertTask(переключитьВажность(t))}
+                    >
+                      <Icon name={isImportant(t) ? 'sparkle' : 'circle'} size={13} />
+                    </button>
+                    {t.due && (
+                      <span className={'small ' + (isOverdue(t) ? 'neg' : 'faint')}>{humanDate(t.due)}</span>
+                    )}
+                  </div>
+                )
+              })}
+              {свои.length > ВИДНО_В_ЧЕТВЕРТИ && (
+                <button
+                  className="btn sm ghost matrix-more"
+                  style={{ marginTop: 6 }}
+                  onClick={() => setРаскрыты((s) => {
+                    const n = new Set(s)
+                    if (раскрыта) n.delete(q.q)
+                    else n.add(q.q)
+                    return n
+                  })}
+                >
+                  {раскрыта ? т('Свернуть') : т('Ещё {0}', свои.length - ВИДНО_В_ЧЕТВЕРТИ)}</button>
+              )}
+              {!свои.length && <div className="empty">{тащим ? т('Отпустите здесь') : т('Пусто')}</div>}
             </div>
           )
         })}
@@ -324,13 +393,13 @@ function Матрица({ onEdit }: { onEdit: (t: Task) => void }) {
       <div className="advice-card info" style={{ marginTop: 16 }}>
         <div className="advice-title">{т('Как задача попадает в четверть')}</div>
         <div className="advice-body">
-          {т('«Срочно» программа считает сама: срок сегодня, завтра или уже прошёл. «Важно» ставите вы — звёздочкой у задачи. Поэтому дело само переезжает выше по мере приближения срока, и матрица не превращается со временем в один длинный первый квадрант, как это бывает, когда срочность проставляют руками и забывают снимать.')}</div>
+          {т('«Срочно» программа считает сама: срок сегодня, завтра или уже прошёл. «Важно» — важность задачи: средняя и выше. Высокая важность (красная) сразу ставит задачу в «Срочно и важно». Задачу можно перетащить мышкой в любую четверть — там она и останется, пока вы не поменяете ей срок или важность.')}</div>
       </div>
     </>
   )
 }
 
-// ------------------------------------------------------------------ таймер
+// ------------------------------------------------------------------- таймер
 
 function Таймер() {
   const { data, patchSettings } = useStore()
@@ -404,7 +473,7 @@ function Таймер() {
 
 // ------------------------------------------------------------- карточка задачи
 
-function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
+export function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
   const { data, upsertTask, deleteTask, addTransaction } = useStore()
   const app = useApp()
   const toast = useToast()

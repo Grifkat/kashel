@@ -18,6 +18,47 @@ const BUCKET_TITLE: Record<Bucket, string> = { needs: т('Надо'), wants: т(
 const BUCKET_COLOR: Record<Bucket, string> = { needs: '#4aa3e8', wants: '#e8833a', savings: '#4cc46a' }
 const TARGET: Record<Bucket, number> = { needs: 50, wants: 30, savings: 20 }
 
+/**
+ * Цвет полосы по заполнению лимита: пусто — зелёный, к концу — красный,
+ * через жёлтый и оранжевый. Перерасход — тревожный красный.
+ */
+export function цветЗаполнения(доля: number): string {
+  if (доля > 1) return 'var(--alert)'
+  const оттенок = Math.round(140 * (1 - Math.max(0, Math.min(1, доля))))
+  return `hsl(${оттенок}, 68%, 48%)`
+}
+
+/**
+ * «Исполнение» — по фактически потраченному. Прогноз по темпу месяца —
+ * только подсказкой: платёж раз в месяц (интернет, аренда) темпом не
+ * тратится, и пугать перерасходом, которого нет, нельзя.
+ */
+function Исполнение({ spent, projected, plan, isCurrent, money }: {
+  spent: Money
+  projected: Money
+  plan: Money
+  isCurrent: boolean
+  money: (v: Money) => string
+}) {
+  const доля = plan ? spent / plan : 0
+  const сверх = spent > plan
+  const темпСверх = isCurrent && !сверх && projected > plan
+  return (
+    <>
+      <div className="bar-track">
+        <div
+          className="bar-fill budget-bar"
+          style={{ width: `${Math.min(100, доля * 100)}%`, background: цветЗаполнения(доля) }}
+        />
+      </div>
+      <div className={'small ' + (сверх ? 'neg' : 'faint')} style={{ marginTop: 3 }}>
+        {сверх ? т('перерасход {0}', money(spent - plan)) : т('{0}% лимита', Math.round(доля * 100))}
+        {темпСверх && <div className="budget-tempo">{т('по темпу — {0}', money(projected))}</div>}
+      </div>
+    </>
+  )
+}
+
 export default function Budget() {
   // Суммы на экране — с учётом «Скрывать баланс».
   const money = useДеньги()
@@ -40,6 +81,18 @@ export default function Budget() {
     () => new Map(categoryTotals(monthTx, 'expense').map((t) => [t.categoryId, t.amount])),
     [monthTx],
   )
+  const opsByCat = useMemo(
+    () => new Map(categoryTotals(monthTx, 'expense').map((t) => [t.categoryId, t.count])),
+    [monthTx],
+  )
+  /*
+   * Прогноз месяца по темпу. Одна-две операции за месяц — это разовый платёж
+   * (интернет, бухгалтер): темпом он не тратится, и прогноз равен
+   * потраченному, иначе программа пугала бы перерасходом, которого не будет.
+   */
+  const РАЗОВЫХ = 2
+  const прогноз = (spent: Money, ops: number) =>
+    ops <= РАЗОВЫХ ? spent : Math.round(spent / Math.max(0.05, progress))
   const income = monthTx.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0)
   const expense = monthTx.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0)
 
@@ -79,7 +132,7 @@ export default function Budget() {
   const порядокъ = useRef<string[]>([])
   const посчитанные = главные.map((c) => {
     const spent = суммаСемьи(c.id, spentByCat, data.categories)
-    const projected = Math.round(spent / Math.max(0.05, progress))
+    const projected = прогноз(spent, суммаСемьи(c.id, opsByCat, data.categories))
     return { c, spent, projected, plan: c.plan ?? 0 }
   })
   if (!правимъ) {
@@ -234,8 +287,8 @@ export default function Budget() {
           </thead>
           <tbody>
             {rows.flatMap(({ c, spent, projected, plan }) => {
-              const use = plan ? (isCurrent ? projected : spent) / plan : 0
-              const over = plan > 0 && use > 1
+              const over = plan > 0 && spent > plan
+              const темп = isCurrent && plan > 0 && projected > plan
               const дети = детиГлавной(c.id)
               return [
                 <tr key={c.id}>
@@ -257,7 +310,7 @@ export default function Budget() {
                   </td>
                   <td className="r num">{money(spent)}</td>
                   {isCurrent && (
-                    <td className={'r num col-opt ' + (over ? 'neg' : '')}>{plan || spent ? money(projected) : '—'}</td>
+                    <td className={'r num col-opt ' + (over ? 'neg' : темп ? 'budget-tempo' : '')}>{plan || spent ? money(projected) : '—'}</td>
                   )}
                   <td className="r">
                     <MoneyInput
@@ -271,20 +324,7 @@ export default function Budget() {
                   </td>
                   <td>
                     {plan ? (
-                      <>
-                        <div className="bar-track">
-                          <div
-                            className="bar-fill"
-                            style={{
-                              width: `${Math.min(100, use * 100)}%`,
-                              background: over ? 'var(--alert)' : use > 0.85 ? 'var(--warn)' : c.color,
-                            }}
-                          />
-                        </div>
-                        <div className={'small ' + (over ? 'neg' : 'faint')} style={{ marginTop: 3 }}>
-                          {over ? т('перерасход {0}', money((isCurrent ? projected : spent) - plan)) : т('{0}% лимита', Math.round(use * 100))}
-                        </div>
-                      </>
+                      <Исполнение spent={spent} projected={projected} plan={plan} isCurrent={isCurrent} money={money} />
                     ) : (
                       <span className="faint small">
                         {дети.some((д) => д.plan) ? т('лимиты только у подкатегорий') : т('лимит не задан')}</span>
@@ -307,10 +347,10 @@ export default function Budget() {
                   : []),
                 ...дети.map((д) => {
                   const дПотрачено = spentByCat.get(д.id) ?? 0
-                  const дПрогноз = Math.round(дПотрачено / Math.max(0.05, progress))
+                  const дПрогноз = прогноз(дПотрачено, opsByCat.get(д.id) ?? 0)
                   const дПлан = д.plan ?? 0
-                  const дДоля = дПлан ? (isCurrent ? дПрогноз : дПотрачено) / дПлан : 0
-                  const дСверх = дПлан > 0 && дДоля > 1
+                  const дСверх = дПлан > 0 && дПотрачено > дПлан
+                  const дТемп = isCurrent && дПлан > 0 && дПрогноз > дПлан
                   return (
                     <tr key={д.id} className="budget-pod">
                       <td>
@@ -328,7 +368,7 @@ export default function Budget() {
                       <td className="col-opt" />
                       <td className="r num">{money(дПотрачено)}</td>
                       {isCurrent && (
-                        <td className={'r num col-opt ' + (дСверх ? 'neg' : '')}>{дПлан || дПотрачено ? money(дПрогноз) : '—'}</td>
+                        <td className={'r num col-opt ' + (дСверх ? 'neg' : дТемп ? 'budget-tempo' : '')}>{дПлан || дПотрачено ? money(дПрогноз) : '—'}</td>
                       )}
                       <td className="r">
                         <MoneyInput
@@ -343,22 +383,7 @@ export default function Budget() {
                       </td>
                       <td>
                         {дПлан ? (
-                          <>
-                            <div className="bar-track">
-                              <div
-                                className="bar-fill"
-                                style={{
-                                  width: `${Math.min(100, дДоля * 100)}%`,
-                                  background: дСверх ? 'var(--alert)' : дДоля > 0.85 ? 'var(--warn)' : д.color,
-                                }}
-                              />
-                            </div>
-                            <div className={'small ' + (дСверх ? 'neg' : 'faint')} style={{ marginTop: 3 }}>
-                              {дСверх
-                                ? т('перерасход {0}', money((isCurrent ? дПрогноз : дПотрачено) - дПлан))
-                                : т('{0}% лимита', Math.round(дДоля * 100))}
-                            </div>
-                          </>
+                          <Исполнение spent={дПотрачено} projected={дПрогноз} plan={дПлан} isCurrent={isCurrent} money={money} />
                         ) : (
                           <span className="faint small">{т('в общем лимите')}</span>
                         )}

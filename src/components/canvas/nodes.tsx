@@ -2,12 +2,14 @@ import React, { useLayoutEffect, useRef } from 'react'
 import { money, moneyShort } from '../../lib/format'
 import { accountBalance, balances, categoryTotals, creditRemaining } from '../../engine/stats'
 import { renderMarkdown } from '../../lib/markdown'
-import { CatalogGlyph } from '../../lib/icons'
+import { CatalogGlyph, Icon } from '../../lib/icons'
+import { humanDate } from '../../lib/date'
+import { PRIORITIES, isOverdue, priorityOf } from '../../engine/tasks'
 import { isCatalogIcon } from '../../lib/catalog'
 import { этоСвойЗначокъ, useСвойЗначокъ } from '../../lib/svoiznachki'
 import { QueryBlock } from '../QueryBlock'
 import { Spark } from '../charts'
-import type { CanvasNode, CardStyle, Money, TextFit, VaultData } from '../../lib/types'
+import type { CanvasNode, CardStyle, Money, Task, TextFit, VaultData } from '../../lib/types'
 import { т } from '../../i18n'
 import { суммаСемьи } from '../../engine/podkategorii'
 
@@ -212,6 +214,8 @@ export interface NodeData {
   negative?: boolean
   missing?: boolean
   body?: string
+  /** Карточка-задача: сама задача. */
+  task?: Task
 }
 
 export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): NodeData | null {
@@ -268,6 +272,11 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
       ].filter(Boolean)
       return { title: s.name, icon: '📊', sub: parts.join(' · ') || т('без правок') }
     }
+    case 'task': {
+      const t = (data.tasks ?? []).find((x) => x.id === node.ref)
+      if (!t) return { title: т('Задача удалена'), missing: true }
+      return { title: t.title || т('Без названия'), task: t }
+    }
     case 'note': {
       const body = node.file ? ctx.noteBody.get(node.file) : undefined
       return {
@@ -293,6 +302,7 @@ export function NodeBody({
   onEndEdit,
   onLink,
   onGrow,
+  onToggleTask,
 }: {
   node: CanvasNode
   info: NodeData | null
@@ -303,6 +313,8 @@ export function NodeBody({
   onEndEdit(): void
   onLink(name: string): void
   onGrow?(height: number): void
+  /** Галочка «выполнено» на карточке-задаче. */
+  onToggleTask?(): void
 }) {
   const fit: TextFit = node.fit ?? 'fixed'
   const fontSize = node.fontSize ?? DEFAULT_FONT_SIZE
@@ -360,6 +372,41 @@ export function NodeBody({
 
   if (!info) return <div className="faint small">{т('Пустой узел')}</div>
   if (info.missing) return <div className="cnode-scroll faint small">{info.title}</div>
+
+  // Задача: срок, важность, сумма и галочка — как строка в «Задачах».
+  if (node.type === 'task' && info.task) {
+    const t = info.task
+    const важность = priorityOf(t)
+    const просрочена = isOverdue(t)
+    return (
+      <div className={'cnode-task task-row p' + важность + (t.done ? ' done' : '')}>
+        <div className="cnode-task-head">
+          <button
+            className="icon-btn cnode-task-check"
+            title={t.done ? т('Вернуть в работу') : т('Сделано')}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleTask?.()
+            }}
+          >
+            <Icon name={t.done ? 'check' : 'circle'} size={16} />
+          </button>
+          <span className="cnode-name" style={{ textDecoration: t.done ? 'line-through' : 'none' }}>{info.title}</span>
+        </div>
+        <div className="cnode-task-meta small">
+          <span className={просрочена ? 'neg' : ''}>
+            {t.due ? т('срок {0}', humanDate(t.due, true)) : т('без срока')}</span>
+          {важность > 0 && <span>{т(' · важность: {0}', PRIORITIES[важность].t.toLowerCase())}</span>}
+          {!!t.amount && (
+            <span className={t.moneyKind === 'income' ? 'pos' : ''}>
+              {' · '}{t.moneyKind === 'income' ? '+' : '−'}{money(t.amount)}</span>
+          )}
+        </div>
+        {t.note && <div className="cnode-task-note faint small">{t.note}</div>}
+      </div>
+    )
+  }
 
   // Заметка показывает своё содержимое, как в Obsidian.
   if (node.type === 'note') {

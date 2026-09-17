@@ -38,7 +38,13 @@ interface Store {
   saveError: string | null
   retryBoot(): Promise<void>
   saveNow(): Promise<void>
-  setData(updater: (d: VaultData) => VaultData, touched?: string[]): void
+  /**
+   * Правка данных. Любая ручная правка отмечает сегодняшний день для серии;
+   * фоновые (уведомления, награды) передают безОтметки.
+   */
+  setData(updater: (d: VaultData) => VaultData, touched?: string[], опции?: { безОтметки?: boolean }): void
+  /** Отметить день действием, которое живёт не в данных: канвас, заметки. */
+  отметитьДействие(): void
 
   addTransaction(t: Omit<Transaction, 'id' | 'createdAt'>): Transaction
   updateTransaction(t: Transaction): void
@@ -325,15 +331,33 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('beforeunload', onLeave)
   }, [])
 
+  /*
+   * День действия для серии. Отметка живёт в основном файле, поэтому новая
+   * отметка помечает его к записи, даже если правились только операции.
+   */
+  const сОтметкой = useCallback((d: VaultData): VaultData => {
+    const день = today()
+    const дни = d.activityDays ?? []
+    if (дни.includes(день)) return d
+    coreDirty.current = true
+    return { ...d, activityDays: [...дни, день].slice(-800) }
+  }, [])
+
   const setData = useCallback(
-    (updater: (d: VaultData) => VaultData, touched?: string[]) => {
+    (updater: (d: VaultData) => VaultData, touched?: string[], опции?: { безОтметки?: boolean }) => {
       if (touched?.length) for (const t of touched) touchedRef.current.add(t)
       else coreDirty.current = true
-      setDataRaw((d) => updater(d))
+      setDataRaw((d) => (опции?.безОтметки ? updater(d) : сОтметкой(updater(d))))
       queueSave()
     },
-    [queueSave],
+    [queueSave, сОтметкой],
   )
+
+  const отметитьДействие = useCallback(() => {
+    if ((dataRef.current.activityDays ?? []).includes(today())) return
+    setDataRaw((d) => сОтметкой(d))
+    queueSave()
+  }, [queueSave, сОтметкой])
 
   // -------------------------------------------------------------- операции
   const addTransaction = useCallback(
@@ -351,11 +375,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const prev = d.transactions.find((x) => x.id === t.id)
         if (prev) touchedRef.current.add(monthKey(prev.date))
         touchedRef.current.add(monthKey(t.date))
-        return { ...d, transactions: d.transactions.map((x) => (x.id === t.id ? t : x)) }
+        return сОтметкой({ ...d, transactions: d.transactions.map((x) => (x.id === t.id ? t : x)) })
       })
       queueSave()
     },
-    [queueSave],
+    [queueSave, сОтметкой],
   )
 
   const deleteTransaction = useCallback(
@@ -363,11 +387,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       setDataRaw((d) => {
         const prev = d.transactions.find((x) => x.id === id)
         if (prev) touchedRef.current.add(monthKey(prev.date))
-        return { ...d, transactions: d.transactions.filter((x) => x.id !== id) }
+        return сОтметкой({ ...d, transactions: d.transactions.filter((x) => x.id !== id) })
       })
       queueSave()
     },
-    [queueSave],
+    [queueSave, сОтметкой],
   )
 
   /** Групповое удаление одним обновлением: по одному это сотни лишних перерисовок. */
@@ -377,11 +401,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const set = new Set(ids)
       setDataRaw((d) => {
         for (const t of d.transactions) if (set.has(t.id)) touchedRef.current.add(monthKey(t.date))
-        return { ...d, transactions: d.transactions.filter((x) => !set.has(x.id)) }
+        return сОтметкой({ ...d, transactions: d.transactions.filter((x) => !set.has(x.id)) })
       })
       queueSave()
     },
-    [queueSave],
+    [queueSave, сОтметкой],
   )
 
   /** Возврат удалённого пакета — страховка для кнопки «отменить». */
@@ -392,11 +416,11 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const have = new Set(d.transactions.map((t) => t.id))
         const back = list.filter((t) => !have.has(t.id))
         for (const t of back) touchedRef.current.add(monthKey(t.date))
-        return { ...d, transactions: [...d.transactions, ...back] }
+        return сОтметкой({ ...d, transactions: [...d.transactions, ...back] })
       })
       queueSave()
     },
-    [queueSave],
+    [queueSave, сОтметкой],
   )
 
   // -------------------------------------------------------------- справочники
@@ -466,13 +490,14 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [setData],
   )
 
+  // Настройки и награды — не действие для серии: награды пишутся сами, а тема — не учёт.
   const patchSettings = useCallback(
-    (p: Partial<Settings>) => setData((d) => ({ ...d, settings: { ...d.settings, ...p } })),
+    (p: Partial<Settings>) => setData((d) => ({ ...d, settings: { ...d.settings, ...p } }), undefined, { безОтметки: true }),
     [setData],
   )
 
   const patchHonors = useCallback(
-    (p: Partial<Honors>) => setData((d) => ({ ...d, honors: { ...d.honors, ...p } })),
+    (p: Partial<Honors>) => setData((d) => ({ ...d, honors: { ...d.honors, ...p } }), undefined, { безОтметки: true }),
     [setData],
   )
 
@@ -544,7 +569,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<Store>(
     () => ({
-      data, ready, vaultPath, dirty, lastSaved, saveNow, setData,
+      data, ready, vaultPath, dirty, lastSaved, saveNow, setData, отметитьДействие,
       addTransaction, updateTransaction, deleteTransaction, deleteTransactions, restoreTransactions,
       upsertAccount, deleteAccount, upsertCategory, deleteCategory,
       upsertRecurring, deleteRecurring, upsertReminder, deleteReminder,

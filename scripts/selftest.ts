@@ -20,13 +20,15 @@ import { parseArchive } from '../src/engine/archive'
 import { вывестиТокены, значеніеДопустимо, контрастъ, очиститьТокены, простыяИзъТокеновъ, разобратьФайлТемы } from '../src/lib/svoitemy'
 import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
+import { платежиМесяца } from '../src/engine/platezhi'
+import { lineOf } from '../src/components/canvas/geometry'
 import { СТАТЬЯ_ШТРАФОВ, новыйДолг, несверенныеДолги, отметитьУчётКредитов, планДолга, просрочкаКредита, сверитьДолг } from '../src/engine/pogashenie'
 import { ВЕРСИЯ, ВЫПУСКИ, выпускВерсии, непросмотренныеВыпуски, сравнитьВерсии } from '../src/lib/versiya'
 import { имяКопии, лишниеЕжедневные, разобратьИмяКопии, упорядочитьКопии } from '../src/state/rezerv'
 import { вернутьЗапись, вернутьКатегорию, вернутьСчёт, вернутьТег, вставитьНазад, снимокЗаписи, снимокКатегории, снимокСчёта, снимокТега } from '../src/engine/otmena'
 import { безРодителя, вСемье, деревоКатегорий, нельзяВложить, поГлавным, раскладкаГлавной, семья, суммаСемьи, подкатегории } from '../src/engine/podkategorii'
 import {
-  isImportant, isOverdue, isUrgent, plannedByMonth, priorityOf, quadrantOf, sortTasks,
+  isImportant, isOverdue, isUrgent, plannedByMonth, priorityOf, quadrantOf, sortTasks, вЧетверть, переключитьВажность, daysWithTasks,
 } from '../src/engine/tasks'
 import {
   address, awards, freshAwards, levelOf, RANKS, romanClass, standing, traits, xpBreakdown, XP_STEPS,
@@ -46,7 +48,7 @@ import { creditState, schedule, whatIf, следующийПлатёж, свод
 import { личное, projectState, projectsSummary, проектная } from '../src/engine/project'
 import { НАСТАВЛЕНІЕ, наказЯзыка, полнаяВыгрузка, сводкаДляМодели } from '../src/engine/svodka'
 import { ОПИСАННЫЕ } from '../src/lib/znakiText'
-import { FREEZES_PER_MONTH, streak } from '../src/engine/streak'
+import { FREEZES_PER_MONTH, streak, деньСозданія } from '../src/engine/streak'
 import { monthQuests, questsDone } from '../src/engine/honors'
 import { insideVault } from '../electron/vaultpath.js'
 import {
@@ -2988,6 +2990,95 @@ function погашениеПроверка() {
     ра?.transactions[0]?.offBook === 'out' && ра?.accounts[0]?.credit?.trackFrom === '2026-01-01' && ра?.accounts[1]?.debt?.reviewed === true)
 }
 
+function правкиПоВидео() {
+  console.log('\n— матрица: важность и ручная четверть —')
+  const з = (over: Partial<Task>): Task => ({ id: 'm' + Math.random(), title: 'дело', done: false, important: false, tags: [], order: 0, createdAt: '2026-01-01', ...over })
+  const далеко = addDays(today(), 20)
+  check('высокая важность — сразу «срочно и важно»', quadrantOf(з({ due: далеко, priority: 3 })) === 1 && quadrantOf(з({ priority: 3 })) === 1)
+  check('средняя с далёким сроком — «не срочно, но важно»', quadrantOf(з({ due: далеко, priority: 2 })) === 2)
+  const перенесена = вЧетверть(з({ due: далеко, priority: 2 }), 4)
+  check('перенесённая руками стоит, где поставили', quadrantOf(перенесена) === 4)
+  check('сменили срок — матрица снова решает сама', quadrantOf({ ...перенесена, due: today() }) === 1)
+  check('сменили важность — тоже', quadrantOf({ ...перенесена, priority: 0 }) === 2 || quadrantOf({ ...перенесена, priority: 0 }) === 4)
+  check('перенос держится и у бессрочной', quadrantOf(вЧетверть(з({ priority: 0 }), 1)) === 1)
+  const важная = переключитьВажность(з({ priority: 0 }))
+  check('«сделать важной» ставит среднюю и флажок', важная.priority === 2 && важная.important === true)
+  const неважная = переключитьВажность(з({ priority: 3, important: true }))
+  check('«снять важность» снимает и флажок', неважная.priority === 0 && неважная.important === false)
+  const дни = daysWithTasks({ ...data, tasks: [
+    з({ due: '2026-09-20', priority: 1 }), з({ due: '2026-09-20', priority: 3 }), з({ due: '2026-09-21', priority: 0 }),
+    з({ due: '2026-09-22', priority: 3, done: true }),
+  ] }, '2026-09')
+  check('день в календаре — цвет самой важной открытой задачи', дни.get('2026-09-20') === 3 && дни.get('2026-09-21') === 0 && !дни.has('2026-09-22'))
+
+  console.log('\n— серия по дням действий —')
+  const запись = (дата: string, создана: string): Transaction => ({
+    id: 's' + дата + создана, kind: 'expense', date: дата, amount: 1, accountId: 'a', tags: [], createdAt: создана,
+  })
+  const задним = { ...data, tasks: [], activityDays: [], transactions: ['01', '02', '03', '04', '05', '06', '07', '08'].map((д) => запись(`2026-06-${д}`, '2026-06-20T10:00:00')) }
+  check('месяц записей, внесённых за один вечер, — один день серии', streak(задним, '2026-06-20').days === 1)
+  const поДням = { ...data, tasks: [], transactions: [], activityDays: ['2026-06-18', '2026-06-19', '2026-06-20'] }
+  check('дни действий без трат держат серию', streak(поДням, '2026-06-20').days === 3 && streak(поДням, '2026-06-20').todayDone)
+  const задачей = { ...data, transactions: [], activityDays: ['2026-06-19'], tasks: [з({ done: true, doneAt: '2026-06-20', createdAt: '2026-01-01' })] }
+  check('выполненная задача засчитывает день', streak(задачей, '2026-06-20').days === 2)
+  check('день создания по местному времени', деньСозданія('2026-06-20') === '2026-06-20' && деньСозданія('') === null)
+
+  console.log('\n— платежи этого месяца —')
+  const карта = { ...data.accounts.find((a) => a.type === 'card')!, id: 'card1', archived: false, project: undefined }
+  const кредит = {
+    id: 'crp', name: 'Техника', type: 'credit' as const, icon: 'x', color: '#000', initialBalance: -30_000_00,
+    credit: { kind: 'loan' as const, principal: 30_000_00, ratePct: 0, termMonths: 12, startDate: '2026-01-01', paymentDay: 10,
+      monthlyPayment: 2_820_00, purpose: 'purchase' as const, v: 2 as const, trackFrom: '2026-01-01' },
+  }
+  const правило = { ...data.recurring[0], id: 'rinet', title: 'Интернет', kind: 'expense' as const, amount: 1_550_00, accountId: 'card1',
+    categoryId: 'cat_inet', freq: 'monthly' as const, interval: 1, dayOfMonth: 5, startDate: '2026-01-01', endDate: undefined, active: true, autoPost: false }
+  const нал = { ...data, accounts: [карта, кредит], recurring: [правило], transactions: [] as Transaction[],
+    tasks: [з({ id: 'tk1', title: 'Юрист', due: '2026-09-25', amount: 5_000_00, moneyKind: 'expense' }), з({ id: 'tk2', title: 'Премия', due: '2026-09-25', amount: 9_00, moneyKind: 'income' })] }
+  let п = платежиМесяца(нал, '2026-09', '2026-09-17')
+  check('в месяце — кредит, регулярный и задача-трата (доход не входит)',
+    п.список.map((x) => x.вид + ':' + x.дата).join() === 'recurring:2026-09-05,credit:2026-09-10,task:2026-09-25', п.список.map((x) => x.вид + ':' + x.дата).join())
+  check('неоплаченное до сегодня — просрочено', п.список.filter((x) => x.статус === 'overdue').length === 2 && п.просрочено === 1_550_00 + 2_820_00)
+  check('итоги сходятся', п.всего === 1_550_00 + 2_820_00 + 5_000_00 && п.осталось === п.всего && п.оплачено === 0)
+  const оплачено = {
+    ...нал,
+    transactions: [
+      { id: 'pi', kind: 'expense' as const, date: '2026-09-06', amount: 1_550_00, accountId: 'card1', recurringId: 'rinet', tags: [], createdAt: '' },
+      { id: 'pc', kind: 'expense' as const, date: '2026-09-09', amount: 2_820_00, accountId: 'card1', debtId: 'crp', debtPrincipal: 2_820_00, categoryId: 'cat_credit_pay', tags: [], createdAt: '' },
+    ],
+    tasks: [{ ...нал.tasks[0], done: true }],
+  }
+  п = платежиМесяца(оплачено, '2026-09', '2026-09-17')
+  check('записанные платежи и закрытая задача — оплачено', п.список.every((x) => x.статус === 'paid') && п.осталось === 0)
+  const похожая = { ...нал, transactions: [{ id: 'pz', kind: 'expense' as const, date: '2026-09-04', amount: 1_550_00, accountId: 'card1', categoryId: 'cat_inet', tags: [], createdAt: '' }] }
+  check('трата той же статьи на ту же сумму закрывает регулярный', платежиМесяца(похожая, '2026-09', '2026-09-17').список.find((x) => x.вид === 'recurring')?.статус === 'paid')
+  const частично = { ...нал, transactions: [{ ...оплачено.transactions[1], amount: 1_000_00, debtPrincipal: 1_000_00 }] }
+  const кр = платежиМесяца(частично, '2026-09', '2026-09-08').список.find((x) => x.вид === 'credit')!
+  check('недоплата видна: внесено 1 000 из 2 820, срок впереди', кр.внесено === 1_000_00 && кр.статус === 'soon')
+  const доУчёта = { ...нал, accounts: [карта, { ...кредит, credit: { ...кредит.credit, trackFrom: '2026-09-15' } }] }
+  check('до начала учёта неоплаченное — «не отмечен», а не просрочка',
+    платежиМесяца(доУчёта, '2026-09', '2026-09-17').список.find((x) => x.вид === 'credit')?.статус === 'unmarked')
+  const правилоКредита = { ...правило, id: 'rcr', title: 'Платёж по рассрочке', amount: 2_820_00, dayOfMonth: 10, categoryId: 'cat_x' }
+  check('регулярный платёж по кредиту не дублирует строку кредита',
+    платежиМесяца({ ...нал, recurring: [правило, правилоКредита] }, '2026-09', '2026-09-17').список.filter((x) => x.вид === 'recurring').length === 1)
+  check('закрытый кредит в платежах не висит',
+    !платежиМесяца({ ...нал, accounts: [карта, { ...кредит, initialBalance: 0 }] }, '2026-09', '2026-09-17').список.some((x) => x.вид === 'credit'))
+
+  console.log('\n— канвас: прямые связи и задачи в архиве —')
+  const л = lineOf({ x: 0, y: 0 }, { x: 90, y: 30 })
+  check('прямая связь — опорные точки на самой прямой', л.p1.x === 30 && л.p1.y === 10 && л.p2.x === 60 && л.p2.y === 20)
+  const доска = { nodes: [{ id: 'n1', type: 'task', x: 0, y: 0, width: 200, height: 100, ref: 'tk1' }, { id: 'n2', type: 'text', x: 0, y: 0, width: 1, height: 1 }],
+    edges: [{ id: 'e1', fromNode: 'n1', toNode: 'n2', fromSide: 'right', toSide: 'left', shape: 'line' }], edgeShape: 'line' }
+  const арх = { kashel: 'vault', formatVersion: 1, app: 'Кошель', exportedAt: '2026-09-14T00:00:00Z', counts: {},
+    data: { ...data, activityDays: ['2026-09-01', 'мусор'], tasks: [{ ...з({ id: 'tk1' }), matrix: { q: 4, due: '', p: 0 } }] },
+    notes: {}, canvases: { Доска: доска }, attachments: {} }
+  const р = parseArchive(JSON.stringify(арх))
+  const ра = р.ok ? р.archive : null
+  check('архив хранит карточку-задачу и форму связей',
+    ра?.canvases['Доска']?.nodes[0]?.type === 'task' && ра?.canvases['Доска']?.edges[0]?.shape === 'line' && ра?.canvases['Доска']?.edgeShape === 'line')
+  check('архив хранит ручную четверть и дни действий',
+    ра?.data.tasks[0]?.matrix?.q === 4 && ра?.data.activityDays?.join() === '2026-09-01')
+}
+
 void завершить()
 
 async function завершить() {
@@ -3004,6 +3095,7 @@ async function завершить() {
   подкатегорииПроверка()
   копииОтменаВерсии()
   погашениеПроверка()
+  правкиПоВидео()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

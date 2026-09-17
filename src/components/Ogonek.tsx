@@ -22,13 +22,13 @@ export function Ogonek({ compact }: { compact?: boolean }) {
   const app = useApp()
   const с = useMemo(() => streak(data), [data])
 
-  if (!data.transactions.length) return null
+  if (!data.transactions.length && !(data.activityDays ?? []).length) return null
 
   const горит = с.days > 0
   const подпись = с.todayDone
-    ? т('сегодня записано')
+    ? т('сегодня уже отмечено')
     : горит
-      ? т('сегодня ещё нет записи')
+      ? т('сегодня ещё ничего не делали')
       : т('серия прервалась')
 
   return (
@@ -37,7 +37,8 @@ export function Ogonek({ compact }: { compact?: boolean }) {
       onClick={() => app.openTab('profile')}
       title={
         т('Серия: {0} {1} подряд · ', с.days, plural(с.days, 'день', 'дня', 'дней')) +
-        т('лучшая {0} · заморозок осталось {1}', с.best, с.freezesLeft)
+        т('лучшая {0} · заморозок осталось {1}', с.best, с.freezesLeft) +
+        т('. Засчитывается день, когда в программе что-то сделали: запись, задачу, карточку, категорию.')
       }
     >
       <Znak id="inbox_zero" size={compact ? 26 : 34} on={горит} title={т('Столыпин')} />

@@ -39,7 +39,7 @@ export function UvedomleniyaHost() {
     const проверить = () => {
       const новые = новыеУведомления(данные.current, today())
       if (!новые.length) return
-      setData((d) => сложить(d, новые))
+      setData((d) => сложить(d, новые), undefined, { безОтметки: true })
       for (const n of новые) {
         const acc = данные.current.accounts.find((a) => a.id === n.accountId)
         const текстъ = т('Сегодня платёж по кредиту «{0}» — {1}. Прошёл?', acc?.name ?? '', money(n.amount))

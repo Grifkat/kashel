@@ -1947,3 +1947,50 @@ input.invalid { border-color: var(--alert) !important; }
 }
 .hero-frozen:hover { color: var(--text); border-color: var(--accent); }
 .kredit-prosrochka { align-items: center; }
+.budget-tempo { color: var(--warn); }
+
+/* День с задачами залит цветом самой важной: красный, оранжевый, голубой, зелёный. */
+.task-cal-day.has { font-weight: 600; }
+.task-cal-day.has.p3 { background: color-mix(in srgb, var(--alert) 34%, transparent); border-color: color-mix(in srgb, var(--alert) 60%, transparent); }
+.task-cal-day.has.p2 { background: color-mix(in srgb, var(--warn) 32%, transparent); border-color: color-mix(in srgb, var(--warn) 60%, transparent); }
+.task-cal-day.has.p1 { background: color-mix(in srgb, var(--info) 30%, transparent); border-color: color-mix(in srgb, var(--info) 60%, transparent); }
+.task-cal-day.has.p0 { background: color-mix(in srgb, var(--good) 26%, transparent); border-color: color-mix(in srgb, var(--good) 55%, transparent); }
+.task-cal-day.has.on { background: var(--accent); color: #06120a; }
+
+/* Перетаскивание в матрице. */
+.matrix-task { cursor: grab; }
+.matrix-task.dragging { opacity: 0.45; }
+.matrix .quad.drop { outline: 2px dashed var(--accent); outline-offset: -4px; }
+
+/* Карточка-задача на канвасе. */
+.cnode-task { display: flex; flex-direction: column; gap: 6px; height: 100%; padding: 8px 10px; border-radius: inherit; overflow: hidden; }
+.cnode-task-head { display: flex; align-items: center; gap: 6px; font-weight: 600; }
+.cnode-task-head .cnode-name { overflow: hidden; text-overflow: ellipsis; }
+.cnode-task-meta { color: var(--muted); }
+.cnode-task-note { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; }
+.canvas-rename { padding: 4px 8px; }
+
+/* Выбор месяца на «Сводке». */
+.period-pick-shade { position: fixed; inset: 0; z-index: 40; }
+.period-pick { position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%); z-index: 41; width: 260px; box-shadow: var(--shadow); }
+.period-pick-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.period-pick-grid .btn { justify-content: center; }
+.period-pick-grid .btn.now:not(.primary) { border-color: var(--accent); }
+.period-label { font-weight: 600; }
+
+/* Платежи этого месяца. */
+.platezh { gap: 10px; padding: 6px 2px; border-top: 1px solid var(--border-soft); align-items: center; }
+.platezh-date { width: 84px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.platezh-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.platezh-status { min-width: 92px; text-align: right; color: var(--muted); }
+.platezh-status.st-paid { color: var(--good); }
+.platezh-status.st-overdue { color: var(--alert); font-weight: 600; }
+.platezh-status.st-today, .platezh-status.st-soon { color: var(--warn); }
+.platezh-sum { min-width: 110px; text-align: right; }
+.platezh.st-paid .platezh-name { color: var(--muted); }
+.platezh-ok { width: 70px; display: inline-flex; justify-content: center; }
+.platezh .btn.sm { width: 70px; justify-content: center; }
+@media (max-width: 700px) {
+  .platezh { flex-wrap: wrap; }
+  .platezh-status { min-width: 0; }
+}

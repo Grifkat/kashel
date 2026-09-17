@@ -262,6 +262,8 @@ export function TransactionModal({
       tags,
       note: note.trim() || undefined,
       attachments: attachments.length ? attachments : undefined,
+      // Оплата регулярного платежа из «Платежей этого месяца» помнит своё правило.
+      recurringId: draft.recurringId,
     }
     if (isEdit) {
       updateTransaction({ ...(draft as Transaction), ...payload })

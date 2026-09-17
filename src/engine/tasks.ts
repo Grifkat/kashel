@@ -52,10 +52,31 @@ export const priorityOf = (t: Task): Priority => t.priority ?? (t.important ? 3 
 /** Важное для матрицы — средняя ступень и выше. */
 export const isImportant = (t: Task) => priorityOf(t) >= 2
 
+/**
+ * Четверть задачи.
+ *
+ * Руками перенесённая задача стоит, где поставили, пока у неё прежние срок
+ * и важность. Высокая важность («горит») — сразу первая четверть, какой бы
+ * ни была дата. Остальное — по сроку и важности, как у Эйзенхауэра.
+ */
 export function quadrantOf(t: Task, now: string = today()): Quadrant {
+  const р = t.matrix
+  if (р && р.due === (t.due ?? '') && р.p === priorityOf(t)) return р.q
+  // Только явно выставленная высокая важность: у старых задач с одним флажком «важно»
+  // срочность по-прежнему решает срок.
+  if (t.priority === 3) return 1
   const urgent = isUrgent(t, now)
   if (isImportant(t)) return urgent ? 1 : 2
   return urgent ? 3 : 4
+}
+
+/** Задача, перенесённая в четверть руками. */
+export const вЧетверть = (t: Task, q: Quadrant): Task => ({ ...t, matrix: { q, due: t.due ?? '', p: priorityOf(t) } })
+
+/** Сделать важной или снять важность — из матрицы одним нажатием. */
+export function переключитьВажность(t: Task): Task {
+  const p: Priority = isImportant(t) ? 0 : 2
+  return { ...t, priority: p, important: p >= 2 }
 }
 
 /**
@@ -116,9 +137,16 @@ export function plannedTotals(data: VaultData, now: string = today()): { out: Mo
 export const tasksOn = (data: VaultData, day: string): Task[] =>
   (data.tasks ?? []).filter((t) => t.due === day)
 
-/** Дни месяца, на которых что-то висит: календарь ставит на них точку. */
-export function daysWithTasks(data: VaultData, mk: string): Set<string> {
-  const out = new Set<string>()
-  for (const t of data.tasks ?? []) if (t.due && t.due.slice(0, 7) === mk && !t.done) out.add(t.due)
+/**
+ * Дни месяца, на которых что-то висит, и самая высокая важность в этот день:
+ * календарь заливает день её цветом.
+ */
+export function daysWithTasks(data: VaultData, mk: string): Map<string, Priority> {
+  const out = new Map<string, Priority>()
+  for (const t of data.tasks ?? []) {
+    if (!t.due || t.due.slice(0, 7) !== mk || t.done) continue
+    const p = priorityOf(t)
+    if (!out.has(t.due) || p > out.get(t.due)!) out.set(t.due, p)
+  }
   return out
 }

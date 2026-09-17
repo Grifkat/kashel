@@ -17,7 +17,7 @@ import { т } from '../i18n'
 
 /** Что гасим или берём — от этого зависят поля окна. */
 export type ЦельПогашения =
-  | { вид: 'credit'; кредит: Account }
+  | { вид: 'credit'; кредит: Account; /** Сумма сразу — досрочный платёж. */ сумма?: number }
   | { вид: 'debt'; долг: Account; действие: ДействиеДолга }
   | { вид: 'new'; направление: 'i_owe' | 'owed_to_me' }
   | { вид: 'edit'; операция: Transaction }
@@ -62,6 +62,7 @@ export function PogashenieOkno({ цель, onClose }: { цель: ЦельПог
   const просрочка = кредит && !правка ? просрочкаКредита(кредит, data) : null
   const начальнаяСумма = (): number => {
     if (правка) return правка.amount
+    if (цель.вид === 'credit' && цель.сумма) return цель.сумма
     if (кредит) return просрочка?.предложить || кредит.credit?.monthlyPayment || 0
     if (долг && (действие === 'repay' || действие === 'collect')) return остатокДолга(долг, data.transactions)
     return 0

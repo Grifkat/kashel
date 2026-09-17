@@ -18,6 +18,7 @@ import { useAnalytics } from '../state/analytics'
 import { Avatar, Confirm, Delta, useToast } from '../components/ui'
 import { Nagrady } from '../components/Nagrady'
 import { Kredity } from '../components/Kredity'
+import { PlatezhiMesyaca } from '../components/PlatezhiMesyaca'
 import { Proekty } from '../components/Proekty'
 import { личное } from '../engine/project'
 import { Ogonek } from '../components/Ogonek'
@@ -42,6 +43,7 @@ export default function Dashboard() {
   const { fc } = useAnalytics(data)
   const [side, setSide] = useState<'expense' | 'income'>('expense')
   const [period, setPeriod] = useState<Period>(() => makePeriod('month', today(), data.settings.firstDayOfWeek))
+  const [выборПериода, setВыборПериода] = useState(false)
   const [accountId, setAccountId] = useState<string>('__all__')
   const кредитъ = data.accounts.find((a) => a.id === accountId && a.type === 'credit' && a.credit)
   const [pickAccount, setPickAccount] = useState(false)
@@ -307,6 +309,9 @@ export default function Dashboard() {
         </Reveal>
       )}
 
+      {/* ------------------------------------------------ платежи месяца */}
+      {accountId === '__all__' && data.accounts.length > 0 && <PlatezhiMesyaca style={{ marginBottom: 16 }} />}
+
       {/* ------------------------------------------------ период и сторона */}
       <div className="row wrap" style={{ marginBottom: 16, gap: 12 }}>
         <div className="seg">
@@ -328,17 +333,37 @@ export default function Dashboard() {
           <button className="icon-btn" onClick={() => setPeriod((p) => shiftPeriod(p, -1, data.settings.firstDayOfWeek))}>
             <Icon name="left" size={15} />
           </button>
-          <span style={{ minWidth: 170, textAlign: 'center' }} className="strong">{period.label}</span>
+          <div style={{ position: 'relative' }}>
+            <button
+              className="btn ghost strong period-label"
+              style={{ minWidth: 170, justifyContent: 'center' }}
+              title={т('Выбрать месяц или год')}
+              onClick={() => setВыборПериода((v) => !v)}
+            >
+              {period.label}
+            </button>
+            {выборПериода && (
+              <ВыборПериода
+                anchor={period.anchor}
+                годом={period.kind === 'year'}
+                onPick={(anchor, kind) => {
+                  setPeriod(makePeriod(kind, anchor, data.settings.firstDayOfWeek))
+                  setВыборПериода(false)
+                }}
+                onClose={() => setВыборПериода(false)}
+              />
+            )}
+          </div>
           <button className="icon-btn" onClick={() => setPeriod((p) => shiftPeriod(p, 1, data.settings.firstDayOfWeek))}>
             <Icon name="right" size={15} />
           </button>
           <button
-            className="icon-btn"
+            className="btn sm ghost"
             title={т('К текущему периоду')}
-            onClick={() => setPeriod(makePeriod(period.kind, today(), data.settings.firstDayOfWeek))}
+            disabled={period.kind !== 'custom' && period.from <= today() && today() <= period.to}
+            onClick={() => setPeriod(makePeriod(period.kind === 'custom' ? 'month' : period.kind, today(), data.settings.firstDayOfWeek))}
           >
-            <Icon name="fit" size={15} />
-          </button>
+            {т('Сегодня')}</button>
         </div>
         {period.kind === 'custom' && (
           <div className="row" style={{ gap: 6 }}>
@@ -647,5 +672,76 @@ export default function Dashboard() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Выбор месяца щелчком — как в обычном календаре: год стрелками, месяц
+ * кнопкой. Для «Года» — выбор года. День и неделя переходят на первое число
+ * выбранного месяца, свой период становится месяцем.
+ */
+function ВыборПериода({ anchor, годом, onPick, onClose }: {
+  anchor: string
+  годом: boolean
+  onPick: (anchor: string, kind: PeriodKind) => void
+  onClose: () => void
+}) {
+  const [год, setГод] = useState(Number(anchor.slice(0, 4)))
+  const выбранМесяц = anchor.slice(0, 7)
+  useEffect(() => {
+    const esc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation()
+        onClose()
+      }
+    }
+    window.addEventListener('keydown', esc, true)
+    return () => window.removeEventListener('keydown', esc, true)
+  }, [onClose])
+  return (
+    <>
+      <div className="period-pick-shade" onMouseDown={onClose} />
+      <div className="card period-pick" data-escape-layer="">
+        {годом ? (
+          <div className="period-pick-grid">
+            {Array.from({ length: 12 }, (_, i) => год - 8 + i).map((г) => (
+              <button
+                key={г}
+                className={'btn sm' + (String(г) === anchor.slice(0, 4) ? ' primary' : '')}
+                onClick={() => onPick(`${г}-01-01`, 'year')}
+              >
+                {г}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <>
+            <div className="row" style={{ marginBottom: 8 }}>
+              <button className="icon-btn" title={т('Предыдущий год')} onClick={() => setГод((г) => г - 1)}>
+                <Icon name="left" size={14} />
+              </button>
+              <span className="strong" style={{ flex: 1, textAlign: 'center' }}>{год}</span>
+              <button className="icon-btn" title={т('Следующий год')} onClick={() => setГод((г) => г + 1)}>
+                <Icon name="right" size={14} />
+              </button>
+            </div>
+            <div className="period-pick-grid">
+              {MONTHS_SHORT.map((м, i) => {
+                const ключ = `${год}-${String(i + 1).padStart(2, '0')}`
+                return (
+                  <button
+                    key={ключ}
+                    className={'btn sm' + (ключ === выбранМесяц ? ' primary' : '') + (ключ === monthKey(today()) ? ' now' : '')}
+                    onClick={() => onPick(ключ + '-01', 'month')}
+                  >
+                    {м}
+                  </button>
+                )
+              })}
+            </div>
+          </>
+        )}
+      </div>
+    </>
   )
 }

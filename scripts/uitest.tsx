@@ -16,8 +16,9 @@ import { Obnovlenie, попроситьПроверку } from '../src/component
 import { Donut } from '../src/components/charts'
 import { addMonths, endOfMonth, humanDate, MONTHS_SHORT, numericDate, parseISO, relDate, today } from '../src/lib/date'
 import type { VaultData } from '../src/lib/types'
+import { ВЕРСИЯ } from '../src/lib/versiya'
 import { accountBalance, balances, creditRemaining, остатокДолга, счётПоУмолчанию } from '../src/engine/stats'
-import { money } from '../src/lib/format'
+import { money, toMinor } from '../src/lib/format'
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   url: 'http://localhost/',
@@ -795,11 +796,12 @@ async function entryDateFollowsPeriod() {
   const expBtn = () => document.querySelector('.btn.tone-out') as any
   const label = () => (expBtn()?.textContent || '').trim()
 
-  // Стрелки периода берём от кнопки «К текущему периоду»: заголовок у неё
-  // единственный на всё окно, а порядок кнопок внутри строки задан разметкой.
-  const nav = (document.querySelector('.icon-btn[title="К текущему периоду"]') as any).parentElement
-  const back = nav.querySelectorAll('.icon-btn')[0]
-  const toNow = nav.querySelectorAll('.icon-btn')[2]
+  // Стрелки периода берём от кнопки «Сегодня» (заголовок «К текущему периоду»):
+  // он единственный на всё окно, а порядок кнопок внутри строки задан разметкой.
+  const nav = (document.querySelector('[title="К текущему периоду"]') as any).parentElement
+  const back = nav.querySelectorAll(':scope > .icon-btn')[0]
+  const toNow = nav.querySelector('[title="К текущему периоду"]')
+  check('кнопка к текущему периоду — словом «Сегодня»', (toNow?.textContent || '').trim() === 'Сегодня')
 
   check('на текущем месяце пометки нет', label() === 'Расход', label())
 
@@ -2364,10 +2366,10 @@ async function отменаИВерсия(root: Root): Promise<Root> {
 
   console.log('\n— версия —')
   await open('Настройки')
-  check('в «О программе» видна версия', text().includes('Кошель, версия 1.0.1'))
+  check('в «О программе» видна версия', text().includes('Кошель, версия ' + ВЕРСИЯ))
   click(byText('.view .btn', 'Что нового'))
   await wait(300)
-  check('«Что нового» открывается из настроек', !!byText('.modal', 'Версия 1.0.1'))
+  check('«Что нового» открывается из настроек', !!byText('.modal', 'Версия ' + ВЕРСИЯ))
   click(byText('.modal-foot .btn', 'Понятно'))
   await wait(300)
   check('в браузере раздел копий объясняет, где они делаются', text().includes('Резервные копии делает программа на компьютере'))
@@ -2380,11 +2382,11 @@ async function отменаИВерсия(root: Root): Promise<Root> {
   await wait(250)
   let next = mount()
   await wait(1800)
-  check('после обновления показывается «Что нового»', !!byText('.modal', 'Версия 1.0.1'))
+  check('после обновления показывается «Что нового»', !!byText('.modal', 'Версия ' + ВЕРСИЯ))
   click(byText('.modal-foot .btn', 'Понятно'))
   await wait(1300)
-  check('отметка «видел» сохранена', JSON.parse(ls.getItem('kashel:data.json')!).settings.whatsNewSeen === '1.0.1')
-  check('программа отметила свою версию', JSON.parse(ls.getItem('kashel:data.json')!).settings.appVersion === '1.0.1')
+  check('отметка «видел» сохранена', JSON.parse(ls.getItem('kashel:data.json')!).settings.whatsNewSeen === ВЕРСИЯ)
+  check('программа отметила свою версию', JSON.parse(ls.getItem('kashel:data.json')!).settings.appVersion === ВЕРСИЯ)
   next.unmount()
   await wait(250)
   next = mount()
@@ -2486,6 +2488,155 @@ async function погашениеЭкраны() {
   await wait(300)
 }
 
+/*
+ * Правки по видео 17 сентября: бюджет, матрица, канвас-задачи, «Сводка»,
+ * операции, досрочный платёж, серия.
+ */
+async function правкиЭкраны() {
+  console.log('\n— правки по видео —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+  const ls = dom.window.localStorage
+
+  // --- бюджет: перерасход только по факту
+  await open('Бюджет')
+  const строки = all('.view tbody tr').filter((р) => р.querySelector('.in-plan'))
+  const ложных = строки.filter((р) => {
+    const потрачено = toMinor((р.querySelectorAll('td')[2]?.textContent || '').replace(/[^\d,]/g, ''))
+    const лимит = toMinor(((р.querySelector('.in-plan') as HTMLInputElement)?.value || '').replace(/[^\d,]/g, ''))
+    return лимит > 0 && потрачено <= лимит && (р.textContent || '').includes('перерасход')
+  })
+  check('«перерасход» только когда потрачено больше лимита', строки.length > 0 && ложных.length === 0, String(ложных.length))
+  const полосы = all('.view .budget-bar') as HTMLElement[]
+  check('полоса бюджета красится по заполнению', полосы.length > 0 && полосы.every((п) => /hsl|rgb|alert/.test(п.style.background)), полосы.map((п) => п.style.background).slice(0, 2).join(' | '))
+
+  // --- матрица
+  await open('Задачи')
+  click(all('.view button').find((б) => (б.textContent || '').trim() === 'Список'))
+  await wait(250)
+  const быстро = document.querySelector('.view input[placeholder="Что нужно сделать"]')
+  check('быстрый ввод задач на месте', !!быстро)
+  for (let i = 1; i <= 7; i++) {
+    ввести(быстро, 'Глава ' + i)
+    await wait(30)
+    click(byText('.view .btn', 'Добавить'))
+    await wait(60)
+  }
+  click(all('.view .seg button, .view button').find((б) => (б.textContent || '').trim() === 'Матрица'))
+  await wait(300)
+  const четверть = (q: number) => document.querySelector(`.matrix .quad[data-quad="${q}"]`) as HTMLElement
+  check('в четверти видно 5 задач и кнопка «Ещё 2»',
+    четверть(4).querySelectorAll('.matrix-task').length === 5 && (четверть(4).querySelector('.matrix-more')?.textContent || '').includes('Ещё 2'))
+  click(четверть(4).querySelector('.matrix-more'))
+  await wait(150)
+  check('«Ещё» раскрывает всё', четверть(4).querySelectorAll('.matrix-task').length === 7)
+  const строка = [...четверть(4).querySelectorAll('.matrix-task')].find((р) => (р.textContent || '').includes('Глава 1'))!
+  строка.dispatchEvent(new dom.window.Event('dragstart', { bubbles: true }))
+  await wait(50)
+  четверть(1).dispatchEvent(new dom.window.Event('dragover', { bubbles: true, cancelable: true }))
+  четверть(1).dispatchEvent(new dom.window.Event('drop', { bubbles: true, cancelable: true }))
+  await wait(1300)
+  let v = await loadVault()
+  const глава1 = v.tasks.find((t) => t.title === 'Глава 1')!
+  check('перетащенная задача переехала в первую четверть', глава1.matrix?.q === 1 && (четверть(1).textContent || '').includes('Глава 1'))
+  const вПервой = () => [...четверть(1).querySelectorAll('.matrix-task')].find((р) => (р.textContent || '').includes('Глава 1'))
+  click(вПервой()?.querySelector('.task-flag'))
+  await wait(1300)
+  v = await loadVault()
+  check('звёздочка в матрице меняет важность', v.tasks.find((t) => t.id === глава1.id)?.priority === 2)
+  // Важность сменилась — ручная четверть больше не держит, ищем задачу по всей матрице.
+  check('после смены важности матрица снова решает сама', !вПервой() || v.tasks.find((t) => t.id === глава1.id)?.matrix?.p !== 2)
+  const гдеУгодно = all('.matrix .matrix-task').find((р) => (р.textContent || '').includes('Глава 1'))
+  click(гдеУгодно?.querySelector('.icon-btn[title="Сделано"]'))
+  await wait(1300)
+  v = await loadVault()
+  check('в матрице задачу можно отметить выполненной', v.tasks.find((t) => t.id === глава1.id)?.done === true)
+
+  // --- канвас: задача из карточки, имя доски, прямые связи, колесо мыши
+  await open('Канвас')
+  await wait(600)
+  const текстовая = all('.cnode').find((c) => c.className.includes('cnode-t-text')) as HTMLElement
+  текстовая.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 300, clientY: 300 }))
+  await wait(150)
+  const задачБыло = (await loadVault()).tasks.length
+  click(menuItem('Сделать задачей'))
+  await wait(1300)
+  v = await loadVault()
+  const карточка = all('.cnode').find((c) => c.className.includes('cnode-t-task')) as HTMLElement
+  check('карточка стала задачей и появилась в «Задачах»', v.tasks.length === задачБыло + 1 && !!карточка)
+  check('на карточке-задаче видны срок и галочка', (карточка?.textContent || '').includes('без срока') && !!карточка?.querySelector('.cnode-task-check'))
+  click(карточка?.querySelector('.cnode-task-check'))
+  await wait(1300)
+  v = await loadVault()
+  check('галочка на карточке закрывает задачу', v.tasks[v.tasks.length - 1]?.done === true)
+
+  const x0 = карточка.style.left
+  mouse(карточка, 'mousedown', 400, 400, { button: 1 })
+  mouse(dom.window, 'mousemove', 480, 460, { button: 1 })
+  mouse(dom.window, 'mouseup', 480, 460, { button: 1 })
+  await wait(200)
+  check('зажатое колесо на карточке двигает холст, а не карточку',
+    (all('.cnode').find((c) => c.className.includes('cnode-t-task')) as HTMLElement)?.style.left === x0)
+
+  click(byText('.canvas-tools .seg button', 'Прямые'))
+  await wait(700)
+  const имяДоски = (document.querySelector('.canvas-tools select') as HTMLSelectElement).value
+  check('форма связей доски сохраняется', JSON.parse(ls.getItem(`kashel:canvas/${имяДоски}.canvas`) || '{}').edgeShape === 'line')
+  click(document.querySelector('.canvas-tools [title="Переименовать доску"]'))
+  await wait(100)
+  const поле = document.querySelector('.canvas-rename')
+  ввести(поле, 'Схема проекта')
+  await wait(50)
+  поле?.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }))
+  await wait(700)
+  check('доска переименована', !!ls.getItem('kashel:canvas/Схема проекта.canvas') && !ls.getItem(`kashel:canvas/${имяДоски}.canvas`))
+
+  // --- «Сводка»: платежи месяца, «Сегодня», выбор месяца
+  await open('Дашборд')
+  const платежи = document.querySelector('.view .platezhi')
+  check('на «Сводке» есть «Платежи этого месяца» с кредитом', !!платежи && (платежи.textContent || '').includes('Рассрочка на технику'))
+  const строкаКредита = [...(платежи?.querySelectorAll('.platezh') ?? [])].find((р) => (р.textContent || '').includes('Рассрочка'))
+  const оплатить = строкаКредита?.querySelector('.btn')
+  if (оплатить) {
+    click(оплатить)
+    await wait(400)
+    check('«Оплатить» у кредита открывает «Погасить»', /Погасить кредит/.test(document.querySelector('.modal')?.textContent || ''))
+    click(byText('.modal-foot .btn', 'Отмена'))
+    await wait(300)
+  }
+  const заголовок = document.querySelector('.view .period-label') as HTMLElement
+  const былоНазвание = (заголовок?.textContent || '').trim()
+  click(заголовок)
+  await wait(200)
+  check('щелчок по периоду открывает выбор месяца', all('.period-pick .period-pick-grid .btn').length === 12)
+  click(all('.period-pick .period-pick-grid .btn')[0])
+  await wait(300)
+  check('выбранный месяц открылся', ((document.querySelector('.view .period-label')?.textContent) || '').trim() !== былоНазвание)
+  click(document.querySelector('.view [title="К текущему периоду"]'))
+  await wait(300)
+  check('«Сегодня» возвращает текущий месяц', ((document.querySelector('.view .period-label')?.textContent) || '').trim() === былоНазвание)
+
+  // --- операции
+  await open('Операции')
+  const поПо = all('.view input').find((и) => (и as HTMLInputElement).placeholder === 'по сегодня и дальше') as HTMLInputElement
+  check('у фильтра дат нет верхней границы', !!поПо && поПо.value === '')
+  check('есть быстрые периоды', ['Месяц', '3 месяца', 'Год', 'Всё'].every((т) => !!byText('.view .period-presets button', т)))
+
+  // --- досрочный платёж
+  await open('Долги и кредиты')
+  check('досрочный платёж объясняет, что это прикидка', text().includes('Это прикидка'))
+  const досрочно = byText('.view .btn', 'Внести досрочно') as HTMLButtonElement
+  check('«Внести досрочно» ждёт суммы', !!досрочно && досрочно.disabled)
+
+  // --- серия
+  await open('Дашборд')
+  const огонёк = document.querySelector('.ogonek')
+  check('огонёк: сегодня уже отмечено действием', (огонёк?.textContent || '').includes('сегодня уже отмечено'))
+  check('подсказка огонька объясняет, что засчитывается', (огонёк?.getAttribute('title') || '').includes('Засчитывается день'))
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2507,6 +2658,7 @@ async function main() {
   await подкатегорииЭкраны()
   await дашбордКредитаИУведомленія()
   await погашениеЭкраны()
+  await правкиЭкраны()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

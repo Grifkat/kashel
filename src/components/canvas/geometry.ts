@@ -67,6 +67,12 @@ export function curveOf(p0: Point, s0: Side, p3: Point, s3: Side): Curve {
   }
 }
 
+/** Прямая связь — та же кривая, только с опорными точками на самой прямой. */
+export function lineOf(p0: Point, p3: Point): Curve {
+  const at = (k: number): Point => ({ x: p0.x + (p3.x - p0.x) * k, y: p0.y + (p3.y - p0.y) * k })
+  return { p0, p1: at(1 / 3), p2: at(2 / 3), p3 }
+}
+
 export const pathOf = (c: Curve): string =>
   `M${c.p0.x},${c.p0.y} C${c.p1.x},${c.p1.y} ${c.p2.x},${c.p2.y} ${c.p3.x},${c.p3.y}`
 

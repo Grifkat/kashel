@@ -117,6 +117,8 @@ export default function Debts() {
             <div className="grid c2" style={{ marginTop: 18 }}>
               <div>
                 <div className="card-title">{т('Досрочный платёж')}</div>
+                <div className="faint small dosrochno-hint" style={{ marginBottom: 8 }}>
+                  {т('Это прикидка: ползунок показывает, как изменятся срок и переплата. Ничего не записывается, пока вы не нажмёте «Внести досрочно».')}</div>
                 <div className="row" style={{ gap: 12 }}>
                   <input
                     type="range"
@@ -135,6 +137,13 @@ export default function Debts() {
                     </span>
                   ))}
                   <span className="chip" onClick={() => setExtra((s) => ({ ...s, [a.id]: 0 }))}>{т('сброс')}</span>
+                  <span className="spacer" />
+                  <button
+                    className="btn sm primary"
+                    disabled={!(extra > 0) || left <= 0}
+                    onClick={() => app.погасить({ вид: 'credit', кредит: a, сумма: Math.min(extra, left) })}
+                  >
+                    {т('Внести досрочно')}</button>
                 </div>
 
                 <div className="row" style={{ marginTop: 16, gap: 20 }}>

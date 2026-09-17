@@ -2,7 +2,13 @@ import type { VaultData } from '../lib/types'
 import { addDays, monthKey, parseISO, today } from '../lib/date'
 
 /*
- * Серія: сколько дней подрядъ въ хранилище появлялась запись.
+ * Серія: сколько дней подрядъ въ программѣ что-то дѣлали.
+ *
+ * Считается по дню дѣйствія, а не по датѣ внутри записи: траты за мѣсяцъ,
+ * внесённыя за одинъ вечеръ, — это одинъ день работы, а не тридцать.
+ * Дѣйствіе — запись, задача, карточка канваса, категорія и прочее, что
+ * человѣкъ сдѣлалъ руками (data.activityDays). Для исторіи до этой версіи
+ * берётся день, когда запись или задача были созданы.
  *
  * Голая серія «пропустилъ день — потерялъ всё» въ учётѣ денегъ работаетъ
  * противъ себя. Человѣкъ, у котораго за полгода накопилось сто восемьдесятъ
@@ -49,9 +55,33 @@ const пустая = (restDay: number | null): Streak => ({
  * Одинъ проходъ, а не два: текущая длина и рекордъ должны считаться по одному
  * и тому же правилу, иначе рекордъ окажется недостижимъ для текущей серіи.
  */
+/** День по отметкѣ созданія: полная отмѣтка — по мѣстному времени. */
+export function деньСозданія(createdAt: string | undefined): string | null {
+  if (!createdAt) return null
+  if (/^\d{4}-\d{2}-\d{2}$/.test(createdAt)) return createdAt
+  const d = new Date(createdAt)
+  if (Number.isNaN(d.getTime())) return null
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** Дни, когда въ программѣ что-то дѣлали. */
+export function дниДѣйствій(data: VaultData): Set<string> {
+  const дни = new Set<string>(data.activityDays ?? [])
+  for (const t of data.transactions) {
+    const д = деньСозданія(t.createdAt)
+    if (д) дни.add(д)
+  }
+  for (const t of data.tasks ?? []) {
+    const д = деньСозданія(t.createdAt)
+    if (д) дни.add(д)
+    if (t.doneAt) дни.add(t.doneAt.slice(0, 10))
+  }
+  return дни
+}
+
 export function streak(data: VaultData, now: string = today()): Streak {
   const restDay = data.settings?.restDay ?? null
-  const дни = new Set(data.transactions.map((t) => t.date))
+  const дни = дниДѣйствій(data)
   if (!дни.size) return пустая(restDay)
 
   const первый = [...дни].reduce((min, d) => (d < min ? d : min))

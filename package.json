@@ -1,6 +1,6 @@
 {
   "name": "kashel",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Кошель — интерактивный учёт финансов с канвасом, заметками и прогнозом",
   "main": "electron/main.js",
   "private": true,

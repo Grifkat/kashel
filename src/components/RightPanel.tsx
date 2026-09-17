@@ -9,7 +9,7 @@ import { Icon } from '../lib/icons'
 import { money, pct } from '../lib/format'
 import { addDays, daysInMonth, monthKey, parseISO, today } from '../lib/date'
 import { balances, creditRemaining } from '../engine/stats'
-import { occurrencesInMonth } from '../engine/forecast'
+import { платежиМесяца } from '../engine/platezhi'
 import { Spark } from './charts'
 import { Avatar } from './ui'
 import { личное } from '../engine/project'
@@ -55,21 +55,14 @@ export function RightPanel({ open }: { open: boolean }) {
   const [правка, setПравка] = useState(false)
   const cur = monthKey(today())
 
+  // Ближайшие списания — те же «Платежи этого месяца»: кредиты, регулярные и задачи с суммой.
   const upcoming = useMemo(() => {
-    const list: { title: string; date: string; amount: number; kind: string }[] = []
-    for (const r of data.recurring) {
-      if (!r.active) continue
-      for (const off of [0, 1]) {
-        const mk = off === 0 ? cur : monthKey(addDays(`${cur}-28`, 7))
-        if (!occurrencesInMonth(r, mk)) continue
-        const day = Math.min(r.dayOfMonth ?? 1, 28)
-        const date = `${mk}-${String(day).padStart(2, '0')}`
-        if (date < today()) continue
-        list.push({ title: r.title, date, amount: r.amount, kind: r.kind })
-      }
-    }
-    return list.sort((a, b) => (a.date < b.date ? -1 : 1)).slice(0, 5)
-  }, [data.recurring, cur])
+    const след = monthKey(addDays(`${cur}-28`, 7))
+    return [...платежиМесяца(data, cur).список, ...платежиМесяца(data, след).список]
+      .filter((x) => x.статус !== 'paid' && x.статус !== 'unmarked')
+      .slice(0, 5)
+      .map((x) => ({ title: x.название, date: x.дата, amount: x.сумма - x.внесено, kind: 'expense', просрочен: x.статус === 'overdue' }))
+  }, [data, cur])
 
   // Выходим только после всех хуков: закрытая панель обязана вызвать их
   // столько же раз, сколько открытая, иначе React обнаружит, что хуков стало
@@ -160,7 +153,7 @@ export function RightPanel({ open }: { open: boolean }) {
             <div className="card-title" style={{ marginBottom: 6 }}>{т('Ближайшие списания')}</div>
             {upcoming.map((u, i) => (
               <div key={i} className="row" style={{ padding: '4px 0', fontSize: 12.5 }}>
-                <span className="faint" style={{ width: 46 }}>{u.date.slice(8)}.{u.date.slice(5, 7)}</span>
+                <span className={u.просрочен ? 'neg' : 'faint'} style={{ width: 46 }}>{u.date.slice(8)}.{u.date.slice(5, 7)}</span>
                 <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{u.title}</span>
                 <Amount value={u.amount} kind={u.kind === 'income' ? 'income' : 'expense'} />
               </div>

@@ -269,6 +269,12 @@ export interface Task {
    * из флажка `important`, и «важно» равно высокой.
    */
   priority?: 0 | 1 | 2 | 3
+  /**
+   * Четверть, куда задачу перетащили в матрице руками. Держится, пока у
+   * задачи те же срок и важность, что были при переносе (due, p): сменили
+   * их — матрица снова решает сама.
+   */
+  matrix?: { q: 1 | 2 | 3 | 4; due: string; p: number }
   /** Планируемая сумма. Пусто — задача не про деньги. */
   amount?: Money
   /** Куда пойдёт сумма: трата или приход. Осмысленно только вместе с amount. */
@@ -457,6 +463,8 @@ export type CanvasNodeKind =
   | 'query'
   | 'scenario'
   | 'group'
+  /** Задача из раздела «Задачи»: ref — её id. */
+  | 'task'
 
 /**
  * Как текст ведёт себя при изменении размера карточки.
@@ -499,7 +507,12 @@ export interface CanvasEdge {
   label?: string
   arrow?: EdgeArrow
   flow?: boolean // ребро-денежный поток: толщина по сумме
+  /** Форма линии. Пусто — как задано у доски. */
+  shape?: EdgeShape
 }
+
+/** Изогнутая или прямая связь. */
+export type EdgeShape = 'curve' | 'line'
 
 /** Оформление карточек: у каждой доски своё. */
 export type CardStyle = 'rich' | 'minimal' | 'flat'
@@ -508,6 +521,8 @@ export interface CanvasDoc {
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   cardStyle?: CardStyle
+  /** Форма связей по умолчанию у этой доски. Пусто — изогнутые. */
+  edgeShape?: EdgeShape
   /** Цвета быстрого доступа в меню карточки — свои у каждой доски. */
   quickColors?: string[]
 }
@@ -538,6 +553,12 @@ export interface VaultData {
   settings: Settings
   /** Хранилище уведомлений: ждущие ответа и история. Нет — значит пока не было ни одного. */
   notifications?: Notice[]
+  /**
+   * Дни, когда в программе что-то делали руками: запись, задача, карточка,
+   * категория и прочее. По ним горит огонёк серии — по дню действия, а не
+   * по дате внутри записи.
+   */
+  activityDays?: string[]
 }
 
 /**

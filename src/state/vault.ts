@@ -287,6 +287,7 @@ export async function readCanvas(name: string): Promise<CanvasDoc | null> {
       nodes: doc.nodes || [],
       edges: doc.edges || [],
       ...(doc.cardStyle ? { cardStyle: doc.cardStyle } : {}),
+      ...(doc.edgeShape ? { edgeShape: doc.edgeShape } : {}),
       ...(doc.quickColors?.length ? { quickColors: doc.quickColors } : {}),
     }
   } catch {

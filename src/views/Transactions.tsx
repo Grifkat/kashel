@@ -44,7 +44,8 @@ export default function Transactions({ filter }: { filter?: string }) {
   }, [tabId, accId, setEntryAccount])
   const [tag, setTag] = useState('')
   const [from, setFrom] = useState(initialDay || addMonths(today(), -3))
-  const [to, setTo] = useState(initialDay || today())
+  // Без верхней границы: запись с будущей датой иначе пропадала из списка.
+  const [to, setTo] = useState(initialDay || '')
   const [onlyUncat, setOnlyUncat] = useState(filter === 'uncategorized')
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [confirmBulk, setConfirmBulk] = useState(false)
@@ -215,7 +216,26 @@ export default function Transactions({ filter }: { filter?: string }) {
             style={{ width: 190 }}
           />
           <DateField allowEmpty value={from} onChange={setFrom} style={{ width: 145 }} placeholder={т('с какого')} />
-          <DateField allowEmpty value={to} onChange={setTo} style={{ width: 145 }} placeholder={т('по какое')} />
+          <DateField allowEmpty value={to} onChange={setTo} style={{ width: 145 }} placeholder={т('по сегодня и дальше')} />
+          <div className="seg period-presets">
+            {([
+              ['m1', т('Месяц'), addMonths(today(), -1)],
+              ['m3', т('3 месяца'), addMonths(today(), -3)],
+              ['y1', т('Год'), addMonths(today(), -12)],
+              ['all', т('Всё'), ''],
+            ] as const).map(([k, label, с]) => (
+              <button
+                key={k}
+                className={from === с && !to ? 'on' : ''}
+                onClick={() => {
+                  setFrom(с)
+                  setTo('')
+                }}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button className={'chip' + (onlyUncat ? ' on' : '')} onClick={() => setOnlyUncat((v) => !v)}>
             {т('без категории')}</button>
           {(catId || accId || tag || q || onlyUncat || kind !== 'all' || initialDay) && (
@@ -229,7 +249,7 @@ export default function Transactions({ filter }: { filter?: string }) {
                 setOnlyUncat(false)
                 setKind('all')
                 setFrom(addMonths(today(), -3))
-                setTo(today())
+                setTo('')
               }}
             >
               {т('Сбросить')}</button>
@@ -326,6 +346,7 @@ export default function Transactions({ filter }: { filter?: string }) {
                         {t.note || c?.name || (t.kind === 'transfer' ? т('Перевод') : т('Операция'))}
                         {t.splits?.length ? <span className="badge" style={{ marginLeft: 7 }}>{тр('разбит на {0}', t.splits.length)}</span> : null}
                         {t.recurringId ? <span className="badge" style={{ marginLeft: 7 }}>{т('регулярный')}</span> : null}
+                        {t.date > today() ? <span className="badge warn tx-future" style={{ marginLeft: 7 }}>{т('будущая дата')}</span> : null}
                       </div>
                       <div className="tx-sub">
                         {/* Счёт могли удалить — тогда так и пишем, а не «undefined». */}
