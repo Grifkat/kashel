@@ -100,7 +100,7 @@ export function creditState(acc: Account, data: VaultData, now: string = today()
   const поСтатьямъ = new Map<string | null, Money>()
   for (const t of txs) {
     if (t.kind === 'transfer' && t.toAccountId === acc.id) repaid += t.amount
-    else if (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id) repaid += t.debtPrincipal ?? t.amount
+    else if (t.kind === 'expense' && t.debtId === acc.id && (t.accountId !== acc.id || t.offBook)) repaid += t.debtPrincipal ?? t.amount
     else if (t.kind === 'expense' && t.accountId === acc.id) {
       spentTotal += t.amount
       const k = t.categoryId ?? null
@@ -225,7 +225,7 @@ export interface ПланъПлатежа {
   долгъДо: Money
   проценты: Money
   тѣло: Money
-  /** Сколько из платежа попадёт в расходы. */
+  /** Сколько из платежа попадёт в расходы (со штрафом). */
   расходъ: Money
 }
 
@@ -237,16 +237,24 @@ export interface ПланъПлатежа {
  */
 export function планъПлатежа(p: {
   кредитъ: Account
-  счётъ: string
+  /** Свой счёт; null — платёж не с ваших счетов (offBook). */
+  счётъ: string | null
   сумма: Money
   дата: string
   data: VaultData
   безъ?: string
   tags?: string[]
   note?: string
+  /** Штраф или пени сверх платежа: расход, долг не гасит. */
+  штраф?: Money
+  /** Статья штрафов — передаётся снаружи, чтобы не ссылаться друг на друга. */
+  статьяШтрафа?: Category
 }): ПланъПлатежа | null {
   const { кредитъ, счётъ, сумма, дата, data } = p
-  if (!(сумма > 0) || !счётъ || счётъ === кредитъ.id || кредитъ.type !== 'credit') return null
+  if (!(сумма > 0) || счётъ === '' || счётъ === кредитъ.id || кредитъ.type !== 'credit') return null
+  // Не со счёта — операции висят на самом кредите и ничего не списывают.
+  const откуда = счётъ ?? кредитъ.id
+  const мимо = счётъ ? {} : { offBook: 'out' as const }
   const txs = p.безъ ? data.transactions.filter((t) => t.id !== p.безъ) : data.transactions
   const долгъДо = Math.max(0, -accountBalance(кредитъ, txs, дата))
   const { проценты, тѣло } = разложитьПлатёжъ(долгъДо, кредитъ.credit?.ratePct ?? 0, сумма)
@@ -265,24 +273,41 @@ export function планъПлатежа(p: {
     if (тѣло > 0) нужна(СТАТЬЯ_ПЛАТЕЖЕЙ)
     if (проценты > 0) нужна(СТАТЬЯ_ПРОЦЕНТОВ)
     операціи.push({
-      kind: 'expense', amount: сумма, accountId: счётъ, debtId: кредитъ.id, debtPrincipal: тѣло,
+      kind: 'expense', amount: сумма, accountId: откуда, debtId: кредитъ.id, debtPrincipal: тѣло,
       ...(доли.length > 1 ? { splits: доли } : { categoryId: доли[0].categoryId }),
+      ...мимо,
       ...общее,
     })
-    return { статьи, операціи, долгъДо, проценты, тѣло, расходъ: сумма }
+    const штраф = штрафъ()
+    return { статьи, операціи, долгъДо, проценты, тѣло, расходъ: сумма + штраф }
   }
 
   if (тѣло > 0) {
-    операціи.push({ kind: 'transfer', amount: тѣло, accountId: счётъ, toAccountId: кредитъ.id, ...общее })
+    операціи.push(счётъ
+      ? { kind: 'transfer', amount: тѣло, accountId: счётъ, toAccountId: кредитъ.id, ...общее }
+      : { kind: 'transfer', amount: тѣло, accountId: кредитъ.id, toAccountId: кредитъ.id, offBook: 'in', ...общее })
   }
   if (проценты > 0) {
     нужна(СТАТЬЯ_ПРОЦЕНТОВ)
     операціи.push({
-      kind: 'expense', amount: проценты, accountId: счётъ, categoryId: СТАТЬЯ_ПРОЦЕНТОВ.id,
-      debtId: кредитъ.id, debtPrincipal: 0, ...общее,
+      kind: 'expense', amount: проценты, accountId: откуда, categoryId: СТАТЬЯ_ПРОЦЕНТОВ.id,
+      debtId: кредитъ.id, debtPrincipal: 0, ...мимо, ...общее,
     })
   }
-  return { статьи, операціи, долгъДо, проценты, тѣло, расходъ: проценты }
+  const штраф = штрафъ()
+  return { статьи, операціи, долгъДо, проценты, тѣло, расходъ: проценты + штраф }
+
+  function штрафъ(): Money {
+    const с = p.штраф ?? 0
+    if (!(с > 0) || !p.статьяШтрафа) return 0
+    нужна(p.статьяШтрафа)
+    операціи.push({
+      kind: 'expense', amount: с, accountId: откуда, categoryId: p.статьяШтрафа.id,
+      debtId: кредитъ.id, debtPrincipal: 0, ...мимо,
+      date: дата, tags: p.tags ?? [], note: т('Штраф по кредиту «{0}»', кредитъ.name),
+    })
+    return с
+  }
 }
 
 /* ------------------------------------------------------------------------
@@ -341,7 +366,7 @@ export function подсказкаОстатка(
   const c = acc.credit
   if (!c || !(c.principal > 0) || !(c.monthlyPayment > 0) || !c.startDate) return null
   const свои = data.transactions
-    .filter((t) => (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id) || (t.kind === 'transfer' && t.toAccountId === acc.id))
+    .filter((t) => этоПлатёжПо(acc, t))
     .map((t) => t.date)
     .sort()
   const наДату = свои.length && свои[0] <= now ? addDays(свои[0], -1) : now
@@ -382,7 +407,7 @@ export function перевестиКредиты(data: VaultData): {
     // Свои движения со счёта кредита: траты с него или деньги, выведенные с
     // него на другие счета. Если они есть, долг уже сидит в остатке — ставить
     // сверху ещё и сумму кредита значило бы удвоить его.
-    const своиТраты = transactions.some((t) => t.kind === 'expense' && t.accountId === a.id)
+    const своиТраты = transactions.some((t) => t.kind === 'expense' && t.accountId === a.id && !t.offBook)
     const выведено = transactions.some((t) => t.kind === 'transfer' && t.accountId === a.id && t.toAccountId !== a.id)
     let initialBalance = a.initialBalance
     if (initialBalance > 0) initialBalance = -initialBalance
@@ -429,10 +454,14 @@ export function следующийПлатёж(c: NonNullable<Account['credit']>
   return датыПлатежей(c, addMonths(now, 2)).find((д) => д >= now) ?? null
 }
 
-/** Платёж, записанный в программе: расход с пометкой кредита или перевод на него. */
+/**
+ * Платёж, записанный в программе: расход с пометкой кредита или перевод на
+ * него — в том числе «не со счёта» (offBook). Деньги, выведенные с кредита
+ * наружу, платежом не считаются.
+ */
 export const этоПлатёжПо = (acc: Account, t: Transaction): boolean =>
-  (t.kind === 'expense' && t.debtId === acc.id && t.accountId !== acc.id && t.debtPrincipal !== 0) ||
-  (t.kind === 'transfer' && t.toAccountId === acc.id)
+  (t.kind === 'expense' && t.debtId === acc.id && (t.accountId !== acc.id || t.offBook === 'out') && t.debtPrincipal !== 0) ||
+  (t.kind === 'transfer' && t.toAccountId === acc.id && (t.accountId !== acc.id || t.offBook === 'in'))
 
 export interface СводкаКредита extends Кредит {
   /** Сколько брали. */

@@ -262,8 +262,20 @@ export default function Dashboard() {
           <button className="btn tone-in" onClick={() => app.openQuickAdd('', 'income')} title={entryHint(т('Записать доход'))}>
             <Icon name="plus" size={16} /> {тр(' Доход{0}', entryMark)}</button>
         </div>
-        <div className="hero-total num" style={{ marginTop: 6 }}>
-          {hidden ? '•••••••' : <Money value={headline} />}
+        <div className="row wrap" style={{ marginTop: 6, gap: 14, alignItems: 'baseline' }}>
+          <div className="hero-total num">
+            {hidden ? '•••••••' : <Money value={headline} />}
+          </div>
+          {/* Отданное в долг — ваши деньги, но не на руках: рядом, а не в сумме. */}
+          {accountId === '__all__' && bal.lent > 0 && (
+            <button
+              className="hero-frozen"
+              title={т('Деньги, которые вам должны вернуть. В «Итого» не входят.')}
+              onClick={() => app.openTab('debts')}
+            >
+              <Icon name="clock" size={14} /> {т('Заморожено {0} — вам должны', hidden ? '••••' : money(bal.lent))}
+            </button>
+          )}
         </div>
         <div className="hero-label">
           {тр('чистый капитал {0}{1}', hidden ? '••••' : money(bal.net), bal.liabilities < 0 && т(' · обязательства {0}', hidden ? '••••' : money(bal.liabilities)))}</div>

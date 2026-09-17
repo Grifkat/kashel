@@ -130,10 +130,12 @@ export function scopeToAccount(data: VaultData, accountId: string): VaultData {
       if (outgoing) transactions.push(t)
       continue
     }
+    // Деньги извне или наружу: обе стороны — этот же счёт, решает пометка.
+    const приход = t.offBook ? t.offBook === 'in' : incoming
     transactions.push({
       ...t,
-      kind: incoming ? 'income' : 'expense',
-      categoryId: incoming ? TRANSFER_IN : TRANSFER_OUT,
+      kind: приход ? 'income' : 'expense',
+      categoryId: приход ? TRANSFER_IN : TRANSFER_OUT,
       accountId,
       toAccountId: undefined,
       splits: undefined,

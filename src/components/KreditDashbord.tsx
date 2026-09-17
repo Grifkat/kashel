@@ -5,6 +5,7 @@ import { Icon } from '../lib/icons'
 import { humanDate, monthTitle, parseISO, вСтрочную } from '../lib/date'
 import { money, pct, plural } from '../lib/format'
 import { сводкаКредита } from '../engine/credit'
+import { просрочкаКредита } from '../engine/pogashenie'
 import type { Account } from '../lib/types'
 import { т, тр } from '../i18n'
 
@@ -21,7 +22,7 @@ export function KreditDashbord({ acc, compact = false }: { acc: Account; compact
   const с = сводкаКредита(acc, data)
   const c = acc.credit
   const скрыто = data.settings.hideBalance
-  const платитьСъ = data.accounts.find((a) => a.id === c?.payFrom && !a.archived)?.id
+  const просрочка = просрочкаКредита(acc, data)
   const м = (v: number) => (скрыто ? '••••' : money(v))
   const закрытъ = с.debt <= 0
 
@@ -38,10 +39,22 @@ export function KreditDashbord({ acc, compact = false }: { acc: Account; compact
         </div>
         <span className="spacer" />
         {!закрытъ && (
-          <button className="btn primary" onClick={() => app.editTransaction({ debtId: acc.id, accountId: платитьСъ })}>
+          <button className="btn primary" onClick={() => app.погасить({ вид: 'credit', кредит: acc })}>
             <Icon name="plus" size={15} /> {т(' Внести платёж')}</button>
         )}
       </div>
+
+      {/* Пропущенный или недоплаченный платёж — красной строкой, пока его не внесут. */}
+      {просрочка && просрочка.сумма > 0 && (
+        <div className="kredit-prosrochka neg small row" style={{ gap: 6, marginTop: 10 }}>
+          <Icon name="warn" size={14} />
+          <span>
+            {просрочка.платежей === 1
+              ? т('Просрочен платёж от {0}: {1}', humanDate(просрочка.с!, true), м(просрочка.сумма))
+              : т('Просрочено {0} {1} (с {2}): {3}', просрочка.платежей, plural(просрочка.платежей, 'платёж', 'платежа', 'платежей'), humanDate(просрочка.с!, true), м(просрочка.сумма))}
+          </span>
+        </div>
+      )}
 
       {с.principal > 0 && (
         <>

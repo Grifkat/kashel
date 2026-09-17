@@ -255,7 +255,9 @@ export async function полнаяВыгрузка(
   п(т('Всего: {0}. Суммы в рублях. Общие суммы смотри в части 1.', д.transactions.length))
   п(т('дата | вид | сумма | счёт | статья | метки | комментарий'))
   for (const t of [...д.transactions].sort((a, b) => (a.date < b.date ? -1 : 1))) {
-    const куда = t.kind === 'transfer' ? `${счётъ(t.accountId)} → ${счётъ(t.toAccountId)}` : счётъ(t.accountId)
+    const куда = t.offBook
+      ? (t.offBook === 'in' ? т('извне → {0}', счётъ(t.accountId)) : т('{0} → наружу', счётъ(t.accountId)))
+      : t.kind === 'transfer' ? `${счётъ(t.accountId)} → ${счётъ(t.toAccountId)}` : счётъ(t.accountId)
     const доли = t.splits?.length
       ? т(' [доли: ') + t.splits.map((s) => `${статья(s.categoryId)} ${рубли(s.amount)}`).join(', ') + ']'
       : ''

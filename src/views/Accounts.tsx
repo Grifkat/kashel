@@ -113,6 +113,7 @@ export default function Accounts() {
         <div>
           <h1 className="view-title">{т('Счета')}</h1>
           <div className="view-sub">
+            {bal.lent > 0 && тр('Заморожено в долгах {0} · ', money(bal.lent))}
             {тр('Активы {0} · обязательства {1} · чистый капитал{2}', money(bal.assets), money(bal.liabilities), ' ')}<span className={bal.net >= 0 ? 'pos' : 'neg'}>{money(bal.net)}</span>
             {projects.length > 0 && (
               <> {тр(' · под проектами {0} ', money(проектныеДеньги))}<span className="faint">{т('(не ваши)')}</span></>
@@ -193,9 +194,10 @@ function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: 
       type,
       credit:
         type === 'credit'
-          ? a.credit ?? { principal: 0, ratePct: 0, termMonths: 12, startDate: today(), paymentDay: 10, monthlyPayment: 0, purpose: 'purchase', v: 2 }
+          ? a.credit ?? { principal: 0, ratePct: 0, termMonths: 12, startDate: today(), paymentDay: 10, monthlyPayment: 0, purpose: 'purchase', v: 2, trackFrom: today() }
           : undefined,
-      debt: type === 'debt' ? a.debt ?? { counterparty: '', direction: 'i_owe', v: 2 } : undefined,
+      // Долг из «Счетов» — сумма без списания, и человек видит это сам: сверять нечего.
+      debt: type === 'debt' ? a.debt ?? { counterparty: '', direction: 'i_owe', v: 2, reviewed: true } : undefined,
     })
   }
 

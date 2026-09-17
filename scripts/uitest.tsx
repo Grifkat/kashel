@@ -16,7 +16,7 @@ import { Obnovlenie, попроситьПроверку } from '../src/component
 import { Donut } from '../src/components/charts'
 import { addMonths, endOfMonth, humanDate, MONTHS_SHORT, numericDate, parseISO, relDate, today } from '../src/lib/date'
 import type { VaultData } from '../src/lib/types'
-import { creditRemaining } from '../src/engine/stats'
+import { accountBalance, balances, creditRemaining, остатокДолга, счётПоУмолчанию } from '../src/engine/stats'
 import { money } from '../src/lib/format'
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
@@ -2393,6 +2393,99 @@ async function отменаИВерсия(root: Root): Promise<Root> {
   return next
 }
 
+/*
+ * Окно «Погасить»: долг вам и ваш долг, со счёта и мимо счетов, платёж по
+ * кредиту без счёта, «Заморожено» на сводке и сверка старых долгов.
+ */
+async function погашениеЭкраны() {
+  console.log('\n— погасить, дать в долг, заморожено —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+  const окно = () => document.querySelector('.modal') as HTMLElement | null
+  const тумблер = (про: string) => [...(окно()?.querySelectorAll('button.row') ?? [])].find((б) => (б.textContent || '').includes(про)) as HTMLElement | undefined
+  const нажать = (текст: string) => click([...(окно()?.querySelectorAll('.modal-foot .btn') ?? [])].find((б) => (б.textContent || '').trim() === текст))
+  const карта = (v: Awaited<ReturnType<typeof loadVault>>, id: string) => accountBalance(v.accounts.find((a) => a.id === id)!, v.transactions)
+
+  await open('Долги и кредиты')
+  // сверка старого долга: в демо «Долг Диме» заведён суммой
+  check('старый долг просят сверить', text().includes('Проверьте старые долги') && !!document.querySelector('.sverka-dolg'))
+  click(byText('.sverka-dolg .btn', 'Готово'))
+  await wait(1300)
+  let v = await loadVault()
+  check('«счета не менять» — долг сверен, операций не прибавилось', v.accounts.find((a) => a.id === 'acc_debt')?.debt?.reviewed === true &&
+    !document.querySelector('.sverka-dolg'))
+
+  // дать в долг со счёта
+  const счёт = счётПоУмолчанию(v.accounts.filter((a) => a.type !== 'credit' && a.type !== 'debt'), v.transactions)
+  const наСчёте = карта(v, счёт)
+  click(byText('.view-head .btn', 'Дать в долг'))
+  await wait(400)
+  check('«Дать в долг» открывает окно с именем и галочкой', /Дать в долг/.test(окно()?.textContent || '') && !!тумблер('Списать со счёта'))
+  ввести(окно()?.querySelector('input[placeholder="Имя"]'), 'Лёша')
+  ввести(окно()?.querySelector('.pogashenie-summa'), '3000')
+  await wait(150)
+  нажать('Записать')
+  await wait(1300)
+  v = await loadVault()
+  const лёша = v.accounts.find((a) => a.name === 'Лёша')!
+  check('долг заведён и деньги ушли со счёта', !!лёша && остатокДолга(лёша, v.transactions) === 3_000_00 && карта(v, счёт) === наСчёте - 3_000_00,
+    `${лёша && остатокДолга(лёша, v.transactions)} ${наСчёте} → ${карта(v, счёт)}`)
+
+  await open('Дашборд')
+  check('на сводке рядом с «Итого» — «Заморожено»', (document.querySelector('.hero-frozen')?.textContent || '').replace(/\s/g, ' ').includes('Заморожено 3 000'),
+    document.querySelector('.hero-frozen')?.textContent ?? '')
+
+  // получить назад мимо счетов
+  await open('Долги и кредиты')
+  const карточка = all('.view .card.tight').find((к) => к.querySelector('.strong')?.textContent === 'Лёша')
+  click([...(карточка?.querySelectorAll('.btn') ?? [])].find((б) => (б.textContent || '').trim() === 'Получить'))
+  await wait(400)
+  check('«Получить» подставляет весь долг', (окно()?.querySelector('.pogashenie-summa') as HTMLInputElement)?.value.replace(/\s/g, '') === '3000')
+  click(тумблер('Зачислить на счёт'))
+  await wait(150)
+  check('без галочки объясняет, что будет', text().includes('на счета ничего не поступит'))
+  нажать('Записать')
+  await wait(1300)
+  v = await loadVault()
+  check('долг закрыт, счёт не изменился', остатокДолга(лёша, v.transactions) === 0 && карта(v, счёт) === наСчёте - 3_000_00)
+  check('запись помечена «не на счёт»', v.transactions.some((t) => t.accountId === лёша.id && t.offBook === 'out'))
+  await open('Дашборд')
+  check('заморозка ушла вместе с долгом', !document.querySelector('.hero-frozen'))
+
+  // платёж по кредиту мимо счетов
+  await open('Долги и кредиты')
+  const кредит = v.accounts.find((a) => a.id === 'acc_credit')!
+  const долгБыл = creditRemaining(кредит, v.transactions)
+  const своиБыло = balances(v.accounts, v.transactions).assets
+  click(byText('.kredit-dash .btn', 'Внести платёж'))
+  await wait(400)
+  check('«Внести платёж» открывает окно «Погасить» со штрафом', /Погасить кредит/.test(окно()?.textContent || '') && text().includes('Штраф / пени'))
+  click(тумблер('Списать со счёта'))
+  await wait(150)
+  ввести(окно()?.querySelector('.pogashenie-summa'), '10000')
+  await wait(150)
+  check('окно показывает, сколько уйдёт в долг и сколько на проценты', /в погашение долга/.test(окно()?.textContent || '') && /на проценты/.test(окно()?.textContent || ''))
+  нажать('Погасить')
+  await wait(1300)
+  v = await loadVault()
+  const погашено = долгБыл - creditRemaining(кредит, v.transactions)
+  check('кредит погашен без списания со счетов (часть — проценты)',
+    погашено > 8_000_00 && погашено < 10_000_00 && balances(v.accounts, v.transactions).assets === своиБыло,
+    `${долгБыл} → ${creditRemaining(кредит, v.transactions)}`)
+
+  // запись «без счёта» правится в окне «Погасить»
+  await open('Операции')
+  const строка = all('.view .tx-row').find((р) => (р.textContent || '').includes('не со счёта'))
+  check('в операциях видно «не со счёта»', !!строка)
+  click(строка?.querySelector('.tx-main'))
+  await wait(400)
+  check('правка такой записи — в окне «Изменить запись»', /Изменить запись/.test(окно()?.textContent || '') && !byText('.modal', 'Новая операция'))
+  нажать('Отмена')
+  await wait(300)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2413,6 +2506,7 @@ async function main() {
   await быстрыйВводСчётъ()
   await подкатегорииЭкраны()
   await дашбордКредитаИУведомленія()
+  await погашениеЭкраны()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

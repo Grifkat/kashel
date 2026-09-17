@@ -2,7 +2,7 @@ import type { Account, Category, Money, Transaction, VaultData } from '../lib/ty
 import { сЗначкомъ } from '../lib/catalog'
 import { addDays, addMonths, daysInMonth, diffDays, diffMonths, humanDate, monthKey, monthTitle, parseISO, today, вСтрочную } from '../lib/date'
 import { money, moneyShort, months as monthsWord, pct, plural, times } from '../lib/format'
-import { balances, categoryMonthly, categoryTotals, creditRemaining, isAsset, mean, median, stdev, trendSlope } from './stats'
+import { balances, categoryMonthly, categoryTotals, creditRemaining, isAsset, mean, median, stdev, trendSlope, остатокДолга } from './stats'
 import { historyKeys, occurrencesInMonth, type ForecastResult } from './forecast'
 import { личное } from './project'
 import { родитель, суммаСемьи } from './podkategorii'
@@ -709,8 +709,7 @@ function ruleDebts(c: Ctx): Advice[] {
 
   for (const acc of debts) {
     const d = acc.debt!
-    const bal = c.data.accounts.length ? 0 : 0
-    const amount = Math.abs(acc.initialBalance + c.data.transactions.filter((t) => t.accountId === acc.id || t.toAccountId === acc.id).reduce((s, t) => s + (t.toAccountId === acc.id ? t.amount : -t.amount), 0))
+    const amount = остатокДолга(acc, c.data.transactions)
     if (!amount) continue
     const overdue = d.dueDate ? diffDays(d.dueDate, today()) : -1
 

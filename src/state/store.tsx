@@ -13,6 +13,7 @@ import { перевестиКредиты } from '../engine/credit'
 import { провестиАвтосписания } from '../engine/avtospisaniya'
 import { перевестиДолги } from '../engine/stats'
 import { безРодителя } from '../engine/podkategorii'
+import { отметитьУчётКредитов } from '../engine/pogashenie'
 import { occurrencesInMonth } from '../engine/forecast'
 import { т } from '../i18n'
 import { ВЕРСИЯ } from '../lib/versiya'
@@ -143,7 +144,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // переводы на покупку в долг — платежи с расходом. Правка разовая: счёт
       // получает отметку версии, и второй раз его не трогают.
       const долги = перевестиДолги(start.accounts)
-      const сДолгами = долги.changed ? { ...start, accounts: долги.accounts } : start
+      // С какого дня следить за платежами кредита — отметка ставится один раз.
+      const учёт = отметитьУчётКредитов(долги.accounts, today())
+      const сДолгами = долги.changed || учёт.changed ? { ...start, accounts: учёт.accounts } : start
       const кредиты = перевестиКредиты(сДолгами)
       const сКредитами = кредиты.changed
         ? {
@@ -164,7 +167,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       const былаВерсия = merged.settings.appVersion
       const естьДанные = merged.transactions.length > 0 || merged.accounts.length > 0
       const сменаВерсии = !новое && былаВерсия !== ВЕРСИЯ && (!!былаВерсия || естьДанные)
-      if ((сменаВерсии || долги.changed || кредиты.changed) && копииДоступны()) {
+      if ((сменаВерсии || долги.changed || учёт.changed || кредиты.changed) && копииДоступны()) {
         try {
           await сделатьКопию(merged, 'update')
         } catch (e) {
@@ -192,7 +195,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         : posted.data
       setDataRaw(готово)
       dataRef.current = готово
-      if (posted.coreChanged || needCats || кредиты.changed || долги.changed || отметкаВерсии) {
+      if (posted.coreChanged || needCats || кредиты.changed || долги.changed || учёт.changed || отметкаВерсии) {
         coreDirty.current = true
         for (const t of posted.created) touchedRef.current.add(monthKey(t.date))
         queueSave()
@@ -513,7 +516,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    */
   const replaceAll = useCallback(async (пришло: VaultData) => {
     // Архив мог быть сделан прежней версией — кредиты переводим так же, как при открытии.
-    const сДолгами = { ...пришло, accounts: перевестиДолги(пришло.accounts).accounts }
+    const сДолгами = { ...пришло, accounts: отметитьУчётКредитов(перевестиДолги(пришло.accounts).accounts, today()).accounts }
     const к = перевестиКредиты(сДолгами)
     const next = к.changed
       ? { ...сДолгами, accounts: к.accounts, transactions: к.transactions, categories: [...пришло.categories, ...к.статьи] }

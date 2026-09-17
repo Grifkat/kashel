@@ -9,6 +9,7 @@ import { balances } from './engine/stats'
 import { CommandPalette } from './components/CommandPalette'
 import { QuickAdd } from './components/QuickAdd'
 import { TransactionModal } from './components/TransactionModal'
+import { PogashenieOkno, type ЦельПогашения } from './components/PogashenieOkno'
 import { RightPanel } from './components/RightPanel'
 import { GlobalSearch } from './components/GlobalSearch'
 import { ThemePicker } from './components/ThemePicker'
@@ -103,6 +104,8 @@ interface AppApi {
   /** Схлопывает всё до одной вкладки дашборда — после полной смены хранилища. */
   resetWorkspace(): void
   editTransaction(t: Transaction | Partial<Transaction> | null): void
+  /** Окно «Погасить»: кредит, долг человеку, новый долг. */
+  погасить(цель: ЦельПогашения): void
   openPalette(): void
   openQuickAdd(prefill?: string, kind?: TxKind): void
   /**
@@ -166,7 +169,13 @@ export default function App() {
   const [entryDates, setEntryDates] = useState<Record<string, string>>({})
   const [entryAccounts, setEntryAccounts] = useState<Record<string, string>>({})
   const [searchOpen, setSearchOpen] = useState<string | null>(null)
-  const [editing, setEditing] = useState<Transaction | Partial<Transaction> | null>(null)
+  const [editing, setEditingRaw] = useState<Transaction | Partial<Transaction> | null>(null)
+  const [погашение, setПогашение] = useState<ЦельПогашения | null>(null)
+  // Запись «без счёта» правится в окне «Погасить»: в обычной форме у неё нет второго счёта.
+  const setEditing = useCallback((t: Transaction | Partial<Transaction> | null) => {
+    if (t && 'id' in t && t.id && t.offBook) setПогашение({ вид: 'edit', операция: t as Transaction })
+    else setEditingRaw(t)
+  }, [])
   const [rightOpen, setRightOpen] = useState(true)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [themeOpen, setThemeOpen] = useState(false)
@@ -350,6 +359,7 @@ export default function App() {
     () => ({
       openTab, closeTab, activeTab, panes, focusPane, setFocusPane, splitPane, resetWorkspace,
       editTransaction: setEditing,
+      погасить: setПогашение,
       openPalette: () => setPaletteOpen(true),
       openQuickAdd,
       entryDate,
@@ -533,6 +543,7 @@ export default function App() {
       )}
       {searchOpen !== null && <GlobalSearch initial={searchOpen} onClose={() => setSearchOpen(null)} />}
       {editing && <TransactionModal draft={editing} onClose={() => setEditing(null)} />}
+      {погашение && <PogashenieOkno цель={погашение} onClose={() => setПогашение(null)} />}
       {themeOpen && <ThemePicker onClose={() => setThemeOpen(false)} />}
       <ClickSparkLayer />
       </PomodoroProvider>

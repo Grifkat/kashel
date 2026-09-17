@@ -148,7 +148,7 @@ function Одинъ({ k, доплата, setДоплата }: {
       <div className="row wrap" style={{ gap: 8, marginTop: 10 }}>
         <button
           className="btn sm"
-          onClick={() => app.editTransaction({ kind: 'transfer', toAccountId: k.acc.id, amount: k.payment || undefined })}
+          onClick={() => app.погасить({ вид: 'credit', кредит: k.acc })}
         >
           {т('Погасить')}</button>
         <button

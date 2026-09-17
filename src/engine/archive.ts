@@ -196,6 +196,7 @@ function normTransaction(v: unknown, drop: Drop): Transaction | null {
     debtId: opt(r.debtId),
     ...(r.debtPrincipal != null && opt(r.debtId) ? { debtPrincipal: Math.max(0, money(r.debtPrincipal)) } : {}),
     goalId: opt(r.goalId),
+    ...(r.offBook === 'in' || r.offBook === 'out' ? { offBook: r.offBook } : {}),
     createdAt: str(r.createdAt) || new Date().toISOString(),
   }
 }
@@ -237,6 +238,7 @@ function normAccount(v: unknown, drop: Drop): Account | null {
             ...(bool(credit.remind) ? { remind: true } : {}),
             ...(isDate(str(credit.remindFrom)) ? { remindFrom: str(credit.remindFrom) } : {}),
             ...(opt(credit.payFrom) ? { payFrom: opt(credit.payFrom) } : {}),
+            ...(isDate(str(credit.trackFrom)) ? { trackFrom: str(credit.trackFrom) } : {}),
           },
         }
       : {}),
@@ -247,6 +249,7 @@ function normAccount(v: unknown, drop: Drop): Account | null {
             direction: debt.direction === 'owed_to_me' ? 'owed_to_me' : 'i_owe',
             ...(isDate(str(debt.dueDate)) ? { dueDate: str(debt.dueDate) } : {}),
             ...(debt.v === 2 ? { v: 2 as const } : {}),
+            ...(bool(debt.reviewed) ? { reviewed: true } : {}),
           },
         }
       : {}),

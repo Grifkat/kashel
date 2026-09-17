@@ -8,6 +8,7 @@ import { money, months as monthsWord, pct, plural, toMinor } from '../lib/format
 import { addMonths, diffDays, humanDate, today } from '../lib/date'
 import { creditRemaining, остатокДолга, счётПоУмолчанию } from '../engine/stats'
 import { KreditDashbord } from '../components/KreditDashbord'
+import { SverkaDolgov } from '../components/SverkaDolgov'
 import { LineChart } from '../components/charts'
 import { Avatar } from '../components/ui'
 import type { Account, Money } from '../lib/types'
@@ -63,9 +64,17 @@ export default function Debts() {
           <div className="view-sub">
             {тр('Всего обязательств {0} · свободно в месяц {1}', money(totalDebt), money(free))}</div>
         </div>
-        <button className="btn" onClick={() => app.openTab('accounts')}>
-          <Icon name="plus" size={15} /> {т(' Добавить в разделе «Счета»')}</button>
+        <div className="row wrap" style={{ gap: 8 }}>
+          <button className="btn primary" onClick={() => app.погасить({ вид: 'new', направление: 'owed_to_me' })}>
+            <Icon name="plus" size={15} /> {т(' Дать в долг')}</button>
+          <button className="btn" onClick={() => app.погасить({ вид: 'new', направление: 'i_owe' })}>
+            <Icon name="plus" size={15} /> {т(' Взять в долг')}</button>
+          <button className="btn ghost" onClick={() => app.openTab('accounts')}>
+            {т('Кредит — в разделе «Счета»')}</button>
+        </div>
       </div>
+
+      <SverkaDolgov />
 
       {credits.length > 1 && (
         <div className="advice-card info" style={{ marginBottom: 16 }}>
@@ -204,19 +213,20 @@ export default function Debts() {
                         : т('вернуть до {0} — осталось {1} {2}', humanDate(due, true), daysLeft, plural(daysLeft ?? 0, 'день', 'дня', 'дней'))}
                     </div>
                   )}
-                  <div className="row" style={{ marginTop: 10 }}>
+                  <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
+                    {amount > 0 && (
+                      <button
+                        className="btn sm"
+                        onClick={() => app.погасить({ вид: 'debt', долг: a, действие: мне ? 'collect' : 'repay' })}
+                      >
+                        {мне ? т('Получить') : т('Отдать')}
+                      </button>
+                    )}
                     <button
-                      className="btn sm"
-                      onClick={() =>
-                        // Отдаю — деньги уходят со своего счёта на долг; получаю —
-                        // наоборот, с долга на свой счёт. Раньше «Получить» тоже
-                        // слало деньги на долг и только увеличивало его.
-                        app.editTransaction(мне
-                          ? { kind: 'transfer', amount, accountId: a.id, toAccountId: счётПоУмолчанию(data.accounts, data.transactions), note: т('Получен возврат: ') + a.debt!.counterparty }
-                          : { kind: 'transfer', amount, toAccountId: a.id, note: т('Возврат долга: ') + a.debt!.counterparty })
-                      }
+                      className="btn sm ghost"
+                      onClick={() => app.погасить({ вид: 'debt', долг: a, действие: мне ? 'lend' : 'borrow' })}
                     >
-                      {a.debt!.direction === 'i_owe' ? т('Отдать') : т('Получить')}
+                      {мне ? т('Дать ещё') : т('Взять ещё')}
                     </button>
                     <button className="btn sm ghost" onClick={() => app.openTab('accounts')}>{т('Изменить')}</button>
                   </div>

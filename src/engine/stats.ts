@@ -230,10 +230,16 @@ export function yearSummary(txs: Transaction[], year: string, now: string = toda
 export function accountDelta(t: Transaction, accountId: string): Money {
   if (t.kind === 'income') return t.accountId === accountId ? t.amount : 0
   if (t.kind === 'expense') {
-    if (t.accountId === accountId) return -t.amount
     // Платёж по кредиту: расход с карты, а долг на кредите уменьшается на тело.
-    if (t.debtId === accountId) return t.debtPrincipal ?? t.amount
-    return 0
+    // Платёж «не со счёта» (offBook) ничего не списывает — гасит только долг.
+    let d = t.accountId === accountId && !t.offBook ? -t.amount : 0
+    if (t.debtId === accountId) d += t.debtPrincipal ?? t.amount
+    return d
+  }
+  // Деньги извне или наружу: одна сторона перевода — за пределами программы.
+  if (t.offBook && t.accountId === t.toAccountId) {
+    if (t.accountId !== accountId) return 0
+    return t.offBook === 'in' ? t.amount : -t.amount
   }
   if (t.accountId === accountId) return -t.amount
   if (t.toAccountId === accountId) return t.amount
@@ -254,8 +260,12 @@ export const isLiability = (a: Account) => a.type === 'credit' || a.type === 'de
 
 export interface Balances {
   byAccount: Map<string, Money>
+  /** Деньги на ваших счетах — то, чем можно распоряжаться. */
   assets: Money
+  /** Отдано в долг: деньги ваши, но пока не у вас — «заморожено». */
+  lent: Money
   liabilities: Money
+  /** Чистый капитал: свои деньги и долги вам минус ваши долги. */
   net: Money
 }
 
@@ -270,6 +280,7 @@ export interface Balances {
 export function balances(accounts: Account[], txs: Transaction[], upTo?: string): Balances {
   const byAccount = new Map<string, Money>()
   let assets = 0
+  let lent = 0
   let liabilities = 0
   for (const a of accounts) {
     if (a.archived) continue
@@ -277,11 +288,11 @@ export function balances(accounts: Account[], txs: Transaction[], upTo?: string)
     byAccount.set(a.id, b)
     if (a.project) continue
     if (isAsset(a)) assets += b
-    // «Мне должны» — это мои деньги, просто у другого человека.
-    else if (a.type === 'debt' && a.debt?.direction === 'owed_to_me') assets += Math.max(0, b)
+    // «Мне должны» — мои деньги, но у другого человека: в «Все счета» не входят.
+    else if (a.type === 'debt' && a.debt?.direction === 'owed_to_me') lent += Math.max(0, b)
     else liabilities += Math.min(0, b)
   }
-  return { byAccount, assets, liabilities, net: assets + liabilities }
+  return { byAccount, assets, lent, liabilities, net: assets + lent + liabilities }
 }
 
 /**

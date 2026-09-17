@@ -1939,3 +1939,11 @@ input.invalid { border-color: var(--alert) !important; }
 .rezerv-spisok { display: grid; gap: 2px; max-height: 360px; overflow-y: auto; }
 .rezerv-kopiya { padding: 6px 4px; border-bottom: 1px solid var(--border-soft); }
 .rezerv-kopiya:last-child { border-bottom: 0; }
+.hero-frozen {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 3px 10px; border-radius: 999px; border: 1px dashed var(--border);
+  background: transparent; color: var(--muted); font-size: 13px; cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+.hero-frozen:hover { color: var(--text); border-color: var(--accent); }
+.kredit-prosrochka { align-items: center; }

@@ -329,7 +329,11 @@ export default function Transactions({ filter }: { filter?: string }) {
                       </div>
                       <div className="tx-sub">
                         {/* Счёт могли удалить — тогда так и пишем, а не «undefined». */}
-                        {t.kind === 'transfer'
+                        {t.offBook
+                          ? (t.kind === 'transfer'
+                            ? (t.offBook === 'in' ? т('не со счёта → {0}', acc?.name ?? т('(счёт удалён)')) : т('{0} → не на счёт', acc?.name ?? т('(счёт удалён)')))
+                            : т('{0} · не со счёта · {1}', c?.name ?? т('без категории'), acc?.name ?? т('(счёт удалён)')))
+                          : t.kind === 'transfer'
                           ? `${acc?.name ?? т('(счёт удалён)')} → ${to2?.name ?? т('(счёт удалён)')}`
                           : `${c?.name ?? т('без категории')} · ${acc?.name ?? т('(счёт удалён)')}`}
                         {t.tags.length ? ' · ' + t.tags.map((x) => '#' + x).join(' ') : ''}
