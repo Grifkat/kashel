@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
@@ -21,7 +22,7 @@ export default function Notes({ note }: { note?: string }) {
   const [body, setBody] = useState('')
   const [mode, setMode] = useState<Mode>('read')
   const [q, setQ] = useState('')
-  const [del, setDel] = useState(false)
+  const удаление = useУдаление()
   const saveTimer = useRef<number | null>(null)
 
   const reload = useCallback(async () => {
@@ -39,6 +40,35 @@ export default function Notes({ note }: { note?: string }) {
       setBody(items.find((x) => x.name === pick)?.body ?? '')
     })()
   }, [note, reload])
+
+  /** Заметка уходит в Корзину; «Отменить» записывает её обратно тем же текстом. */
+  const удалитьЗаметку = async () => {
+    const имя = current
+    if (!имя) return
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current)
+      saveTimer.current = null
+    }
+    const текст = body
+    try {
+      await deleteNote(имя)
+    } catch (e) {
+      toast(т('Заметка не удалена: ') + (e instanceof Error ? e.message : String(e)))
+      return
+    }
+    const items = await reload()
+    const next = items[0]?.name ?? ''
+    setCurrent(next)
+    setBody(items.find((x) => x.name === next)?.body ?? '')
+    удаление.сОтменой(т('Заметка «{0}» удалена', имя), () =>
+      void (async () => {
+        await writeNote(имя, текст)
+        await reload()
+        setCurrent(имя)
+        setBody(текст)
+      })().catch((e) => toast(т('Заметка не вернулась: ') + (e instanceof Error ? e.message : String(e)))),
+    )
+  }
 
   const open = async (name: string) => {
     setCurrent(name)
@@ -152,7 +182,7 @@ export default function Notes({ note }: { note?: string }) {
                   </button>
                 ))}
               </div>
-              <button className="icon-btn" title={т('Удалить заметку')} onClick={() => setDel(true)}>
+              <button className="icon-btn" title={т('Удалить заметку')} onClick={() => void удалитьЗаметку()}>
                 <Icon name="trash" size={16} />
               </button>
             </div>
@@ -218,20 +248,6 @@ export default function Notes({ note }: { note?: string }) {
         )}
       </div>
 
-      {del && (
-        <Confirm
-          title={т('Удалить «{0}»?', current)}
-          text={т('Файл заметки будет удалён из хранилища. Отменить это можно только через корзину или систему контроля версий.')}
-          onConfirm={async () => {
-            await deleteNote(current)
-            const items = await reload()
-            const next = items[0]?.name ?? ''
-            setCurrent(next)
-            setBody(items.find((x) => x.name === next)?.body ?? '')
-          }}
-          onClose={() => setDel(false)}
-        />
-      )}
     </div>
   )
 }

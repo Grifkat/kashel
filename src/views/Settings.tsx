@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react'
+import { копииДоступны } from '../state/rezerv'
 import { СвоиОформленія } from '../components/Konstruktor'
 import { порядокъДней, WEEKDAYS_FULL } from '../lib/date'
 import type { ДеньНедѣли } from '../lib/types'
@@ -15,6 +16,8 @@ import { THEMES } from '../lib/themes'
 import { categoriesFromCatalog } from '../state/defaults'
 import { ThemeThumb } from '../components/ThemePicker'
 import { Obnovlenie } from '../components/Obnovlenie'
+import { RezervnyeKopii } from '../components/RezervnyeKopii'
+import { ОПрограмме } from '../components/ChtoNovogo'
 import type { AnimLevel, Density, ReadingFont } from '../lib/types'
 import { т, тр } from '../i18n'
 import { звукЗаписи } from '../lib/sound'
@@ -344,7 +347,9 @@ export default function SettingsView() {
         </div>
       </div>
 
+      <RezervnyeKopii />
       <Obnovlenie />
+      <ОПрограмме />
 
       {/* ------------------------------------------------ горячие клавиши */}
       <div className="card" style={{ marginTop: 16 }}>
@@ -399,12 +404,18 @@ export default function SettingsView() {
             т('{0} операций, {1} счетов вместе с кредитами и долгами, ', data.transactions.length, data.accounts.length) +
             т('{0} категорий, {1} целей, {2} регулярных платежей, ', data.categories.length, data.goals.length, data.recurring.length) +
             т('а также все заметки и канвасы. Настройки и путь к хранилищу сохранятся. ') +
-            т('Отменить нельзя — если данные нужны, сначала сохраните их кнопкой «Сохранить всё в файл» выше.')
+            (копииДоступны()
+              ? т('Перед очисткой программа сделает резервную копию — вернуть её можно в разделе «Резервные копии» ниже.')
+              : т('Отменить нельзя — если данные нужны, сначала сохраните их кнопкой «Сохранить всё в файл» выше.'))
           }
           confirmLabel={т('Стереть всё')}
           onConfirm={async () => {
-            await store.wipeAll()
-            toast(т('Хранилище очищено — можно заполнять своими данными'))
+            try {
+              const копия = await store.wipeAll()
+              toast(копия ? т('Хранилище очищено. Копия прежнего — {0}', копия) : т('Хранилище очищено — можно заполнять своими данными'))
+            } catch (e) {
+              toast(т('Не стёрто: копия не сделалась — ') + (e instanceof Error ? e.message : String(e)))
+            }
           }}
           onClose={() => setWipeOpen(false)}
         />

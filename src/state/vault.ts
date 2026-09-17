@@ -13,6 +13,10 @@ export interface Bridge {
   remove(rel: string): Promise<boolean>
   rename(from: string, to: string): Promise<boolean>
   list(rel: string, ext?: string): Promise<string[]>
+  /** Файлы папки с размером и временем. Только рабочий стол. */
+  listInfo?(rel: string): Promise<{ name: string; size: number; mtime: number }[]>
+  /** Удалить в Корзину. Только рабочий стол; без неё — обычное удаление. */
+  trash?(rel: string): Promise<boolean>
   writeBinary(rel: string, base64: string): Promise<string>
   readBinary(rel: string): Promise<string | null>
   openText(filters?: unknown): Promise<{ name: string; text: string } | null>
@@ -259,7 +263,9 @@ export async function listNotes(): Promise<string[]> {
 
 export const readNote = (title: string) => bridge.read(notePath(title))
 export const writeNote = (title: string, body: string) => bridge.write(notePath(title), body)
-export const deleteNote = (title: string) => bridge.remove(notePath(title))
+// Заметки и доски уходят в Корзину, где она есть: их привыкли доставать оттуда.
+const вКорзину = (rel: string) => (bridge.trash ? bridge.trash(rel) : bridge.remove(rel))
+export const deleteNote = (title: string) => вКорзину(notePath(title))
 export const renameNote = (from: string, to: string) => bridge.rename(notePath(from), notePath(to))
 
 // ------------------------------------------------------------- канвасы
@@ -291,7 +297,7 @@ export async function readCanvas(name: string): Promise<CanvasDoc | null> {
 export const writeCanvas = (name: string, doc: CanvasDoc) =>
   bridge.write(canvasPath(name), JSON.stringify(doc, null, 2))
 
-export const deleteCanvas = (name: string) => bridge.remove(canvasPath(name))
+export const deleteCanvas = (name: string) => вКорзину(canvasPath(name))
 export const renameCanvas = (from: string, to: string) =>
   bridge.rename(canvasPath(from), canvasPath(to))
 

@@ -4,9 +4,10 @@ import { useStore } from '../state/store'
 import { bridge, wipeAttachments, wipeSpaceFiles } from '../state/vault'
 import { plural } from '../lib/format'
 import {
-  applyArchive, archiveFileName, archiveText, ARCHIVE_FILTERS, backupPath,
+  applyArchive, archiveFileName, archiveText, ARCHIVE_FILTERS,
   buildArchive, parseArchive, type Archive,
 } from '../engine/archive'
+import { имяКопии } from '../state/rezerv'
 import { Modal, Tbl, useToast } from './ui'
 import { Boundary } from './Boundary'
 import { т, тр } from '../i18n'
@@ -22,6 +23,8 @@ interface ArchiveApi {
   save(): Promise<void>
   /** Выбрать файл вручную и предложить загрузку. */
   pick(): Promise<void>
+  /** Предложить вернуть резервную копию из backups/ — с тем же окном подтверждения. */
+  вернутьКопию(путь: string): Promise<void>
   busy: string
 }
 
@@ -47,6 +50,8 @@ interface Incoming {
   dropped: number
   file: string
   bytes: number
+  /** Файл со стороны или своя резервная копия — от этого зависят слова окна. */
+  вид: 'file' | 'backup'
 }
 
 export function ArchiveProvider({ children }: { children: React.ReactNode }) {
@@ -78,13 +83,13 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
 
   /** Разбирает текст файла и показывает, что внутри, до всякой записи. */
   const offer = useCallback(
-    (text: string, name: string) => {
+    (text: string, name: string, вид: Incoming['вид'] = 'file') => {
       const res = parseArchive(text)
       if (!res.ok) {
         toast(res.error)
         return
       }
-      setIncoming({ archive: res.archive, dropped: res.dropped, file: name, bytes: text.length })
+      setIncoming({ archive: res.archive, dropped: res.dropped, file: name, bytes: text.length, вид })
     },
     [toast],
   )
@@ -100,11 +105,11 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
    * той же кнопкой «Открыть».
    */
   const load = useCallback(
-    async (archive: Archive) => {
+    async (archive: Archive, вид: Incoming['вид'] = 'file') => {
       setIncoming(null)
       setBusy(т('Сохраняю резервную копию…'))
       try {
-        const backup = backupPath()
+        const backup = имяКопии(вид === 'backup' ? 'restore' : 'load')
         await bridge.write(backup, archiveText(await buildArchive(dataRef.current)))
 
         setBusy(т('Очищаю прежнее хранилище…'))
@@ -163,7 +168,23 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
     })
   }, [ready, offer])
 
-  const api: ArchiveApi = { save, pick, busy }
+  const вернутьКопию = useCallback(
+    async (путь: string) => {
+      try {
+        const text = await bridge.read(путь)
+        if (text == null) {
+          toast(т('Копия не найдена: {0}', путь))
+          return
+        }
+        offer(text, путь.split('/').pop() ?? путь, 'backup')
+      } catch (e) {
+        toast(т('Не удалось прочитать копию: ') + errText(e))
+      }
+    },
+    [offer, toast],
+  )
+
+  const api: ArchiveApi = { save, pick, вернутьКопию, busy }
 
   return (
     <Ctx.Provider value={api}>
@@ -175,14 +196,14 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
       <Boundary level="window">{children}</Boundary>
       {incoming && (
         <Modal
-          title={т('Загрузить хранилище из файла?')}
+          title={incoming.вид === 'backup' ? т('Вернуть резервную копию?') : т('Загрузить хранилище из файла?')}
           icon="upload"
           onClose={() => setIncoming(null)}
           footer={
             <>
               <button className="btn" onClick={() => setIncoming(null)}>{т('Отмена')}</button>
-              <button className="btn primary" onClick={() => void load(incoming.archive)}>
-                {т('Заменить и загрузить')}</button>
+              <button className="btn primary" onClick={() => void load(incoming.archive, incoming.вид)}>
+                {incoming.вид === 'backup' ? т('Вернуть копию') : т('Заменить и загрузить')}</button>
             </>
           }
         >
@@ -223,8 +244,13 @@ export function ArchiveProvider({ children }: { children: React.ReactNode }) {
           )}
 
           <div className="advice-card info" style={{ padding: '10px 12px' }}>
+            {incoming.вид === 'backup' ? (
+              <div className="advice-body" style={{ lineHeight: 1.6 }}>
+                {т('Всё нынешнее содержимое хранилища будет заменено содержимым копии — вместе с заметками, досками и чеками. Перед заменой нынешнее состояние тоже сохранится копией «перед возвратом», так что передумать можно тем же способом. Оформление и финансовый профиль останутся нынешними.')}</div>
+            ) : (
             <div className="advice-body" style={{ lineHeight: 1.6 }}>
               {т('Всё нынешнее содержимое хранилища будет заменено содержимым файла — вместе с заметками, досками и чеками. Перед заменой программа сложит текущее состояние в ')}<code>backups/</code> {т(' отдельным архивом, так что откатиться можно будет через «Файл» → «Открыть…». Оформление, акцентный цвет и финансовый профиль останутся вашими: в файле они есть, но не применяются.')}</div>
+            )}
           </div>
         </Modal>
       )}

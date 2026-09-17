@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useУдаление } from './Udalenie'
 import { useStore } from '../state/store'
 import { Confirm, Modal, useToast } from './ui'
 import { Icon } from '../lib/icons'
@@ -19,7 +20,8 @@ export function TegiOkno({ onClose }: { onClose: () => void }) {
   const [правка, setПравка] = useState<Record<string, string>>({})
   const [удалить, setУдалить] = useState<string | null>(null)
 
-  const применить = (было: string, стало: string) => {
+  const удаление = useУдаление()
+  const применить = (было: string, стало: string, тихо = false) => {
     const итогъ = переименоватьТег(data, было, стало)
     if (!итогъ.операций) return
     // Операции переписываются по своим месяцам, а регулярные правила живут в
@@ -34,6 +36,7 @@ export function TegiOkno({ onClose }: { onClose: () => void }) {
       return прочее
     })
     const новое = чистыйТег(стало)
+    if (тихо) return
     toast(новое
       ? т('#{0} → #{1}: {2} {3}', было, новое, итогъ.операций, plural(итогъ.операций, 'операция', 'операции', 'операций'))
       : т('Тег #{0} убран из {1} {2}', было, итогъ.операций, plural(итогъ.операций, 'операции', 'операций', 'операций')))
@@ -74,7 +77,7 @@ export function TegiOkno({ onClose }: { onClose: () => void }) {
                   onClick={() => применить(тег, значеніе)}
                 >
                   {т('Переименовать')}</button>
-                <button className="icon-btn" title={т('Удалить тег из всех операций')} onClick={() => setУдалить(тег)}>
+                <button className="icon-btn" title={т('Удалить тег из всех операций')} onClick={() => удаление.тег(тег, () => применить(тег, '', true))}>
                   <Icon name="trash" size={15} />
                 </button>
               </div>
@@ -82,14 +85,6 @@ export function TegiOkno({ onClose }: { onClose: () => void }) {
           })}
         </div>
       </Modal>
-      {удалить !== null && (
-        <Confirm
-          title={т('Удалить тег #{0}?', удалить)}
-          text={т('Тег уберётся из всех операций. Сами операции останутся.')}
-          onConfirm={() => применить(удалить, '')}
-          onClose={() => setУдалить(null)}
-        />
-      )}
     </>
   )
 }

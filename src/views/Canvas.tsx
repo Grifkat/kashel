@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -149,6 +150,7 @@ export default function CanvasView({ name }: { name?: string }) {
   const app = useApp()
   const { data } = useStore()
   const toast = useToast()
+  const удаление = useУдаление()
 
   const [files, setFiles] = useState<string[]>([])
   const [current, setCurrent] = useState('')
@@ -268,11 +270,25 @@ export default function CanvasView({ name }: { name?: string }) {
     toast(т('Создана доска «{0}»', n))
   }
 
+  /** Доска уходит в Корзину; «Отменить» записывает её обратно как была. */
   const dropCanvas = async () => {
-    await deleteCanvas(current)
+    const имя = current
+    const было = docRef.current
+    // Отложенная запись иначе воскресила бы только что удалённую доску.
+    if (saveTimer.current) {
+      window.clearTimeout(saveTimer.current)
+      saveTimer.current = null
+    }
+    await deleteCanvas(имя)
     const list = await listCanvases()
     setFiles(list)
-    toast(т('Доска «{0}» удалена', current))
+    удаление.сОтменой(т('Доска «{0}» удалена', имя), () =>
+      void (async () => {
+        await writeCanvas(имя, было)
+        setFiles(await listCanvases())
+        void openCanvas(имя)
+      })().catch((e) => toast(т('Доска не вернулась: ') + (e instanceof Error ? e.message : String(e)))),
+    )
     if (list.length) void openCanvas(list[0])
     else {
       setCurrent('')
@@ -1308,7 +1324,7 @@ export default function CanvasView({ name }: { name?: string }) {
         <button className="icon-btn" title={т('Новая доска')} onClick={createCanvas}>
           <Icon name="plus" size={16} />
         </button>
-        <button className="icon-btn" title={т('Удалить доску')} onClick={() => setAskDelete(true)}>
+        <button className="icon-btn" title={т('Удалить доску')} onClick={() => void dropCanvas()}>
           <Icon name="trash" size={15} />
         </button>
         <span className="tool-sep" />
@@ -1411,14 +1427,6 @@ export default function CanvasView({ name }: { name?: string }) {
 
       {menu && <ContextMenu x={menu.x} y={menu.y} title={menu.title} items={menu.items} onClose={() => setMenu(null)} />}
 
-      {askDelete && (
-        <Confirm
-          title={т('Удалить доску «{0}»?', current)}
-          text={т('Файл доски исчезнет из хранилища вместе с {0} узлами и {1} связями. Заметки, счета и категории, на которые ссылались карточки, останутся нетронутыми — удаляется только сама схема.', doc.nodes.length, doc.edges.length)}
-          onConfirm={() => void dropCanvas()}
-          onClose={() => setAskDelete(false)}
-        />
-      )}
     </div>
   )
 

@@ -361,6 +361,13 @@ export interface Settings {
   saveSound?: boolean
   /** Виджеты правой панели в своём порядке. Пусто — набор по умолчанию. */
   rightWidgets?: ВиджетId[]
+  /**
+   * Версия программы, которая последней открывала хранилище. Смена версии —
+   * повод сделать копию до того, как новая версия что-то переделает.
+   */
+  appVersion?: string
+  /** До какой версии включительно человек видел «Что нового». */
+  whatsNewSeen?: string
   accent: string
   hideBalance: boolean
   forecastHorizon: number

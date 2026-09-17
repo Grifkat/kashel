@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useУдаление } from './Udalenie'
 import { createPortal } from 'react-dom'
 import { useStore } from '../state/store'
 import { Confirm, useToast } from './ui'
@@ -32,6 +33,7 @@ function KategoriyaMenyu({ меню, onClose }: { меню: { cat: Category; x: 
   const toast = useToast()
   const [правка, setПравка] = useState<Category | null>(null)
   const [удалить, setУдалить] = useState<Category | null>(null)
+  const удаление = useУдаление()
 
   const cat = меню ? data.categories.find((c) => c.id === меню.cat.id) ?? меню.cat : null
   const items: MenuItem[] = []
@@ -65,7 +67,8 @@ function KategoriyaMenyu({ меню, onClose }: { меню: { cat: Category; x: 
           },
         })),
     })
-    items.push({ id: 'del', label: т('Удалить'), icon: 'trash', danger: true, onClick: () => setУдалить(cat) })
+    // Спрашиваем только у главной с подкатегориями; прочее удаляется сразу, с «Отменить».
+    items.push({ id: 'del', label: т('Удалить'), icon: 'trash', danger: true, onClick: () => (естьДети ? setУдалить(cat) : удаление.категорию(cat.id)) })
   }
 
   return createPortal(
@@ -79,12 +82,8 @@ function KategoriyaMenyu({ меню, onClose }: { меню: { cat: Category; x: 
       {удалить && (
         <Confirm
           title={т('Удалить «{0}»?', удалить.name)}
-          text={
-            подкатегории(удалить.id, data.categories).length
-              ? т('Операции этой категории останутся без категории, а её подкатегории станут главными. Если историю жалко — лучше убрать категорию в архив.')
-              : т('Операции этой категории останутся, но потеряют привязку. Если нужно сохранить историю — лучше пометить категорию архивной.')
-          }
-          onConfirm={() => deleteCategory(удалить.id)}
+          text={т('Операции этой категории останутся без категории, а её подкатегории станут главными. Сразу после удаления всё можно вернуть кнопкой «Отменить».')}
+          onConfirm={() => удаление.категорию(удалить.id)}
           onClose={() => setУдалить(null)}
         />
       )}

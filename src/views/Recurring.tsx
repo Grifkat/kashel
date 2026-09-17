@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { счётПоУмолчанию } from '../engine/stats'
 import { DateField } from '../components/DateField'
@@ -31,7 +32,7 @@ export default function RecurringView() {
   const { data, upsertRecurring, deleteRecurring } = useStore()
   const toast = useToast()
   const [edit, setEdit] = useState<Recurring | null>(null)
-  const [del, setDel] = useState<Recurring | null>(null)
+  const удаление = useУдаление()
 
   const cur = monthKey(today())
   const catById = useMemo(() => new Map(data.categories.map((c) => [c.id, c])), [data.categories])
@@ -173,7 +174,7 @@ export default function RecurringView() {
                       <button className="icon-btn" onClick={() => setEdit(r)}>
                         <Icon name="edit" size={15} />
                       </button>
-                      <button className="icon-btn" onClick={() => setDel(r)}>
+                      <button className="icon-btn" onClick={() => удаление.регулярный(r.id)}>
                         <Icon name="trash" size={15} />
                       </button>
                     </div>
@@ -215,14 +216,6 @@ export default function RecurringView() {
             upsertRecurring(r)
             setEdit(null)
           }}
-        />
-      )}
-      {del && (
-        <Confirm
-          title={т('Удалить «{0}»?', del.title)}
-          text={т('Уже созданные операции останутся. Если платёж просто закончился, лучше приостановить — история прогноза сохранится.')}
-          onConfirm={() => deleteRecurring(del.id)}
-          onClose={() => setDel(null)}
         />
       )}
     </div>

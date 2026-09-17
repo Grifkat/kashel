@@ -127,13 +127,6 @@ const stamp = (d = new Date()) =>
 
 export const archiveFileName = (): string => т('Кошель {0}.{1}', stamp(), ARCHIVE_EXT)
 
-/** Имя резервной копии внутри хранилища: с часами, их за день бывает несколько. */
-export function backupPath(d = new Date()): string {
-  const hh = String(d.getHours()).padStart(2, '0')
-  const mm = String(d.getMinutes()).padStart(2, '0')
-  const ss = String(d.getSeconds()).padStart(2, '0')
-  return т('backups/до-загрузки {0} {1}-{2}-{3}.{4}', stamp(d), hh, mm, ss, ARCHIVE_EXT)
-}
 
 // ------------------------------------------------------------- приведение
 

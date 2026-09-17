@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { счётПоУмолчанию } from '../engine/stats'
 import { DateField } from '../components/DateField'
@@ -408,7 +409,7 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
   const app = useApp()
   const toast = useToast()
   const [t, setT] = useState<Task>(value)
-  const [del, setDel] = useState(false)
+  const удаление = useУдаление()
   const patch = (p: Partial<Task>) => setT((x) => ({ ...x, ...p }))
   const есть = (data.tasks ?? []).some((x) => x.id === value.id)
   const cats = data.categories.filter((c) => !c.archived && c.kind === (t.moneyKind === 'income' ? 'income' : 'expense'))
@@ -445,7 +446,7 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
         footer={
           <>
             {есть && (
-              <button className="btn danger" style={{ marginRight: 'auto' }} onClick={() => setDel(true)}>
+              <button className="btn danger" style={{ marginRight: 'auto' }} onClick={() => { удаление.задачу(t.id); onClose() }}>
                 <Icon name="trash" size={15} /> {т(' Удалить')}</button>
             )}
             <button className="btn" onClick={onClose}>{т('Отмена')}</button>
@@ -552,14 +553,6 @@ function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
         )}
       </Modal>
 
-      {del && (
-        <Confirm
-          title={т('Удалить «{0}»?', t.title || т('без названия'))}
-          text={т('Задача исчезнет насовсем. Записанные по ней операции останутся.')}
-          onConfirm={() => { deleteTask(t.id); onClose() }}
-          onClose={() => setDel(false)}
-        />
-      )}
     </>
   )
 }

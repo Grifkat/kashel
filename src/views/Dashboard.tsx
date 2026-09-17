@@ -1,4 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { копииДоступны } from '../state/rezerv'
+import { ОТМЕНА_МС } from '../components/Udalenie'
 import { DateField } from '../components/DateField'
 import { GradientText, Reveal } from '../components/effects'
 import { Amount, Money, useAnimatedList } from '../components/anim'
@@ -190,7 +192,7 @@ export default function Dashboard() {
         restoreTransactions(doomed)
         setUndoBuffer([])
       },
-    })
+    }, { duration: ОТМЕНА_МС })
   }
 
   const undoWipe = () => {
@@ -592,10 +594,17 @@ export default function Dashboard() {
             `${data.goals.length} ${plural(data.goals.length, 'цель', 'цели', 'целей')}, ` +
             `${data.recurring.length} ${plural(data.recurring.length, 'регулярный платёж', 'регулярных платежа', 'регулярных платежей')}, ` +
             т('а также все заметки и канвасы. Настройки и путь к хранилищу останутся. ') +
-            т('Отмены у этого действия нет — кнопка «Вернуть» здесь не поможет. ') +
-            т('Если в данных есть что-то нужное, сначала сохраните их: «Настройки» → «Сохранить всё в файл».')
+            (копииДоступны()
+              ? т('Перед очисткой программа сделает резервную копию — вернуть её можно в «Настройки» → «Резервные копии».')
+              : т('Отмены у этого действия нет — кнопка «Вернуть» здесь не поможет. ') +
+                т('Если в данных есть что-то нужное, сначала сохраните их: «Настройки» → «Сохранить всё в файл».'))
           }
-          onConfirm={() => void store.wipeAll()}
+          onConfirm={() =>
+            void store.wipeAll().then(
+              (копия) => toast(копия ? т('Хранилище очищено. Копия прежнего — {0}', копия) : т('Хранилище очищено — можно заполнять своими данными')),
+              (e) => toast(т('Не стёрто: копия не сделалась — ') + (e instanceof Error ? e.message : String(e))),
+            )
+          }
           onClose={() => setConfirmWipe(null)}
         />
       )}

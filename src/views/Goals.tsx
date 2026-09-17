@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { DateField } from '../components/DateField'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { сЗначкомъ } from '../lib/catalog'
@@ -23,7 +24,7 @@ export default function Goals() {
   const { fc } = useAnalytics(data)
   const toast = useToast()
   const [edit, setEdit] = useState<Goal | null>(null)
-  const [del, setDel] = useState<Goal | null>(null)
+  const удаление = useУдаление()
   const [пополнить, setПополнить] = useState<{ goal: Goal; suggested: number } | null>(null)
 
   const bal = balances(data.accounts, data.transactions)
@@ -152,7 +153,7 @@ export default function Goals() {
                   {g.done ? т('Вернуть в работу') : т('Отметить закрытой')}
                 </button>
                 <span className="spacer" />
-                <button className="btn sm danger" onClick={() => setDel(g)}>
+                <button className="btn sm danger" onClick={() => удаление.цель(g.id)}>
                   <Icon name="trash" size={13} />
                 </button>
               </div>
@@ -185,14 +186,6 @@ export default function Goals() {
         <ПополнениеЦели goal={пополнить.goal} suggested={пополнить.suggested} onClose={() => setПополнить(null)} />
       )}
 
-      {del && (
-        <Confirm
-          title={т('Удалить цель «{0}»?', del.name)}
-          text={т('Накопленные деньги останутся на счёте, удалится только сама цель.')}
-          onConfirm={() => deleteGoal(del.id)}
-          onClose={() => setDel(null)}
-        />
-      )}
     </div>
   )
 }

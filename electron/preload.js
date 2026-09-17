@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('kashel', {
   remove: (rel) => call('fs:delete', rel),
   rename: (from, to) => call('fs:rename', from, to),
   list: (rel, ext) => call('fs:list', rel, ext),
+  listInfo: (rel) => call('fs:listInfo', rel),
+  trash: (rel) => call('fs:trash', rel),
 
   writeBinary: (rel, base64) => call('fs:writeBinary', rel, base64),
   readBinary: (rel) => call('fs:readBinary', rel),

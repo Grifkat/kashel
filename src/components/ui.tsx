@@ -658,7 +658,8 @@ export interface ToastAction {
   onClick(): void
 }
 
-type Push = (text: string, action?: ToastAction) => void
+/** duration — сколько держать уведомление, мс; у «Отменить» дольше обычного. */
+type Push = (text: string, action?: ToastAction, opts?: { duration?: number }) => void
 
 const ToastCtx = createContext<Push>(() => {})
 export const useToast = () => useContext(ToastCtx)
@@ -668,8 +669,11 @@ export const useToast = () => useContext(ToastCtx)
  * в карточке — «Удалено 49 операций · Вернуть».
  */
 export function ToastProvider({ children }: { children: React.ReactNode }) {
-  const push = useCallback<Push>((text, action) => {
-    sonnerToast(text, action ? { action: { label: action.label, onClick: action.onClick } } : undefined)
+  const push = useCallback<Push>((text, action, opts) => {
+    sonnerToast(text, {
+      ...(action ? { action: { label: action.label, onClick: action.onClick } } : {}),
+      ...(opts?.duration ? { duration: opts.duration } : {}),
+    })
   }, [])
 
   return (

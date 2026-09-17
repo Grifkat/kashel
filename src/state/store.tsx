@@ -15,6 +15,8 @@ import { перевестиДолги } from '../engine/stats'
 import { безРодителя } from '../engine/podkategorii'
 import { occurrencesInMonth } from '../engine/forecast'
 import { т } from '../i18n'
+import { ВЕРСИЯ } from '../lib/versiya'
+import { копииДоступны, сделатьКопию, ежедневнаяКопия } from './rezerv'
 
 /** Почему хранилище не открылось — от этого зависит текст совета на экране. */
 export interface VaultFailure {
@@ -63,7 +65,8 @@ interface Store {
   setImportRules(rules: ImportRule[]): void
   patchSettings(p: Partial<Settings>): void
 
-  wipeAll(): Promise<void>
+  /** Стереть всё. Перед этим — резервная копия; возвращает её путь (или null в браузере). */
+  wipeAll(): Promise<string | null>
   replaceAll(next: VaultData): Promise<void>
   chooseVault(): Promise<void>
 }
@@ -109,6 +112,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
       stage = 'read'
       let loaded = await loadVault()
+      const новое = !loaded
 
       if (!loaded) {
         // Своих операций и счетов программа не выдумывает, а вот категории
@@ -151,14 +155,44 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         : сДолгами
       for (const м of кредиты.месяцы) touchedRef.current.add(м)
 
+      /*
+       * Копия «перед обновлением»: версия сменилась или новая версия
+       * собирается что-то переделать. Снимок — ровно то, что лежало на диске,
+       * до всяких правок. Не вышло — работаем дальше: запись в тот же диск,
+       * скорее всего, тоже не выйдет, и об этом скажет строка сохранения.
+       */
+      const былаВерсия = merged.settings.appVersion
+      const естьДанные = merged.transactions.length > 0 || merged.accounts.length > 0
+      const сменаВерсии = !новое && былаВерсия !== ВЕРСИЯ && (!!былаВерсия || естьДанные)
+      if ((сменаВерсии || долги.changed || кредиты.changed) && копииДоступны()) {
+        try {
+          await сделатьКопию(merged, 'update')
+        } catch (e) {
+          console.warn(т('Копия перед обновлением не сделана:'), e)
+        }
+        if (seq !== bootSeq.current) return
+      }
+
       // Автосписания — см. engine/avtospisaniya: точные даты правил и догон
       // пропущенного. Отметка дня обязательна: без неё удалённое автосписание
       // воскресало бы при следующем запуске.
       const posted = провестиАвтосписания(сКредитами, today(), () => uid('t'))
       if (seq !== bootSeq.current) return
-      setDataRaw(posted.data)
-      dataRef.current = posted.data
-      if (posted.coreChanged || needCats || кредиты.changed || долги.changed) {
+      // Отметка версии; новому хранилищу показывать «Что нового» незачем.
+      const отметкаВерсии = posted.data.settings.appVersion !== ВЕРСИЯ || (новое && posted.data.settings.whatsNewSeen !== ВЕРСИЯ)
+      const готово: VaultData = отметкаВерсии
+        ? {
+            ...posted.data,
+            settings: {
+              ...posted.data.settings,
+              appVersion: ВЕРСИЯ,
+              ...(новое ? { whatsNewSeen: ВЕРСИЯ } : {}),
+            },
+          }
+        : posted.data
+      setDataRaw(готово)
+      dataRef.current = готово
+      if (posted.coreChanged || needCats || кредиты.changed || долги.changed || отметкаВерсии) {
         coreDirty.current = true
         for (const t of posted.created) touchedRef.current.add(monthKey(t.date))
         queueSave()
@@ -253,6 +287,18 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
 
   // Оболочка выходит только после того, как правки дописаны.
   useEffect(() => bridge.onSaveBeforeQuit?.(() => saveNow().catch(() => {})), [saveNow])
+
+  /*
+   * Ежедневная копия: при открытии и потом раз в полчаса — программу
+   * держат открытой сутками, и «раз в день» должно значить именно это.
+   */
+  useEffect(() => {
+    if (!ready || !копииДоступны()) return
+    const сделать = () => void ежедневнаяКопия(dataRef.current).catch((e) => console.warn(т('Ежедневная копия не сделана:'), e))
+    сделать()
+    const id = window.setInterval(сделать, 30 * 60 * 1000)
+    return () => window.clearInterval(id)
+  }, [ready])
 
   // Страховка на случай, если отложенная запись почему-то не сработала:
   // раз в пять минут переписываем хранилище целиком.
@@ -436,6 +482,8 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
    * к хранилищу сохраняются — это про данные, а не про программу.
    */
   const wipeAll = useCallback(async () => {
+    // Сначала копия. Не вышла — ничего не стираем: отказ уходит в интерфейс.
+    const копия = копииДоступны() ? await сделатьКопию(dataRef.current, 'wipe') : null
     const months = new Set(dataRef.current.transactions.map((t) => monthKey(t.date)))
     // «Стереть всё» возвращает состояние только что установленной программы —
     // значит, вместе с данными возвращается и стандартный набор категорий.
@@ -453,6 +501,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     await wipeSpaceFiles()
     setLastSaved(Date.now())
     setDirty(false)
+    return копия
   }, [])
 
   /**

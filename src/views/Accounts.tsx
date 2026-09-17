@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { DateField } from '../components/DateField'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { Money, useДеньги } from '../components/anim'
@@ -31,6 +32,7 @@ export default function Accounts() {
   const { data, upsertAccount, deleteAccount } = useStore()
   const [edit, setEdit] = useState<Account | null>(null)
   const [del, setDel] = useState<Account | null>(null)
+  const удаление = useУдаление()
 
   const bal = balances(data.accounts, data.transactions)
   // Проектные счета вынесены в свой список: в итоги они не входят, и стоять
@@ -170,8 +172,8 @@ export default function Accounts() {
       {del && (
         <Confirm
           title={т('Удалить счёт «{0}»?', del.name)}
-          text={т('Операции по этому счёту останутся в истории, но повиснут без привязки. Обычно правильнее оставить счёт и просто перестать им пользоваться.')}
-          onConfirm={() => deleteAccount(del.id)}
+          text={т('Операции по этому счёту останутся в истории, но повиснут без привязки. Обычно правильнее оставить счёт и просто перестать им пользоваться. Сразу после удаления его можно вернуть кнопкой «Отменить».')}
+          onConfirm={() => удаление.счёт(del.id)}
           onClose={() => setDel(null)}
         />
       )}

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { useУдаление } from './Udalenie'
 import { DateField } from './DateField'
 import type { Money, Split, Transaction, TxKind } from '../lib/types'
 import { useStore } from '../state/store'
@@ -86,7 +87,7 @@ export function TransactionModal({
   const меню = useKategoriyaMenyu()
   /** Название новой статьи. null — окошко закрыто. */
   const [новая, setНовая] = useState<string | null>(null)
-  const [confirmDel, setConfirmDel] = useState(false)
+  const удаление = useУдаление()
   /** Какой чек сейчас смотрим. null — не смотрим. */
   const [shot, setShot] = useState<string | null>(null)
 
@@ -290,7 +291,16 @@ export function TransactionModal({
         footer={
           <>
             {isEdit && (
-              <button className="btn danger" onClick={() => setConfirmDel(true)} style={{ marginRight: 'auto' }}>
+              <button
+                className="btn danger"
+                style={{ marginRight: 'auto' }}
+                onClick={() => {
+                  // Удаляется записанное, а не черновик с несохранёнными правками — его и вернёт «Отменить».
+                  const было = data.transactions.find((x) => x.id === (draft as Transaction).id)
+                  if (было) удаление.операцию(было)
+                  onClose()
+                }}
+              >
                 <Icon name="trash" size={15} /> {т(' Удалить')}</button>
             )}
             <button className="btn" onClick={onClose}>{т('Отмена')}</button>
@@ -595,17 +605,6 @@ export function TransactionModal({
         </Modal>
       )}
 
-      {confirmDel && (
-        <Confirm
-          title={т('Удалить операцию?')}
-          text={т('{0} на {1} от {2} будет удалён без возможности отмены.', KIND_LABEL[kind], money(amount), humanDate(date))}
-          onConfirm={() => {
-            deleteTransaction((draft as Transaction).id)
-            onClose()
-          }}
-          onClose={() => setConfirmDel(false)}
-        />
-      )}
       {shot && <ShotViewer rel={shot} onClose={() => setShot(null)} />}
     </>
   )

@@ -85,7 +85,9 @@ function seedStorage() {
   const счета = core.accounts.map((a) => (a.id === 'acc_credit' && a.credit
     ? { ...a, credit: { ...a.credit, remind: true, remindFrom: '2099-01-01' } }
     : a))
-  ls.setItem('kashel:data.json', JSON.stringify({ ...core, accounts: счета, notifications: [уведомленіе] }))
+  // «Что нового» уже просмотрено — иначе окно закрыло бы собой все проверки. Само окно проверяется отдельно.
+  ls.setItem('kashel:data.json', JSON.stringify({ ...core, settings: { ...core.settings, whatsNewSeen: '99.0.0' },
+    accounts: счета, notifications: [уведомленіе] }))
   const byMonth = new Map<string, typeof transactions>()
   for (const t of transactions) {
     const mk = t.date.slice(0, 7)
@@ -544,13 +546,17 @@ async function canvasBoard() {
   // --- удаление доски
   const dropBtn = all('.canvas-tools .icon-btn').find((b) => b.getAttribute('title') === 'Удалить доску') as any
   check('кнопка удаления доски есть', !!dropBtn)
+  const досокБыло = Object.keys(dom.window.localStorage).filter((k) => k.startsWith('kashel:canvas/')).length
   click(dropBtn)
-  await wait(250)
-  check('удаление доски спрашивает подтверждение', text().includes('Файл доски исчезнет'))
-  const cancel = all('.modal-foot .btn').find((b) => (b.textContent || '').includes('Отмена')) as any
-  click(cancel)
-  await wait(250)
-  check('отмена сохраняет доску', nodes() === nodesNow)
+  await wait(400)
+  check('доска удаляется сразу, без окна', !text().includes('Файл доски исчезнет') &&
+    Object.keys(dom.window.localStorage).filter((k) => k.startsWith('kashel:canvas/')).length === досокБыло - 1)
+  const вернуть = all('[data-sonner-toast]').filter((т) => (т.textContent || '').includes('удалена'))
+    .map((т) => т.querySelector('[data-button]')).find((б) => (б?.textContent || '').includes('Отменить'))
+  check('у удалённой доски есть «Отменить»', !!вернуть)
+  click(вернуть)
+  await wait(700)
+  check('«Отменить» возвращает доску целиком', nodes() === nodesNow && edges() === edgesNow, `${nodes()} узлов`)
 }
 
 /** Форматирование текста, подгонка размера и палитра карточек. */
@@ -2280,12 +2286,111 @@ async function подкатегорииЭкраны() {
   await wait(150)
   click(menuItem('Удалить'))
   await wait(200)
-  click((byText('.modal', 'Удалить «Таня Челяба»?') as HTMLElement | null)?.querySelector('.modal-foot .btn.primary'))
-  await wait(1300)
+  check('подкатегория удаляется без вопроса', !byText('.modal', 'Удалить «Таня Челяба»?'))
+  await wait(1100)
   vault = await loadVault()
   check('удаление из меню убирает категорию', !vault.categories.some((к) => к.id === таня?.id))
   закрытьВвод()
   await wait(300)
+}
+
+/*
+ * «Отменить» после удаления, «О программе» и «Что нового».
+ */
+async function отменаИВерсия(root: Root): Promise<Root> {
+  console.log('\n— отмена удаления —')
+  /** Кнопка «Отменить» в уведомлении с этим текстом. */
+  const отменить = (про: string) =>
+    all('[data-sonner-toast]').filter((т) => (т.textContent || '').includes(про))
+      .map((т) => т.querySelector('[data-button]'))
+      .find((б) => (б?.textContent || '').includes('Отменить')) as HTMLElement | undefined
+
+  // операция: из окна, без вопроса
+  await open('Дашборд')
+  const было = (await loadVault()).transactions.length
+  click(document.querySelector('.view .tx-row'))
+  await wait(400)
+  click(byText('.modal-foot .btn.danger', 'Удалить'))
+  await wait(300)
+  check('операция удаляется без окна «Удалить?»', !byText('.modal', 'Удалить операцию?'))
+  await wait(1100)
+  check('операция удалена', (await loadVault()).transactions.length === было - 1)
+  const кнопкаОп = отменить('Операция удалена')
+  check('в уведомлении есть «Отменить»', !!кнопкаОп)
+  click(кнопкаОп)
+  await wait(1300)
+  check('«Отменить» возвращает операцию', (await loadVault()).transactions.length === было)
+
+  // категория без подкатегорий: сразу, с отменой и на своём месте
+  await open('Категории')
+  const vault0 = await loadVault()
+  const жертва = vault0.categories.find((к) => к.name === 'Кафе')!
+  const место = vault0.categories.findIndex((к) => к.id === жертва.id)
+  const карточка = all('.view .card').find((к) => (к.textContent || '').includes('Кафе') && к.querySelector('.btn.danger'))
+  click(карточка?.querySelector('.btn.danger'))
+  await wait(1300)
+  check('категория без подкатегорий удаляется без вопроса', !byText('.modal', 'Удалить «Кафе»?') &&
+    !(await loadVault()).categories.some((к) => к.id === жертва.id))
+  click(отменить('Категория «Кафе» удалена'))
+  await wait(1300)
+  const vault1 = await loadVault()
+  check('категория вернулась на своё место', vault1.categories.findIndex((к) => к.id === жертва.id) === место)
+
+  // цель
+  await open('Цели')
+  const цели = (await loadVault()).goals
+  if (цели.length) {
+    click(all('.view .btn.sm.danger')[0])
+    await wait(1300)
+    check('цель удаляется без вопроса', (await loadVault()).goals.length === цели.length - 1)
+    click(отменить('удалена'))
+    await wait(1300)
+    check('цель вернулась', (await loadVault()).goals.map((г) => г.id).join() === цели.map((г) => г.id).join())
+  }
+
+  // заметка: файл уходит и возвращается тем же текстом
+  await open('Заметки')
+  const ls = dom.window.localStorage
+  const заметки = Object.keys(ls).filter((k) => k.startsWith('kashel:notes/'))
+  const заголовокЗаметки = document.querySelector('.icon-btn[title="Удалить заметку"]')
+  click(заголовокЗаметки)
+  await wait(500)
+  const осталось = Object.keys(ls).filter((k) => k.startsWith('kashel:notes/'))
+  const ушла = заметки.find((k) => !осталось.includes(k))
+  check('заметка удаляется без вопроса', !!ушла && осталось.length === заметки.length - 1)
+  click(отменить('Заметка'))
+  await wait(600)
+  check('заметка вернулась', Object.keys(ls).filter((k) => k.startsWith('kashel:notes/')).length === заметки.length)
+
+  console.log('\n— версия —')
+  await open('Настройки')
+  check('в «О программе» видна версия', text().includes('Кошель, версия 1.0.1'))
+  click(byText('.view .btn', 'Что нового'))
+  await wait(300)
+  check('«Что нового» открывается из настроек', !!byText('.modal', 'Версия 1.0.1'))
+  click(byText('.modal-foot .btn', 'Понятно'))
+  await wait(300)
+  check('в браузере раздел копий объясняет, где они делаются', text().includes('Резервные копии делает программа на компьютере'))
+
+  // после обновления «Что нового» показывается один раз
+  const ядро = JSON.parse(ls.getItem('kashel:data.json')!)
+  delete ядро.settings.whatsNewSeen
+  ls.setItem('kashel:data.json', JSON.stringify(ядро))
+  root.unmount()
+  await wait(250)
+  let next = mount()
+  await wait(1800)
+  check('после обновления показывается «Что нового»', !!byText('.modal', 'Версия 1.0.1'))
+  click(byText('.modal-foot .btn', 'Понятно'))
+  await wait(1300)
+  check('отметка «видел» сохранена', JSON.parse(ls.getItem('kashel:data.json')!).settings.whatsNewSeen === '1.0.1')
+  check('программа отметила свою версию', JSON.parse(ls.getItem('kashel:data.json')!).settings.appVersion === '1.0.1')
+  next.unmount()
+  await wait(250)
+  next = mount()
+  await wait(1800)
+  check('второй раз окно не показывается', !byText('.modal', 'Что нового'))
+  return next
 }
 
 async function main() {
@@ -2317,6 +2422,7 @@ async function main() {
   await transactionsBulk()
   await entryDateFollowsPeriod()
   root = await persistence(root)
+  root = await отменаИВерсия(root)
   await saveButton()
   root = await archiveRoundTrip(root)
   root = await wipeEverything(root)

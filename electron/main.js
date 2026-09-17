@@ -564,6 +564,27 @@ ipcMain.handle('fs:delete', async (_e, rel) => {
   }
 })
 
+/*
+ * Удаление в Корзину — для заметок и досок: человек привык доставать их
+ * оттуда. Если Корзины нет (сетевой диск, её отключили), файл удаляется
+ * обычным порядком — отмена в программе всё равно держит содержимое.
+ */
+ipcMain.handle('fs:trash', async (_e, rel) => {
+  const full = resolveInVault(rel)
+  try {
+    await shell.trashItem(full)
+    return true
+  } catch (e) {
+    try {
+      await fsp.unlink(full)
+      return true
+    } catch (e2) {
+      if (e2 && e2.code === 'ENOENT') return true
+      return failed(e2, rel)
+    }
+  }
+})
+
 ipcMain.handle('fs:rename', async (_e, from, to) => {
   try {
     const target = resolveInVault(to)
@@ -579,6 +600,27 @@ ipcMain.handle('fs:list', async (_e, rel, ext) => {
   try {
     const names = await fsp.readdir(resolveInVault(rel))
     return names.filter((n) => !ext || n.toLowerCase().endsWith(ext))
+  } catch (e) {
+    if (e && e.code === 'ENOENT') return []
+    return failed(e, rel)
+  }
+})
+
+/** Файлы папки с размером и временем — для списка резервных копий. */
+ipcMain.handle('fs:listInfo', async (_e, rel) => {
+  try {
+    const dir = resolveInVault(rel)
+    const names = await fsp.readdir(dir)
+    const out = []
+    for (const name of names) {
+      try {
+        const st = await fsp.stat(path.join(dir, name))
+        if (st.isFile()) out.push({ name, size: st.size, mtime: st.mtimeMs })
+      } catch {
+        // Файл успели убрать между чтением папки и stat — просто пропускаем.
+      }
+    }
+    return out
   } catch (e) {
     if (e && e.code === 'ENOENT') return []
     return failed(e, rel)

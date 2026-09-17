@@ -16,6 +16,7 @@ import { ArchiveProvider } from './components/ArchiveHost'
 import { ReminderHost } from './components/ReminderHost'
 import { HonorsHost } from './components/HonorsHost'
 import { UvedomleniyaHost, UvedomleniyaKnopka } from './components/Uvedomleniya'
+import { ЧтоНовогоХост } from './components/ChtoNovogo'
 import { PomodoroProvider, clock, usePomodoro } from './components/PomodoroHost'
 import { Boundary } from './components/Boundary'
 import { VaultFailureScreen } from './components/VaultFailure'
@@ -425,6 +426,7 @@ export default function App() {
       <ReminderHost />
       <HonorsHost />
       <UvedomleniyaHost />
+      <ЧтоНовогоХост />
       <div className="app">
         <Ribbon onTheme={() => setThemeOpen(true)} />
         <Sidebar />

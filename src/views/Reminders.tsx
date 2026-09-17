@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { DateField } from '../components/DateField'
 import { useStore } from '../state/store'
@@ -26,7 +27,7 @@ export default function Reminders() {
   const { data, upsertReminder, deleteReminder } = useStore()
   const toast = useToast()
   const [edit, setEdit] = useState<Reminder | null>(null)
-  const [del, setDel] = useState<Reminder | null>(null)
+  const удаление = useУдаление()
 
   // Что сработало бы прямо сейчас — чтобы человек видел, что условие рабочее,
   // а не гадал, почему тишина.
@@ -97,7 +98,7 @@ export default function Reminders() {
                     <button className="icon-btn" title={т('Изменить')} onClick={() => setEdit(r)}>
                       <Icon name="edit" size={15} />
                     </button>
-                    <button className="icon-btn" title={т('Удалить')} onClick={() => setDel(r)}>
+                    <button className="icon-btn" title={т('Удалить')} onClick={() => удаление.напоминание(r.id)}>
                       <Icon name="trash" size={15} />
                     </button>
                   </div>
@@ -135,14 +136,6 @@ export default function Reminders() {
             upsertReminder(r)
             setEdit(null)
           }}
-        />
-      )}
-      {del && (
-        <Confirm
-          title={т('Удалить «{0}»?', del.title || т('без названия'))}
-          text={т('Напоминание исчезнет насовсем. Если оно просто пока не нужно, лучше приостановить.')}
-          onConfirm={() => deleteReminder(del.id)}
-          onClose={() => setDel(null)}
         />
       )}
     </div>

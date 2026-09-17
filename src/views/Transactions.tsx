@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react'
+import { ОТМЕНА_МС } from '../components/Udalenie'
 import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { семья, вСемье } from '../engine/podkategorii'
 import { DateField } from '../components/DateField'
@@ -145,7 +146,7 @@ export default function Transactions({ filter }: { filter?: string }) {
         restoreTransactions(doomed)
         setUndoBuffer([])
       },
-    })
+    }, { duration: ОТМЕНА_МС })
   }
 
   const undo = () => {

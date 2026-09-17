@@ -20,6 +20,9 @@ import { parseArchive } from '../src/engine/archive'
 import { вывестиТокены, значеніеДопустимо, контрастъ, очиститьТокены, простыяИзъТокеновъ, разобратьФайлТемы } from '../src/lib/svoitemy'
 import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
+import { ВЕРСИЯ, ВЫПУСКИ, выпускВерсии, непросмотренныеВыпуски, сравнитьВерсии } from '../src/lib/versiya'
+import { имяКопии, лишниеЕжедневные, разобратьИмяКопии, упорядочитьКопии } from '../src/state/rezerv'
+import { вернутьЗапись, вернутьКатегорию, вернутьСчёт, вернутьТег, вставитьНазад, снимокЗаписи, снимокКатегории, снимокСчёта, снимокТега } from '../src/engine/otmena'
 import { безРодителя, вСемье, деревоКатегорий, нельзяВложить, поГлавным, раскладкаГлавной, семья, суммаСемьи, подкатегории } from '../src/engine/podkategorii'
 import {
   isImportant, isOverdue, isUrgent, plannedByMonth, priorityOf, quadrantOf, sortTasks,
@@ -2798,6 +2801,91 @@ function подкатегорииПроверка() {
   check('и без трат напоминание молчит', dueReminders({ ...сТратами, transactions: [] }, today()).length === 0)
 }
 
+function копииОтменаВерсии() {
+  console.log('\n— версия и «Что нового» —')
+  const пакет = JSON.parse(require('fs').readFileSync(require('path').join(process.cwd(), 'package.json'), 'utf8'))
+  check('версия программы — из package.json', ВЕРСИЯ === пакет.version, ВЕРСИЯ)
+  check('у нынешней версии есть список изменений', !!выпускВерсии(ВЕРСИЯ) && выпускВерсии(ВЕРСИЯ)!.пункты.length > 0)
+  check('выпуски идут от новых к старым', ВЫПУСКИ.every((в, i) => i === 0 || сравнитьВерсии(ВЫПУСКИ[i - 1].версия, в.версия) > 0))
+  check('сравнение версий по числам, а не по буквам', сравнитьВерсии('1.0.10', '1.0.9') > 0 && сравнитьВерсии('1.0', '1.0.0') === 0 && сравнитьВерсии('1.0.1', '1.1.0') < 0)
+  check('новому хранилищу «Что нового» не показывается', непросмотренныеВыпуски(undefined, false, '1.0.1').length === 0)
+  check('обновлению с 1.0.0 показывается', непросмотренныеВыпуски(undefined, true, '1.0.1').map((в) => в.версия).join() === '1.0.1')
+  check('просмотренное второй раз не показывается', непросмотренныеВыпуски('1.0.1', true, '1.0.1').length === 0)
+  check('выпуски новее нынешней не показываются', непросмотренныеВыпуски(undefined, true, '1.0.0').length === 0)
+
+  console.log('\n— резервные копии —')
+  const когда = new Date(2026, 8, 17, 9, 5, 7)
+  const имя = имяКопии('daily', когда)
+  check('имя копии: вид, дата и время', имя === 'backups/ежедневная 2026-09-17 09-05-07.kashel', имя)
+  const разбор = разобратьИмяКопии(имя.slice('backups/'.length))
+  check('имя копии разбирается обратно', разбор?.вид === 'daily' && разбор.день === '2026-09-17' && разбор.когда.getTime() === когда.getTime())
+  check('копия прежних версий узнаётся', разобратьИмяКопии('до-загрузки 2026-09-01 10-00-00.kashel')?.вид === 'load')
+  check('копия, сделанная по-английски, узнаётся и по-русски', разобратьИмяКопии('daily 2026-09-01 10-00-00.kashel')?.вид === 'daily')
+  check('посторонние файлы в папке — не копии', разобратьИмяКопии('заметка.txt') === null && разобратьИмяКопии('x 2026-13-45 99-99-99.kashel.tmp') === null)
+  const дни = Array.from({ length: 20 }, (_, i) => ({ name: имяКопии('daily', new Date(2026, 7, i + 1, 12)).slice(8), size: 10 }))
+  const прочие = [
+    { name: имяКопии('update', new Date(2026, 6, 1)).slice(8) },
+    { name: имяКопии('wipe', new Date(2026, 6, 2)).slice(8) },
+    { name: 'чужой файл.kashel' },
+  ]
+  const копии = упорядочитьКопии([...дни, ...прочие])
+  check('список копий — новые сверху, чужое пропущено', копии.length === 22 && копии[0].день === '2026-08-20' && копии[21].вид === 'update')
+  const лишние = лишниеЕжедневные(копии)
+  check('ежедневных хранится 14 — удаляются старейшие', лишние.length === 6 && лишние.every((к) => к.вид === 'daily' && к.день <= '2026-08-06'))
+  check('копии перед обновлением и очисткой не подчищаются', !лишние.some((к) => к.вид !== 'daily'))
+
+  console.log('\n— отмена удаления —')
+  const cat = (id: string, over: Record<string, unknown> = {}) => ({ id, name: id, kind: 'expense' as const, icon: 'x', color: '#000', ...over })
+  const база = {
+    ...data,
+    categories: [cat('a'), cat('главная'), cat('под', { parentId: 'главная' }), cat('b')],
+    accounts: [{ ...data.accounts[0], id: 'acc1' }, { ...data.accounts[0], id: 'acc2' }],
+    recurring: [
+      { ...data.recurring[0], id: 'r1', accountId: 'acc2', active: true, tags: ['дом', 'свет'] },
+      { ...data.recurring[0], id: 'r2', accountId: 'acc2', active: false, tags: [] },
+      { ...data.recurring[0], id: 'r3', accountId: 'acc1', active: true, tags: [] },
+    ],
+    transactions: [
+      { id: 't1', date: '2026-09-01', amount: 1, kind: 'expense' as const, accountId: 'acc1', tags: ['свет', 'дом'], createdAt: '' },
+      { id: 't2', date: '2026-08-01', amount: 1, kind: 'expense' as const, accountId: 'acc1', tags: ['еда'], createdAt: '' },
+    ],
+  }
+  check('запись встаёт на прежнее место', вставитьНазад([{ id: '1' }, { id: '3' }], { id: '2' }, 1).map((x) => x.id).join() === '1,2,3')
+  check('дважды не встаёт', вставитьНазад([{ id: '1' }], { id: '1' }, 0).length === 1)
+
+  const сК = снимокКатегории(база, 'главная')!
+  let после = { ...база, categories: безРодителя(база, 'главная') }
+  после = { ...после, categories: [...после.categories, cat('новая')] } // записали, пока висела кнопка
+  const вернули = вернутьКатегорию(после, сК)
+  check('категория возвращается на место и с подкатегориями',
+    вернули.categories.map((c) => c.id).join() === 'a,главная,под,b,новая' && вернули.categories.find((c) => c.id === 'под')?.parentId === 'главная')
+  const перенесли = вернутьКатегорию({ ...после, categories: после.categories.map((c) => (c.id === 'под' ? { ...c, parentId: 'a' } : c)) }, сК)
+  check('перенесённую за это время подкатегорию отмена не трогает', перенесли.categories.find((c) => c.id === 'под')?.parentId === 'a')
+
+  const сС = снимокСчёта(база, 'acc2')!
+  const безСчёта = {
+    ...база,
+    accounts: база.accounts.filter((a) => a.id !== 'acc2'),
+    recurring: база.recurring.map((r) => (r.active && r.accountId === 'acc2' ? { ...r, active: false } : r)),
+  }
+  const счётВернули = вернутьСчёт(безСчёта, сС)
+  check('счёт возвращается, его правила снова включены',
+    счётВернули.accounts.map((a) => a.id).join() === 'acc1,acc2' && счётВернули.recurring.find((r) => r.id === 'r1')?.active === true)
+  check('выключенное ещё до удаления правило остаётся выключенным', счётВернули.recurring.find((r) => r.id === 'r2')?.active === false)
+
+  const сЗ = снимокЗаписи(база, 'recurring', 'r2')!
+  const безЗаписи = { ...база, recurring: база.recurring.filter((r) => r.id !== 'r2') }
+  check('регулярный платёж возвращается на место', вернутьЗапись(безЗаписи, сЗ).recurring.map((r) => r.id).join() === 'r1,r2,r3')
+
+  const сТ = снимокТега(база, 'дом')
+  const безТега = { ...база, ...переименоватьТег(база, 'дом', '') }
+  const тегВернули = вернутьТег(безТега, сТ)
+  check('тег возвращается на своё место в операциях и правилах',
+    тегВернули.transactions.find((t) => t.id === 't1')?.tags.join() === 'свет,дом' && тегВернули.recurring.find((r) => r.id === 'r1')?.tags.join() === 'дом,свет')
+  check('операции без тега отмена не трогает', тегВернули.transactions.find((t) => t.id === 't2')?.tags.join() === 'еда')
+  check('снимок тега знает месяцы операций', сТ.операции.map((x) => x.месяц).join() === '2026-09')
+}
+
 void завершить()
 
 async function завершить() {
@@ -2812,6 +2900,7 @@ async function завершить() {
   тегиИУведомленія()
   разборОшибокъ()
   подкатегорииПроверка()
+  копииОтменаВерсии()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

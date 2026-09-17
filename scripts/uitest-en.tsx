@@ -109,7 +109,7 @@ function seedStorage() {
   const ls = dom.window.localStorage
   ls.clear()
   ls.setItem(ГДѢ_ЯЗЫКЪ, 'en')
-  ls.setItem('kashel:data.json', JSON.stringify({ ...core, settings: { ...core.settings, language: 'en' } }))
+  ls.setItem('kashel:data.json', JSON.stringify({ ...core, settings: { ...core.settings, language: 'en', whatsNewSeen: '99.0.0' } }))
   const byMonth = new Map<string, typeof transactions>()
   for (const t of transactions) {
     const mk = t.date.slice(0, 7)

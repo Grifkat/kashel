@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { useУдаление } from '../components/Udalenie'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -23,6 +24,8 @@ export default function Categories() {
   const [kind, setKind] = useState<'expense' | 'income'>('expense')
   const [edit, setEdit] = useState<Category | null>(null)
   const [del, setDel] = useState<Category | null>(null)
+  const удаление = useУдаление()
+  const удалить = (c: Category) => (подкатегории(c.id, data.categories).length ? setDel(c) : удаление.категорию(c.id))
 
   // Статистика по статьям — своя: проектные траты в неё не входят.
   const личн = личное(data)
@@ -173,7 +176,7 @@ export default function Categories() {
                       <button className="icon-btn" onClick={() => setEdit(д)} title={т('Изменить')}>
                         <Icon name="edit" size={13} />
                       </button>
-                      <button className="icon-btn" onClick={() => setDel(д)} title={т('Удалить')}>
+                      <button className="icon-btn" onClick={() => удалить(д)} title={т('Удалить')}>
                         <Icon name="trash" size={13} />
                       </button>
                     </div>
@@ -198,7 +201,7 @@ export default function Categories() {
                 >
                   <Icon name="plus" size={13} /> {т(' Подкатегория')}</button>
                 <span className="spacer" />
-                <button className="btn sm danger" onClick={() => setDel(c)}>
+                <button className="btn sm danger" onClick={() => удалить(c)}>
                   <Icon name="trash" size={13} />
                 </button>
               </div>
@@ -239,12 +242,8 @@ export default function Categories() {
       {del && (
         <Confirm
           title={т('Удалить «{0}»?', del.name)}
-          text={
-            подкатегории(del.id, data.categories).length
-              ? т('Операции этой категории останутся без категории, а её подкатегории станут главными. Если историю жалко — лучше убрать категорию в архив.')
-              : т('Операции этой категории останутся, но потеряют привязку. Если нужно сохранить историю — лучше пометить категорию архивной.')
-          }
-          onConfirm={() => deleteCategory(del.id)}
+          text={т('Операции этой категории останутся без категории, а её подкатегории станут главными. Сразу после удаления всё можно вернуть кнопкой «Отменить».')}
+          onConfirm={() => удаление.категорию(del.id)}
           onClose={() => setDel(null)}
         />
       )}

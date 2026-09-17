@@ -1934,3 +1934,8 @@ input.invalid { border-color: var(--alert) !important; }
 .qa-poisk { margin-top: 10px; max-width: 280px; }
 .budget-pod td:first-child { padding-left: 34px; }
 .budget-pod td { font-size: 0.95em; }
+.chto-novogo section + section { margin-top: 16px; }
+.chto-novogo ul { margin: 0; padding-left: 20px; display: grid; gap: 6px; line-height: 1.55; }
+.rezerv-spisok { display: grid; gap: 2px; max-height: 360px; overflow-y: auto; }
+.rezerv-kopiya { padding: 6px 4px; border-bottom: 1px solid var(--border-soft); }
+.rezerv-kopiya:last-child { border-bottom: 0; }
