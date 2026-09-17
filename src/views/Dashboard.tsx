@@ -24,8 +24,19 @@ import { личное } from '../engine/project'
 import { Ogonek } from '../components/Ogonek'
 import { KreditDashbord } from '../components/KreditDashbord'
 import { подкатегории, поГлавным, раскладкаГлавной } from '../engine/podkategorii'
-import type { Transaction } from '../lib/types'
+import { БЛОКИ_ПО_УМОЛЧАНИЮ, type БлокСводки, type Transaction } from '../lib/types'
 import { т, тр } from '../i18n'
+
+/** Названия блоков «Сводки» — видны только в настройке порядка. */
+const НАЗВАНИЯ_БЛОКОВ: Record<БлокСводки, string> = {
+  payments: т('Платежи этого месяца'),
+  categories: т('Расходы и доходы по категориям'),
+  dynamics: т('Динамика за год и остаток'),
+  credits: т('Кредиты'),
+  projects: т('Проекты'),
+  awards: т('Отличия'),
+  recent: т('Последние операции'),
+}
 
 const PERIODS: { k: PeriodKind; t: string }[] = [
   { k: 'day', t: т('День') },
@@ -44,6 +55,40 @@ export default function Dashboard() {
   const [side, setSide] = useState<'expense' | 'income'>('expense')
   const [period, setPeriod] = useState<Period>(() => makePeriod('month', today(), data.settings.firstDayOfWeek))
   const [выборПериода, setВыборПериода] = useState(false)
+
+  // --- блоки «Сводки»: свой порядок и видимость
+  const [настройка, setНастройка] = useState(false)
+  const [тащим, setТащим] = useState<БлокСводки | null>(null)
+  const [над, setНад] = useState<БлокСводки | null>(null)
+  const видимые = useMemo(() => {
+    const свои = data.settings.dashBlocks
+    if (!свои?.length) return БЛОКИ_ПО_УМОЛЧАНИЮ
+    // Незнакомое и повторы отбрасываем: список мог прийти из другой версии.
+    return свои.filter((b, i) => БЛОКИ_ПО_УМОЛЧАНИЮ.includes(b) && свои.indexOf(b) === i)
+  }, [data.settings.dashBlocks])
+  const скрытые = БЛОКИ_ПО_УМОЛЧАНИЮ.filter((b) => !видимые.includes(b))
+  const сохранитьБлоки = (список: БлокСводки[]) => patchSettings({ dashBlocks: список })
+  const сдвинуть = (b: БлокСводки, шаг: 1 | -1) => {
+    const i = видимые.indexOf(b)
+    const j = i + шаг
+    if (i < 0 || j < 0 || j >= видимые.length) return
+    const next = [...видимые]
+    next.splice(i, 1)
+    next.splice(j, 0, b)
+    сохранитьБлоки(next)
+  }
+  const скрыть = (b: БлокСводки) => сохранитьБлоки(видимые.filter((x) => x !== b))
+  const показать = (b: БлокСводки) => сохранитьБлоки([...видимые, b])
+  /** Перетащили один блок на другой — встаём на его место. */
+  const бросить = (цель: БлокСводки) => {
+    const b = тащим
+    setТащим(null)
+    setНад(null)
+    if (!b || b === цель) return
+    const next = видимые.filter((x) => x !== b)
+    next.splice(видимые.indexOf(цель), 0, b)
+    сохранитьБлоки(next)
+  }
   const [accountId, setAccountId] = useState<string>('__all__')
   const кредитъ = data.accounts.find((a) => a.id === accountId && a.type === 'credit' && a.credit)
   const [pickAccount, setPickAccount] = useState(false)
@@ -203,116 +248,16 @@ export default function Dashboard() {
     setUndoBuffer([])
   }
 
-  return (
-    <div className="view wide">
-      {/* ------------------------------------------------ шапка со счётом */}
-      <div className="hero" style={{ marginBottom: 18 }}>
-        <div className="row">
-          <div style={{ position: 'relative' }}>
-            <button className="btn ghost" onClick={() => setPickAccount((v) => !v)}>
-              <Icon name="wallet" size={16} /> {headlineName} <Icon name="down" size={13} />
-            </button>
-            {pickAccount && (
-              <div
-                className="card"
-                style={{ position: 'absolute', top: 34, left: 0, zIndex: 30, width: 280, boxShadow: 'var(--shadow)' }}
-              >
-                <div className="card-title">{т('Выберите счёт')}</div>
-                <div
-                  className="cat-row"
-                  onClick={() => {
-                    setAccountId('__all__')
-                    setPickAccount(false)
-                  }}
-                >
-                  <span className="avatar" style={{ background: 'color-mix(in srgb, var(--accent) 25%, transparent)' }}>
-                    <Icon name="wallet" size={16} />
-                  </span>
-                  <span className="name">{т('Итого')}</span>
-                  <span className="amt num">{hidden ? '••••' : money(bal.assets)}</span>
-                </div>
-                {data.accounts.filter((a) => !a.archived).map((a) => (
-                  <div
-                    key={a.id}
-                    className="cat-row"
-                    onClick={() => {
-                      setAccountId(a.id)
-                      setPickAccount(false)
-                    }}
-                  >
-                    <Avatar icon={a.icon} color={a.color} />
-                    <span className="name">{a.name}</span>
-                    <span className="amt num">{hidden ? '••••' : money(bal.byAccount.get(a.id) ?? 0)}</span>
-                  </div>
-                ))}
-                <div className="row" style={{ marginTop: 10 }}>
-                  <button className="btn sm" onClick={() => patchSettings({ hideBalance: !hidden })}>
-                    <Icon name={hidden ? 'eye' : 'eyeOff'} size={14} /> {hidden ? т('Показать баланс') : т('Скрыть баланс')}
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-          <span className="spacer" />
-          {/* Огонёк серии стоит рядом с кнопками записи не случайно: он про
-              то, чтобы запись случилась сегодня. */}
-          <Ogonek />
-          {/* Две кнопки вместо одной переключаемой: вид операции выбирается
-              сразу, без лишнего клика по вкладке «Расходы/Доходы». */}
-          <button className="btn tone-out" onClick={() => app.openQuickAdd('', 'expense')} title={entryHint(т('Записать расход'))}>
-            <Icon name="plus" size={16} /> {тр(' Расход{0}', entryMark)}</button>
-          <button className="btn tone-in" onClick={() => app.openQuickAdd('', 'income')} title={entryHint(т('Записать доход'))}>
-            <Icon name="plus" size={16} /> {тр(' Доход{0}', entryMark)}</button>
-        </div>
-        <div className="row wrap" style={{ marginTop: 6, gap: 14, alignItems: 'baseline' }}>
-          <div className="hero-total num">
-            {hidden ? '•••••••' : <Money value={headline} />}
-          </div>
-          {/* Отданное в долг — ваши деньги, но не на руках: рядом, а не в сумме. */}
-          {accountId === '__all__' && bal.lent > 0 && (
-            <button
-              className="hero-frozen"
-              title={т('Деньги, которые вам должны вернуть. В «Итого» не входят.')}
-              onClick={() => app.openTab('debts')}
-            >
-              <Icon name="clock" size={14} /> {т('Заморожено {0} — вам должны', hidden ? '••••' : money(bal.lent))}
-            </button>
-          )}
-        </div>
-        <div className="hero-label">
-          {тр('чистый капитал {0}{1}', hidden ? '••••' : money(bal.net), bal.liabilities < 0 && т(' · обязательства {0}', hidden ? '••••' : money(bal.liabilities)))}</div>
-      </div>
 
-      {/* ------------------------------------------------ дашборд кредита */}
-      {кредитъ && (
-        <div style={{ marginBottom: 18 }}>
-          <KreditDashbord acc={кредитъ} />
-        </div>
-      )}
-
-      {/* ------------------------------------------------ пустое хранилище */}
-      {!data.accounts.length && (
-        <Reveal className="card" style={{ marginBottom: 18, padding: 'calc(22px * var(--dens)) calc(24px * var(--dens))' }}>
-          <h2 style={{ margin: '0 0 8px', fontSize: 19, color: 'var(--text-strong)' }}>
-            <GradientText>{т('Хранилище пустое — заполните его своими данными')}</GradientText>
-          </h2>
-          <div className="advice-body" style={{ maxWidth: 700 }}>
-            {т('Программа ничего не придумывает за вас: ни счетов, ни операций. Начать проще всего со счёта — карты или наличных — и указать на нём текущий остаток. Дальше появятся категории, а прогноз и советы включатся сами, как только наберётся история за пару месяцев.')}</div>
-          <div className="row wrap" style={{ gap: 8, marginTop: 16 }}>
-            <button className="btn primary" onClick={() => app.openTab('accounts')}>
-              <Icon name="wallet" size={15} /> {т(' Создать первый счёт')}</button>
-            <button className="btn" onClick={() => app.openTab('categories')}>
-              <Icon name="tag" size={15} /> {т(' Категории')}</button>
-            <button className="btn" onClick={() => app.openTab('import')}>
-              <Icon name="download" size={15} /> {т(' Загрузить выписку из банка')}</button>
-          </div>
-        </Reveal>
-      )}
-
-      {/* ------------------------------------------------ платежи месяца */}
-      {accountId === '__all__' && data.accounts.length > 0 && <PlatezhiMesyaca style={{ marginBottom: 16 }} />}
-
-      {/* ------------------------------------------------ период и сторона */}
+  /*
+   * Блоки «Сводки». Что показывать и в каком порядке — решает человек
+   * (настройки, dashBlocks): шапка со счётом всегда наверху, остальное
+   * переставляется стрелками или перетаскиванием.
+   */
+  const узлыБлоков: Record<БлокСводки, React.ReactNode> = {
+    payments: accountId === '__all__' && data.accounts.length > 0 ? <PlatezhiMesyaca /> : null,
+    categories: (
+      <>
       <div className="row wrap" style={{ marginBottom: 16, gap: 12 }}>
         <div className="seg">
           <button className={side === 'expense' ? 'on' : ''} onClick={() => setSide('expense')}>{т('Расходы')}</button>
@@ -545,8 +490,10 @@ export default function Dashboard() {
           })}
         </div>
       </div>
-
-      {/* ------------------------------------------------ динамика */}
+      </>
+    ),
+    dynamics: (
+      <>
       <div className="grid c2" style={{ marginTop: 16 }}>
         <div className="card">
           <div className="card-title">
@@ -573,17 +520,14 @@ export default function Dashboard() {
           />
         </div>
       </div>
-
-      {/* ------------------------------------------------ кредиты */}
-      <Kredity style={{ marginTop: 16 }} />
-
-      <Proekty style={{ marginTop: 16 }} />
-
-      {/* ------------------------------------------------ отличия */}
-      <Nagrady style={{ marginTop: 16 }} />
-
-      {/* ------------------------------------------------ последние операции */}
-      <div className="card" style={{ marginTop: 16 }}>
+      </>
+    ),
+    credits: <Kredity />,
+    projects: <Proekty />,
+    awards: <Nagrady />,
+    recent: (
+      <>
+      <div className="card">
         <div className="row" style={{ marginBottom: 6 }}>
           <div className="card-title" style={{ margin: 0 }}>
             <Icon name="list" size={14} /> {т(' Последние операции')}</div>
@@ -618,6 +562,182 @@ export default function Dashboard() {
         })}
         </div>
       </div>
+      </>
+    ),
+  }
+
+  return (
+    <div className="view wide">
+      {/* ------------------------------------------------ шапка со счётом */}
+      <div className="hero" style={{ marginBottom: 18 }}>
+        <div className="row">
+          <div style={{ position: 'relative' }}>
+            <button className="btn ghost" onClick={() => setPickAccount((v) => !v)}>
+              <Icon name="wallet" size={16} /> {headlineName} <Icon name="down" size={13} />
+            </button>
+            {pickAccount && (
+              <div
+                className="card"
+                style={{ position: 'absolute', top: 34, left: 0, zIndex: 30, width: 280, boxShadow: 'var(--shadow)' }}
+              >
+                <div className="card-title">{т('Выберите счёт')}</div>
+                <div
+                  className="cat-row"
+                  onClick={() => {
+                    setAccountId('__all__')
+                    setPickAccount(false)
+                  }}
+                >
+                  <span className="avatar" style={{ background: 'color-mix(in srgb, var(--accent) 25%, transparent)' }}>
+                    <Icon name="wallet" size={16} />
+                  </span>
+                  <span className="name">{т('Итого')}</span>
+                  <span className="amt num">{hidden ? '••••' : money(bal.assets)}</span>
+                </div>
+                {data.accounts.filter((a) => !a.archived).map((a) => (
+                  <div
+                    key={a.id}
+                    className="cat-row"
+                    onClick={() => {
+                      setAccountId(a.id)
+                      setPickAccount(false)
+                    }}
+                  >
+                    <Avatar icon={a.icon} color={a.color} />
+                    <span className="name">{a.name}</span>
+                    <span className="amt num">{hidden ? '••••' : money(bal.byAccount.get(a.id) ?? 0)}</span>
+                  </div>
+                ))}
+                <div className="row" style={{ marginTop: 10 }}>
+                  <button className="btn sm" onClick={() => patchSettings({ hideBalance: !hidden })}>
+                    <Icon name={hidden ? 'eye' : 'eyeOff'} size={14} /> {hidden ? т('Показать баланс') : т('Скрыть баланс')}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+          <span className="spacer" />
+          {/* Огонёк серии стоит рядом с кнопками записи не случайно: он про
+              то, чтобы запись случилась сегодня. */}
+          <Ogonek />
+          {/* Две кнопки вместо одной переключаемой: вид операции выбирается
+              сразу, без лишнего клика по вкладке «Расходы/Доходы». */}
+          <button className="btn tone-out" onClick={() => app.openQuickAdd('', 'expense')} title={entryHint(т('Записать расход'))}>
+            <Icon name="plus" size={16} /> {тр(' Расход{0}', entryMark)}</button>
+          <button className="btn tone-in" onClick={() => app.openQuickAdd('', 'income')} title={entryHint(т('Записать доход'))}>
+            <Icon name="plus" size={16} /> {тр(' Доход{0}', entryMark)}</button>
+        </div>
+        <div className="row wrap" style={{ marginTop: 6, gap: 14, alignItems: 'baseline' }}>
+          <div className="hero-total num">
+            {hidden ? '•••••••' : <Money value={headline} />}
+          </div>
+          {/* Отданное в долг — ваши деньги, но не на руках: рядом, а не в сумме. */}
+          {accountId === '__all__' && bal.lent > 0 && (
+            <button
+              className="hero-frozen"
+              title={т('Деньги, которые вам должны вернуть. В «Итого» не входят.')}
+              onClick={() => app.openTab('debts')}
+            >
+              <Icon name="clock" size={14} /> {т('Заморожено {0} — вам должны', hidden ? '••••' : money(bal.lent))}
+            </button>
+          )}
+        </div>
+        <div className="hero-label">
+          {тр('чистый капитал {0}{1}', hidden ? '••••' : money(bal.net), bal.liabilities < 0 && т(' · обязательства {0}', hidden ? '••••' : money(bal.liabilities)))}</div>
+      </div>
+
+      {/* ------------------------------------------------ дашборд кредита */}
+      {кредитъ && (
+        <div style={{ marginBottom: 18 }}>
+          <KreditDashbord acc={кредитъ} />
+        </div>
+      )}
+
+      {/* ------------------------------------------------ пустое хранилище */}
+      {!data.accounts.length && (
+        <Reveal className="card" style={{ marginBottom: 18, padding: 'calc(22px * var(--dens)) calc(24px * var(--dens))' }}>
+          <h2 style={{ margin: '0 0 8px', fontSize: 19, color: 'var(--text-strong)' }}>
+            <GradientText>{т('Хранилище пустое — заполните его своими данными')}</GradientText>
+          </h2>
+          <div className="advice-body" style={{ maxWidth: 700 }}>
+            {т('Программа ничего не придумывает за вас: ни счетов, ни операций. Начать проще всего со счёта — карты или наличных — и указать на нём текущий остаток. Дальше появятся категории, а прогноз и советы включатся сами, как только наберётся история за пару месяцев.')}</div>
+          <div className="row wrap" style={{ gap: 8, marginTop: 16 }}>
+            <button className="btn primary" onClick={() => app.openTab('accounts')}>
+              <Icon name="wallet" size={15} /> {т(' Создать первый счёт')}</button>
+            <button className="btn" onClick={() => app.openTab('categories')}>
+              <Icon name="tag" size={15} /> {т(' Категории')}</button>
+            <button className="btn" onClick={() => app.openTab('import')}>
+              <Icon name="download" size={15} /> {т(' Загрузить выписку из банка')}</button>
+          </div>
+        </Reveal>
+      )}
+
+      {/* ------------------------------------------------ блоки: порядок и видимость свои */}
+      <div className="row" style={{ marginBottom: 10 }}>
+        <span className="spacer" />
+        <button
+          className={'btn sm ' + (настройка ? 'primary' : 'ghost')}
+          title={т('Порядок блоков на «Сводке»')}
+          onClick={() => setНастройка((v) => !v)}
+        >
+          <Icon name="panel" size={13} /> {настройка ? т(' Готово') : т(' Настроить вид')}</button>
+      </div>
+
+      {настройка && (
+        <div className="card dash-nastройка" style={{ marginBottom: 16 }}>
+          <div className="row wrap" style={{ gap: 8, marginBottom: 8 }}>
+            <div className="card-title" style={{ margin: 0 }}>
+              <Icon name="panel" size={14} /> {т(' Что показывать на «Сводке»')}</div>
+            <span className="spacer" />
+            <button className="btn sm ghost" onClick={() => patchSettings({ dashBlocks: undefined })}>{т('Как было')}</button>
+          </div>
+          <div className="faint small">
+            {т('Блоки переставляются стрелками или перетаскиванием за заголовок. Шапка со счётом всегда наверху.')}</div>
+          {скрытые.length > 0 && (
+            <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
+              <span className="faint small">{т('Скрыто:')}</span>
+              {скрытые.map((b) => (
+                <button key={b} className="chip" onClick={() => показать(b)}>
+                  <Icon name="plus" size={11} /> {НАЗВАНИЯ_БЛОКОВ[b]}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {видимые.map((b, i) => {
+        const узел = узлыБлоков[b]
+        if (!узел) return null
+        if (!настройка) return <div key={b} className="dash-block">{узел}</div>
+        return (
+          <div
+            key={b}
+            className={'dash-block dash-edit' + (тащим === b ? ' dragging' : '') + (над === b ? ' over' : '')}
+            draggable
+            onDragStart={() => setТащим(b)}
+            onDragEnd={() => { setТащим(null); setНад(null) }}
+            onDragOver={(e) => { if (тащим) { e.preventDefault(); setНад(b) } }}
+            onDrop={(e) => { e.preventDefault(); бросить(b) }}
+          >
+            <div className="dash-block-bar row" style={{ gap: 6 }}>
+              <Icon name="dots" size={14} />
+              <span className="strong small">{НАЗВАНИЯ_БЛОКОВ[b]}</span>
+              <span className="spacer" />
+              <button className="icon-btn" title={т('Выше')} disabled={i === 0} onClick={() => сдвинуть(b, -1)}>
+                <Icon name="up" size={13} />
+              </button>
+              <button className="icon-btn" title={т('Ниже')} disabled={i === видимые.length - 1} onClick={() => сдвинуть(b, 1)}>
+                <Icon name="down" size={13} />
+              </button>
+              <button className="icon-btn" title={т('Скрыть')} onClick={() => скрыть(b)}>
+                <Icon name="eyeOff" size={13} />
+              </button>
+            </div>
+            <div className="dash-block-body">{узел}</div>
+          </div>
+        )
+      })}
 
       {confirmWipe === 'all' && (
         <Confirm

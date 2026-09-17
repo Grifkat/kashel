@@ -1996,3 +1996,12 @@ input.invalid { border-color: var(--alert) !important; }
 }
 .task-time { color: var(--info); white-space: nowrap; }
 .tasks-time { white-space: nowrap; }
+
+/* Блоки «Сводки»: свой порядок и настройка. */
+.dash-block + .dash-block { margin-top: 16px; }
+.dash-block:empty { display: none; }
+.dash-edit { border: 1px dashed var(--border); border-radius: var(--radius); padding: 8px; cursor: grab; }
+.dash-edit.dragging { opacity: 0.5; }
+.dash-edit.over { border-color: var(--accent); border-style: solid; }
+.dash-block-bar { margin-bottom: 8px; color: var(--muted); }
+.dash-block-body { pointer-events: none; opacity: 0.85; }

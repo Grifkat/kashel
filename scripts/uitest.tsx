@@ -2760,6 +2760,54 @@ async function связиИВремя() {
   check('в списке видно ⏱ 2 ч 30 мин', text().includes('⏱ 2 ч 30 мин'))
 }
 
+/* Настройка «Сводки»: порядок блоков и что показывать. */
+async function настройкаСводки() {
+  console.log('\n— настройка «Сводки» —')
+  await open('Дашборд')
+  const порядок = () => all('.view .dash-block').map((b) => (b.querySelector('.dash-block-bar .strong')?.textContent || '').trim())
+  const блок = (имя: string) => all('.view .dash-block').find((b) => (b.querySelector('.dash-block-bar .strong')?.textContent || '').trim() === имя)
+  check('в обычном виде заголовков блоков нет', !document.querySelector('.dash-block-bar'))
+  click(byText('.view .btn', 'Настроить вид'))
+  await wait(300)
+  check('у блоков появились заголовки и стрелки', порядок().length >= 5 && порядок()[0] === 'Платежи этого месяца',
+    порядок().join(' | '))
+  click(блок('Платежи этого месяца')?.querySelector('.icon-btn[title="Ниже"]'))
+  await wait(1300)
+  let v = await loadVault()
+  check('стрелка «Ниже» переставила блок', v.settings.dashBlocks?.[1] === 'payments' && порядок()[1] === 'Платежи этого месяца',
+    (v.settings.dashBlocks ?? []).join())
+  // перетаскивание: «Платежи» — в самый низ
+  const последний = порядок()[порядок().length - 1]
+  const источник = блок('Платежи этого месяца')!
+  const цель = блок(последний)!
+  источник.dispatchEvent(new dom.window.Event('dragstart', { bubbles: true }))
+  await wait(120)
+  цель.dispatchEvent(new dom.window.Event('dragover', { bubbles: true, cancelable: true }))
+  await wait(120)
+  цель.dispatchEvent(new dom.window.Event('drop', { bubbles: true, cancelable: true }))
+  await wait(1300)
+  v = await loadVault()
+  check('перетаскиванием блок встаёт на место другого',
+    v.settings.dashBlocks?.[v.settings.dashBlocks.length - 2] === 'payments' || v.settings.dashBlocks?.at(-1) === 'payments',
+    (v.settings.dashBlocks ?? []).join())
+  click(блок('Платежи этого месяца')?.querySelector('.icon-btn[title="Скрыть"]'))
+  await wait(1300)
+  v = await loadVault()
+  check('блок скрывается и уходит в «Скрыто»', !v.settings.dashBlocks?.includes('payments') && !блок('Платежи этого месяца')
+    && text().includes('Скрыто:'))
+  click(byText('.view .chip', 'Платежи этого месяца'))
+  await wait(1300)
+  v = await loadVault()
+  check('скрытый блок возвращается', v.settings.dashBlocks?.includes('payments') && !!блок('Платежи этого месяца'))
+  click(byText('.view .btn', 'Как было'))
+  await wait(1300)
+  v = await loadVault()
+  check('«Как было» возвращает порядок по умолчанию', !v.settings.dashBlocks && порядок()[0] === 'Платежи этого месяца')
+  click(byText('.view .btn', 'Готово'))
+  await wait(300)
+  check('после «Готово» заголовки блоков пропали', !document.querySelector('.dash-block-bar'))
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2783,6 +2831,7 @@ async function main() {
   await погашениеЭкраны()
   await правкиЭкраны()
   await связиИВремя()
+  await настройкаСводки()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

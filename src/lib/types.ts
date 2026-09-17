@@ -394,6 +394,8 @@ export interface Settings {
   saveSound?: boolean
   /** Виджеты правой панели в своём порядке. Пусто — набор по умолчанию. */
   rightWidgets?: ВиджетId[]
+  /** Блоки «Сводки» в своём порядке; чего нет в списке — скрыто. Пусто — как было. */
+  dashBlocks?: БлокСводки[]
   /**
    * Версия программы, которая последней открывала хранилище. Смена версии —
    * повод сделать копию до того, как новая версия что-то переделает.
@@ -586,6 +588,13 @@ export interface Notice {
   /** Операции, записанные при подтверждении. */
   txIds?: string[]
 }
+
+/**
+ * Блоки «Сводки»: порядок и видимость свои у каждого хранилища. Шапка со
+ * счётом в список не входит — она всегда наверху.
+ */
+export type БлокСводки = 'payments' | 'categories' | 'dynamics' | 'credits' | 'projects' | 'awards' | 'recent'
+export const БЛОКИ_ПО_УМОЛЧАНИЮ: БлокСводки[] = ['payments', 'categories', 'dynamics', 'credits', 'projects', 'awards', 'recent']
 
 /** Виджеты правой панели. */
 export type ВиджетId = 'month' | 'attention' | 'upcoming' | 'goals' | 'rank' | 'forecast' | 'accounts' | 'credits'
