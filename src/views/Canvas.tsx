@@ -649,7 +649,7 @@ export default function CanvasView({ name }: { name?: string }) {
             label: т('Новая задача…'),
             icon: 'plus',
             onClick: () => {
-              const t = { ...пустаяЗадача((data.tasks ?? []).length), title: т('Новая задача') }
+              const t = { ...пустаяЗадача(data), title: т('Новая задача') }
               upsertTask(t)
               insertNode('task', at, { ref: t.id }, connectFrom)
               setЗадача(t)
@@ -788,7 +788,7 @@ export default function CanvasView({ name }: { name?: string }) {
     const название = первая.slice(0, предел).replace(/[\s.,:;—-]+$/, '') + (обрезано ? '…' : '')
     const заметка = (обрезано ? строки : строки.slice(1)).join('\n')
     const t: Task = {
-      ...пустаяЗадача((data.tasks ?? []).length),
+      ...пустаяЗадача(data),
       title: название || т('Новая задача'),
       ...(заметка ? { note: заметка } : {}),
     }

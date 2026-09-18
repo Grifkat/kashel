@@ -5,6 +5,7 @@ import { motion } from 'motion/react'
 import { Toaster, toast as sonnerToast } from 'sonner'
 import { CatalogGlyph, Icon } from '../lib/icons'
 import { PALETTE } from '../lib/emoji'
+import { быстрыеЦвета, сЦветом, чистыйЦвет } from '../lib/akcent'
 import { useStore } from '../state/store'
 import type { Money } from '../lib/types'
 import { DIGIT_SEP, formatAmountInput, money, pct, toMinor } from '../lib/format'
@@ -566,26 +567,141 @@ export function IconPicker({
   )
 }
 
-export function ColorPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+/**
+ * Выбор цвета: быстрый набор и свой цвет.
+ *
+ * Быстрый набор общий для всей программы и правится здесь же: крестик на
+ * цвете убирает его из набора, плюсик на текущем цвете, которого в наборе
+ * нет, — добавляет. Свой цвет собирается в отдельной панели и применяется
+ * только кнопкой «Сохранить»: ползунок палитры шлёт изменения десятками в
+ * секунду, и сохранять каждое значило записывать хранилище на каждый сдвиг
+ * мыши — отсюда были подтормаживания. Пока панель открыта, цвет виден через
+ * onPreview, если место выбора это умеет; сохранённый цвет сам попадает в
+ * быстрый набор.
+ */
+export function ColorPicker({
+  value,
+  onChange,
+  onPreview,
+}: {
+  /** null — ни один цвет не выбран (например, акцент «как в оформлении»). */
+  value: string | null
+  onChange: (v: string) => void
+  /** Предпросмотр своего цвета; null — предпросмотр окончен. */
+  onPreview?: (v: string | null) => void
+}) {
+  const { data, patchSettings } = useStore()
+  const набор = быстрыеЦвета(data.settings)
+  const [свой, setСвой] = useState<string | null>(null)
+  const [hex, setHex] = useState('')
+  const выбран = (c: string) => !!value && value.toLowerCase() === c.toLowerCase()
+  const внеНабора = !!value && !набор.some(выбран)
+
+  const открыть = () => {
+    const начальный = чистыйЦвет(value ?? '') ?? набор[0] ?? '#4cc46a'
+    setСвой(начальный)
+    setHex(начальный)
+  }
+  const поставить = (c: string) => {
+    setСвой(c)
+    setHex(c)
+    onPreview?.(c)
+  }
+  const закрыть = () => {
+    setСвой(null)
+    onPreview?.(null)
+  }
+  const сохранить = () => {
+    if (!свой) return
+    patchSettings({ palette: сЦветом(набор, свой) })
+    onPreview?.(null)
+    onChange(свой)
+    setСвой(null)
+  }
+
   return (
-    <div className="swatches">
-      {PALETTE.map((c) => (
-        <div
-          key={c}
-          className={'swatch' + (value === c ? ' on' : '')}
-          style={{ background: c }}
-          onClick={() => onChange(c)}
-        />
-      ))}
-      <label className="swatch" style={{ background: 'var(--panel-2)', display: 'grid', placeItems: 'center', cursor: 'pointer' }}>
-        <Icon name="plus" size={13} />
-        <input
-          type="color"
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          style={{ width: 0, height: 0, opacity: 0, position: 'absolute' }}
-        />
-      </label>
+    <div>
+      <div className="swatches">
+        {набор.map((c) => (
+          <div
+            key={c}
+            className={'swatch' + (выбран(c) ? ' on' : '')}
+            style={{ background: c }}
+            title={c}
+            onClick={() => onChange(c)}
+          >
+            {набор.length > 1 && (
+              <button
+                className="swatch-x"
+                title={т('Убрать из быстрого выбора')}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  patchSettings({ palette: набор.filter((x) => x !== c) })
+                }}
+              >
+                <Icon name="x" size={9} />
+              </button>
+            )}
+          </div>
+        ))}
+        {внеНабора && value && (
+          <div className="swatch on" style={{ background: value }} title={value}>
+            <button
+              className="swatch-x plus"
+              title={т('Добавить в быстрый выбор')}
+              onClick={(e) => {
+                e.stopPropagation()
+                patchSettings({ palette: сЦветом(набор, value) })
+              }}
+            >
+              <Icon name="plus" size={9} />
+            </button>
+          </div>
+        )}
+        <button
+          type="button"
+          className={'swatch swatch-new' + (свой ? ' on' : '')}
+          title={т('Свой цвет')}
+          onClick={() => (свой ? закрыть() : открыть())}
+        >
+          <Icon name="plus" size={13} />
+        </button>
+      </div>
+      {свой && (
+        <div className="svoy-cvet">
+          <input
+            type="color"
+            className="svoy-cvet-pole"
+            value={свой}
+            onChange={(e) => поставить(e.target.value)}
+            aria-label={т('Свой цвет')}
+          />
+          <input
+            type="text"
+            className="svoy-cvet-hex"
+            value={hex}
+            spellCheck={false}
+            maxLength={7}
+            onChange={(e) => {
+              setHex(e.target.value)
+              const ц = чистыйЦвет(e.target.value)
+              if (ц) {
+                setСвой(ц)
+                onPreview?.(ц)
+              }
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault()
+                сохранить()
+              }
+            }}
+          />
+          <span className="spacer" style={{ flex: 1 }} />
+          <button type="button" className="btn sm" onClick={закрыть}>{т('Отмена')}</button>
+          <button type="button" className="btn sm primary" onClick={сохранить}>{т('Сохранить')}</button>
+        </div>
+      )}
     </div>
   )
 }

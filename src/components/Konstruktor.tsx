@@ -11,6 +11,7 @@
  * которой не видно букв, — не красивая тема.
  */
 import React, { useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { действующийАкцент } from '../lib/akcent'
 import { useStore } from '../state/store'
 import { bridge } from '../state/vault'
 import { Icon } from '../lib/icons'
@@ -91,10 +92,10 @@ export function КонструкторТемы({ исходная, onClose }: { 
   const [имя, setИмя] = useState(исходная?.name ?? т('Моя тема'))
   const [base, setBase] = useState<ThemeId>(текущаяОснова)
   const [режимъ, setРежимъ] = useState<'простой' | 'полный'>(исходная?.режимъ ?? 'простой')
-  const [accent, setAccent] = useState(исходная?.accent ?? data.settings.accent)
+  const [accent, setAccent] = useState(исходная?.accent ?? действующийАкцент(data.settings))
   const [полныя, setПолныя] = useState<Record<string, string>>(() => исходная?.tokens ?? токеныОсновы(текущаяОснова))
   const [простыя, setПростыя] = useState<ПростыяНастройки>(() =>
-    простыяИзъТокеновъ(исходная?.tokens ?? токеныОсновы(текущаяОснова), исходная?.accent ?? data.settings.accent),
+    простыяИзъТокеновъ(исходная?.tokens ?? токеныОсновы(текущаяОснова), исходная?.accent ?? действующийАкцент(data.settings)),
   )
   const [удалить, setУдалить] = useState(false)
   const поле = useRef<HTMLInputElement>(null)
@@ -151,7 +152,9 @@ export function КонструкторТемы({ исходная, onClose }: { 
   const сохранить = () => {
     const тм = тема()
     const список = data.settings.customThemes ?? []
-    patchSettings({ customThemes: [...список.filter((x) => x.id !== тм.id), тм], customTheme: тм.id })
+    // Акцент собран вместе с темой — значит, и показывать его: свой цвет из
+    // настроек иначе перекрыл бы только что выбранный в конструкторе.
+    patchSettings({ customThemes: [...список.filter((x) => x.id !== тм.id), тм], customTheme: тм.id, accentMode: 'theme' })
     toast(т('Оформление «{0}» сохранено и включено', тм.name))
     onClose()
   }

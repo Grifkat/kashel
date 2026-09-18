@@ -23,7 +23,7 @@ import { PomodoroProvider, clock, usePomodoro } from './components/PomodoroHost'
 import { Boundary } from './components/Boundary'
 import { VaultFailureScreen } from './components/VaultFailure'
 import { themeById, counterpart } from './lib/themes'
-import { применитьТокены } from './lib/svoitemy'
+import { вернутьОформление } from './lib/akcent'
 import Dashboard from './views/Dashboard'
 import Transactions from './views/Transactions'
 import Categories from './views/Categories'
@@ -216,9 +216,6 @@ export default function App() {
       ? data.settings.customThemes?.find((тм) => тм.id === data.settings.customTheme)
       : undefined
     root.dataset.theme = своя ? своя.base : data.settings.theme
-    применитьТокены(root, своя ? своя.tokens : null)
-    if (своя?.tokens['accent-text']) root.dataset.accentText = ''
-    else delete root.dataset.accentText
     root.dataset.anim = animLevel
     root.dataset.density = data.settings.density
     root.dataset.reading = data.settings.readingFont
@@ -235,8 +232,10 @@ export default function App() {
       dateFormat: data.settings.dateFormat ?? 'ru',
       language: data.settings.language ?? 'ru',
     })
-    root.style.setProperty('--accent', своя ? своя.accent : data.settings.accent)
-  }, [data.settings.theme, data.settings.customTheme, data.settings.customThemes, animLevel, data.settings.accent, data.settings.density, data.settings.readingFont])
+    // Переменные темы и акцент — после атрибута темы: свой акцент подбирает
+    // буквы по цветам уже включённой темы.
+    вернутьОформление(root, data.settings)
+  }, [data.settings.theme, data.settings.customTheme, data.settings.customThemes, animLevel, data.settings.accent, data.settings.accentMode, data.settings.density, data.settings.readingFont])
 
   const openTab = useCallback<AppApi['openTab']>((view, arg, opts) => {
     const paneIdx = opts?.pane ?? focusPane

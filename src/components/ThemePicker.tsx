@@ -3,6 +3,7 @@ import { useStore } from '../state/store'
 import { THEMES, type ThemeInfo } from '../lib/themes'
 import { Modal } from './ui'
 import { СвоиОформленія } from './Konstruktor'
+import { ВыборАкцента } from './VyborAkcenta'
 import { Icon } from '../lib/icons'
 import { usePrefersReducedMotion } from './anim'
 import type { AnimLevel } from '../lib/types'
@@ -70,7 +71,7 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
         {THEMES.map((t) => (
           <button
             key={t.id}
-            onClick={() => patchSettings({ theme: t.id, accent: t.accent, customTheme: undefined })}
+            onClick={() => patchSettings({ theme: t.id, customTheme: undefined })}
             style={{
               textAlign: 'left',
               background: 'transparent',
@@ -118,17 +119,7 @@ export function ThemePicker({ onClose }: { onClose: () => void }) {
       )}
 
       <div className="card-title" style={{ marginTop: 20 }}>{т('Акцентный цвет')}</div>
-      <div className="faint small" style={{ marginBottom: 8 }}>
-        {т('При смене оформления подставляется цвет, с которым тема задумана. Можно поменять — в настройках.')}</div>
-      <div className="row" style={{ gap: 8 }}>
-        <span
-          style={{
-            width: 26, height: 26, borderRadius: '50%', background: 'var(--accent)',
-            border: '2px solid var(--border)',
-          }}
-        />
-        <span className="faint small">{data.settings.accent}</span>
-      </div>
+      <ВыборАкцента />
     </Modal>
   )
 }

@@ -293,8 +293,50 @@ export interface Task {
   tags: string[]
   /** Сколько помидоров засчитано на эту задачу. */
   pomodoros?: number
+  /** Повтор, из которого задача выросла (TaskRepeat.id). */
+  repeatId?: string
   order: number
   createdAt: string
+}
+
+/** Как повторяется задача. */
+export type ЧастотаПовтора = 'daily' | 'weekdays' | 'monthly'
+
+/**
+ * Регулярная задача: образец и расписание. Каждый повтор — отдельная задача
+ * с repeatId, её можно отметить, перенести или удалить отдельно. Программа
+ * держит наперёд только ближайшие повторы и доращивает следующие по мере
+ * приближения — см. engine/povtory.
+ */
+export interface TaskRepeat {
+  id: string
+  /** Поля, которые получает каждый повтор. */
+  образец: ОбразецЗадачи
+  freq: ЧастотаПовтора
+  /** Дни недели для 'weekdays': 0 — воскресенье … 6 — суббота. */
+  days?: number[]
+  /** Число месяца для 'monthly'; в коротком месяце — последний день. */
+  monthDay?: number
+  /** Первый возможный день. */
+  start: string
+  /** Последний возможный день; пусто — без конца. */
+  until?: string
+  /** По какой день повторы уже выращены: удалённый повтор не воскресает. */
+  grownTo?: string
+}
+
+export type ОбразецЗадачи = Pick<
+  Task,
+  'title' | 'important' | 'priority' | 'amount' | 'moneyKind' | 'minutes' | 'categoryId' | 'accountId' | 'listId' | 'note' | 'tags'
+>
+
+/** Чем заполняется новая задача. */
+export interface ЗадачаПоУмолчанию {
+  kind?: 'expense' | 'income' | 'time'
+  priority?: 0 | 1 | 2 | 3
+  /** Список; пусто — «Входящие». */
+  listId?: string
+  due?: 'none' | 'today' | 'tomorrow'
 }
 
 export interface TaskList {
@@ -403,8 +445,18 @@ export interface Settings {
   appVersion?: string
   /** До какой версии включительно человек видел «Что нового». */
   whatsNewSeen?: string
+  /** Свой акцент (accentMode 'own'); при 'theme' не действует, но хранится. */
   accent: string
+  /**
+   * Чей акцент: оформления или свой. Пусто — хранилище старше этой настройки,
+   * режим выводится в lib/akcent.
+   */
+  accentMode?: 'theme' | 'own'
+  /** Быстрый выбор цветов — везде, где выбирают цвет. Пусто — исходная палитра. */
+  palette?: string[]
   hideBalance: boolean
+  /** Чем заполняется новая задача. Пусто — трата, без важности, во «Входящие», без срока. */
+  taskDefaults?: ЗадачаПоУмолчанию
   forecastHorizon: number
   monteCarloRuns: number
   /** С какого дня начинается неделя: 0 — воскресенье, 1 — понедельник … 6 — суббота. */
@@ -554,6 +606,8 @@ export interface VaultData {
   reminders: Reminder[]
   tasks: Task[]
   taskLists: TaskList[]
+  /** Регулярные задачи. Нет — не заводили. */
+  taskRepeats?: TaskRepeat[]
   honors: Honors
   goals: Goal[]
   scenarios: Scenario[]

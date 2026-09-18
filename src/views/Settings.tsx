@@ -10,7 +10,8 @@ import { money, pct, plural } from '../lib/format'
 import { bridge, type AssocStatus } from '../state/vault'
 import { toCsv } from '../engine/csv'
 import { useArchive } from '../components/ArchiveHost'
-import { ColorPicker, Confirm, Field, Modal, Toggle, useToast } from '../components/ui'
+import { Confirm, Field, Modal, Toggle, useToast } from '../components/ui'
+import { ВыборАкцента } from '../components/VyborAkcenta'
 import { PALETTE } from '../lib/emoji'
 import { THEMES } from '../lib/themes'
 import { categoriesFromCatalog } from '../state/defaults'
@@ -18,7 +19,8 @@ import { ThemeThumb } from '../components/ThemePicker'
 import { Obnovlenie } from '../components/Obnovlenie'
 import { RezervnyeKopii } from '../components/RezervnyeKopii'
 import { ОПрограмме } from '../components/ChtoNovogo'
-import type { AnimLevel, Density, ReadingFont } from '../lib/types'
+import type { AnimLevel, Density, ReadingFont, ЗадачаПоУмолчанию } from '../lib/types'
+import { PRIORITIES } from '../engine/tasks'
 import { т, тр } from '../i18n'
 import { звукЗаписи } from '../lib/sound'
 
@@ -79,7 +81,7 @@ export default function SettingsView() {
               <button
                 key={t.id}
                 title={t.about}
-                onClick={() => patchSettings({ theme: t.id, accent: t.accent, customTheme: undefined })}
+                onClick={() => patchSettings({ theme: t.id, customTheme: undefined })}
                 style={{
                   textAlign: 'left',
                   background: 'transparent',
@@ -149,7 +151,7 @@ export default function SettingsView() {
             <div className="row" style={{ marginBottom: 8 }}>
               <span style={{ flex: 1 }}>{т('Акцентный цвет')}</span>
             </div>
-            <ColorPicker value={data.settings.accent} onChange={(accent) => patchSettings({ accent })} />
+            <ВыборАкцента />
           </div>
           <div className="row" style={{ marginBottom: 12 }}>
             <span style={{ flex: 1 }}>{т('Скрывать баланс')}</span>
@@ -262,6 +264,9 @@ export default function SettingsView() {
             />
           </Field>
         </div>
+
+        {/* ------------------------------------------------ новая задача */}
+        <НоваяЗадача />
 
         {/* ------------------------------------------------ хранилище */}
         <div className="card">
@@ -420,6 +425,51 @@ export default function SettingsView() {
           onClose={() => setWipeOpen(false)}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * Чем заполняется новая задача. Место создания главнее: выбранный день
+ * календаря или открытый список перебивают срок и список отсюда.
+ */
+function НоваяЗадача() {
+  const { data, patchSettings } = useStore()
+  const у = data.settings.taskDefaults ?? {}
+  const задать = (p: Partial<ЗадачаПоУмолчанию>) => patchSettings({ taskDefaults: { ...у, ...p } })
+  const списки = (data.taskLists ?? []).filter((l) => !l.archived)
+  return (
+    <div className="card nastroyki-zadachi">
+      <div className="card-title"><Icon name="list" size={14} /> {т(' Новая задача')}</div>
+      <div className="faint small" style={{ marginBottom: 12, lineHeight: 1.5 }}>
+        {т('С этим новая задача открывается сразу. Поменять у конкретной задачи можно как обычно.')}</div>
+      <div className="grid c2">
+        <Field label={т('Это')}>
+          <select className="td-kind" value={у.kind ?? 'expense'} onChange={(e) => задать({ kind: e.target.value as ЗадачаПоУмолчанию['kind'] })}>
+            <option value="expense">{т('Трата')}</option>
+            <option value="income">{т('Приход')}</option>
+            <option value="time">{т('Потраченное время')}</option>
+          </select>
+        </Field>
+        <Field label={т('Важность')}>
+          <select className="td-prio" value={у.priority ?? 0} onChange={(e) => задать({ priority: Number(e.target.value) as 0 | 1 | 2 | 3 })}>
+            {PRIORITIES.map((p) => <option key={p.p} value={p.p}>{p.t}</option>)}
+          </select>
+        </Field>
+        <Field label={т('Список')}>
+          <select className="td-list" value={у.listId ?? ''} onChange={(e) => задать({ listId: e.target.value || undefined })}>
+            <option value="">{т('Входящие')}</option>
+            {списки.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+          </select>
+        </Field>
+        <Field label={т('Срок')}>
+          <select className="td-due" value={у.due ?? 'none'} onChange={(e) => задать({ due: e.target.value as ЗадачаПоУмолчанию['due'] })}>
+            <option value="none">{т('Без срока')}</option>
+            <option value="today">{т('Сегодня')}</option>
+            <option value="tomorrow">{т('Завтра')}</option>
+          </select>
+        </Field>
+      </div>
     </div>
   )
 }

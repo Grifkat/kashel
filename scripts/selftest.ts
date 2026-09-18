@@ -25,6 +25,9 @@ import { lineOf } from '../src/components/canvas/geometry'
 import { связьПодКарточкой, встроитьВСвязь } from '../src/components/canvas/vstavka'
 import { буква } from '../src/lib/klavishi'
 import { платёжАннуитета, подобратьСтавку, прикидкаСтавки } from '../src/engine/stavka'
+import { ближайшиеПовторы, вырастить, датыПовтора, задатьПовтор, конецПовтора, оборватьПовтор, поУмолчанию } from '../src/engine/povtory'
+import { быстрыеЦвета, действующийАкцент, режимАкцента, сЦветом, чистыйЦвет } from '../src/lib/akcent'
+import { PALETTE } from '../src/lib/emoji'
 import { СТАТЬЯ_ШТРАФОВ, новыйДолг, несверенныеДолги, отметитьУчётКредитов, планДолга, просрочкаКредита, сверитьДолг } from '../src/engine/pogashenie'
 import { ВЕРСИЯ, ВЫПУСКИ, выпускВерсии, непросмотренныеВыпуски, сравнитьВерсии } from '../src/lib/versiya'
 import { имяКопии, лишниеЕжедневные, разобратьИмяКопии, упорядочитьКопии } from '../src/state/rezerv'
@@ -3127,6 +3130,83 @@ function правки103() {
   check('архив хранит «потраченное время» и минуты', ра[0]?.moneyKind === 'time' && ра[0]?.minutes === 75 && ра[1]?.moneyKind === 'time' && ра[1]?.minutes === undefined)
 }
 
+function повторыЗадач() {
+  console.log('\n— регулярные задачи —')
+  const база: Task = { id: 'tk_run', title: 'Пробежка', done: false, important: false, priority: 1, due: '2026-09-18', tags: ['спорт'], order: 0, createdAt: '2026-09-18' }
+  const пусто = { ...data, tasks: [] as Task[], taskRepeats: [] }
+  let n = 0
+  const id = () => 'tk_' + ++n
+  // 18.09.2026 — пятница. Пн, Ср, Пт на четыре недели.
+  const до = конецПовтора('2026-09-18', 4, 'weeks')
+  check('четыре недели от 18.09 — по 15.10 включительно', до === '2026-10-15', до)
+  const с = задатьПовтор(пусто, база, { freq: 'weekdays', days: [1, 3, 5], until: до }, 'rep_run', id, '2026-09-18')
+  const дни = с.tasks.map((t) => t.due).sort()
+  check('повторы выросли на две недели вперёд, не дальше', дни.join() === '2026-09-18,2026-09-21,2026-09-23,2026-09-25,2026-09-28,2026-09-30', дни.join())
+  check('каждый повтор несёт поля образца', с.tasks.every((t) => t.title === 'Пробежка' && t.priority === 1 && t.tags[0] === 'спорт' && t.repeatId === 'rep_run'))
+  check('сама задача стала первым повтором', с.tasks.some((t) => t.id === 'tk_run' && t.due === '2026-09-18'))
+
+  // Прошло три недели: вырастает дальше, но не за конец повтора.
+  const потом = вырастить(с, '2026-10-10', id).data
+  const последний = потом.tasks.map((t) => t.due!).sort().pop()
+  check('позже повторы дорастают, но не за конец', последний === '2026-10-14', String(последний))
+  check('вырастить второй раз в тот же день — ничего не меняет', !вырастить(потом, '2026-10-10', id).changed)
+
+  // Удалённый повтор не воскресает.
+  const безОдного = { ...с, tasks: с.tasks.filter((t) => t.due !== '2026-09-23') }
+  const снова = вырастить(безОдного, '2026-09-19', id).data
+  check('удалённый руками повтор не вырастает снова', !снова.tasks.some((t) => t.due === '2026-09-23'))
+
+  // «Эту и следующие»: переименовали с 25-го.
+  const с25 = с.tasks.find((t) => t.due === '2026-09-25')!
+  const правка = задатьПовтор(с, { ...с25, title: 'Бег' }, { freq: 'weekdays', days: [1, 3, 5], until: до }, 'rep_run', id, '2026-09-18')
+  const имена = правка.tasks.slice().sort((a, b) => a.due!.localeCompare(b.due!)).map((t) => t.due!.slice(8) + t.title)
+  check('«эту и следующие» переименовывает с этой задачи, прежние не трогает',
+    имена.join() === '18Пробежка,21Пробежка,23Пробежка,25Бег,28Бег,30Бег', имена.join())
+  check('при этом повторы не задваиваются', new Set(правка.tasks.map((t) => t.due)).size === правка.tasks.length)
+
+  // Остановить с 28-го.
+  const стоп = оборватьПовтор(с, с.tasks.find((t) => t.due === '2026-09-28')!)
+  check('остановка убирает повторы с этого дня и дальше', стоп.tasks.map((t) => t.due).sort().pop() === '2026-09-25')
+  check('и новые больше не растут', вырастить(стоп, '2026-10-20', id).data.tasks.length === стоп.tasks.length)
+
+  // Ежемесячно 31-го — в коротком месяце последний день.
+  const месяц = { id: 'r', образец: { title: 'x', important: false, tags: [] as string[] }, freq: 'monthly' as const, monthDay: 31, start: '2026-01-31' }
+  check('ежемесячно 31-го: в коротком месяце — последний день', датыПовтора(месяц, '2026-01-01', '2026-04-30').join() === '2026-01-31,2026-02-28,2026-03-31,2026-04-30')
+  const { видимые, скрыто } = ближайшиеПовторы(с.tasks)
+  check('в списке у повтора виден только ближайший', видимые.length === 1 && видимые[0].due === '2026-09-18' && скрыто.get('rep_run') === 5)
+
+  // Задача по умолчанию.
+  const нас = { ...data, settings: { ...data.settings, taskDefaults: { kind: 'time' as const, priority: 2 as const, due: 'tomorrow' as const, listId: 'нет-такого' } } }
+  const у = поУмолчанию(нас, '2026-09-18')
+  check('задача по умолчанию: время, средняя важность, завтра', у.moneyKind === 'time' && у.priority === 2 && у.important === true && у.due === '2026-09-19')
+  check('несуществующий список по умолчанию не подставляется', у.listId === undefined)
+  check('без настройки заготовка пустая', Object.keys(поУмолчанию({ ...data, settings: { ...data.settings, taskDefaults: undefined } })).length === 0)
+
+  // Архив сохраняет повторы.
+  const архив = parseArchive(JSON.stringify({ kashel: 'vault', formatVersion: 1, data: с }))
+  check('архив переносит повторы и связь задач с ними',
+    архив.ok && архив.archive.data.taskRepeats?.[0]?.days?.join() === '1,3,5' && архив.archive.data.tasks.filter((t) => t.repeatId === 'rep_run').length === 6,
+    архив.ok ? '' : архив.error)
+}
+
+function акцентИЦвета() {
+  console.log('\n— акцент и быстрые цвета —')
+  const s = { ...data.settings, theme: 'mint' as const, customTheme: undefined, accentMode: undefined }
+  const мята = THEMES.find((t) => t.id === 'mint')!.accent
+  const имперская = THEMES.find((t) => t.id === 'imperial')!.accent
+  check('старое хранилище: акцент совпадает с темой — «как в оформлении»', режимАкцента({ ...s, accent: мята }) === 'theme')
+  check('старое хранилище: акцент свой — свой', режимАкцента({ ...s, accent: '#123456' }) === 'own')
+  check('свой акцент переживает смену оформления', действующийАкцент({ ...s, theme: 'imperial', accent: '#123456', accentMode: 'own' }) === '#123456')
+  check('«как в оформлении» берёт цвет темы', действующийАкцент({ ...s, theme: 'imperial', accent: '#123456', accentMode: 'theme' }) === имперская)
+  const своя = { id: 'my', name: 'Моя', base: 'mint' as const, accent: '#aa00aa', режимъ: 'простой' as const, tokens: {} }
+  check('на своей теме свой акцент тоже действует',
+    действующийАкцент({ ...s, customThemes: [своя], customTheme: 'my', accent: '#123456', accentMode: 'own' }) === '#123456')
+  check('на своей теме без выбранного акцента — акцент темы', действующийАкцент({ ...s, customThemes: [своя], customTheme: 'my', accent: '#123456' }) === '#aa00aa')
+  check('HEX приводится к виду #rrggbb', чистыйЦвет('F0a') === '#ff00aa' && чистыйЦвет('#12AB34') === '#12ab34' && чистыйЦвет('синий') === null)
+  check('быстрый выбор без настройки — исходная палитра', быстрыеЦвета(s) === PALETTE)
+  check('новый цвет добавляется в конец и без повторов', сЦветом(['#111111'], '#222222').join() === '#111111,#222222' && сЦветом(['#111111'], '#111111').length === 1)
+}
+
 function ставкаПоПлатежу() {
   console.log('\n— ставка по платежу и сроку —')
   check('нулевая ставка: платёж — просто долг, делённый на срок', Math.round(платёжАннуитета(120_000_00, 0, 12)) === 10_000_00)
@@ -3180,6 +3260,8 @@ async function завершить() {
   правкиПоВидео()
   правки103()
   ставкаПоПлатежу()
+  повторыЗадач()
+  акцентИЦвета()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

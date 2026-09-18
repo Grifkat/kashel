@@ -6,7 +6,7 @@ import { DateField } from '../components/DateField'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, plural, uid } from '../lib/format'
-import { addMonths, daysInMonth, humanDate, monthKey, monthTitle, parseISO, today, WEEKDAYS, порядокъДней } from '../lib/date'
+import { addDays, addMonths, daysInMonth, humanDate, monthKey, monthTitle, parseISO, today, WEEKDAYS, порядокъДней } from '../lib/date'
 import { isCatalogIcon, сЗначкомъ } from '../lib/catalog'
 import { Confirm, Field, Modal, MoneyInput, useToast } from '../components/ui'
 import { clock, usePomodoro } from '../components/PomodoroHost'
@@ -16,7 +16,9 @@ import {
   sortTasks, tasksOn, вЧетверть, переключитьВажность, времяВперёд, времяЗадачи, форматВремени, type Priority, type Quadrant,
 } from '../engine/tasks'
 import { useApp } from '../App'
-import type { Task } from '../lib/types'
+import type { Task, VaultData } from '../lib/types'
+import { ближайшиеПовторы, поУмолчанию } from '../engine/povtory'
+import { ПовторЗадачи, черновикИз, расписаниеИз, расписаниеИзменилось, type ЧерновикПовтора } from '../components/PovtorZadachi'
 import { т, тр } from '../i18n'
 
 type Tab = 'list' | 'calendar' | 'matrix' | 'timer'
@@ -41,7 +43,8 @@ export default function Tasks() {
    */
   const [день, setДень] = useState<string>(today())
 
-  const открытые = (data.tasks ?? []).filter((t) => !t.done)
+  // Повторы считаются по ближайшему: «каждый день» — одно дело, а не четырнадцать.
+  const открытые = ближайшиеПовторы((data.tasks ?? []).filter((t) => !t.done)).видимые
   const просрочено = открытые.filter((t) => isOverdue(t)).length
   const деньги = plannedTotals(data)
   const время = времяВперёд(data, today(), data.settings.firstDayOfWeek)
@@ -68,7 +71,7 @@ export default function Tasks() {
         </div>
         <button
           className="btn primary"
-          onClick={() => setEdit(пустая(data.tasks?.length ?? 0, tab === 'calendar' ? день : undefined))}
+          onClick={() => setEdit(пустая(data, tab === 'calendar' ? день : undefined))}
         >
           <Icon name="plus" size={15} /> {т(' Задача')}</button>
       </div>
@@ -91,14 +94,20 @@ export default function Tasks() {
   )
 }
 
-export const пустая = (n: number, due?: string): Task => ({
-  id: uid('task'), title: '', done: false, important: false, priority: 0, due,
-  tags: [], order: n, createdAt: today(),
+/**
+ * Новая задача: заготовка из «Настроек» → «Новая задача», а срок, если его
+ * задало место создания (выбранный день календаря), главнее заготовки.
+ */
+export const пустая = (data: VaultData, due?: string): Task => ({
+  id: uid('task'), title: '', done: false, important: false, priority: 0,
+  tags: [], order: (data.tasks ?? []).length, createdAt: today(),
+  ...поУмолчанию(data),
+  ...(due ? { due } : {}),
 })
 
 // ------------------------------------------------------------------ строка
 
-function Строка({ t, onEdit }: { t: Task; onEdit: (t: Task) => void }) {
+function Строка({ t, onEdit, ещё }: { t: Task; onEdit: (t: Task) => void; /** Сколько следующих повторов свёрнуто. */ ещё?: number }) {
   const { data, upsertTask } = useStore()
   const cat = t.categoryId ? data.categories.find((c) => c.id === t.categoryId) : undefined
   const late = isOverdue(t)
@@ -135,6 +144,14 @@ function Строка({ t, onEdit }: { t: Task; onEdit: (t: Task) => void }) {
           </span>
         )}
       </span>
+      {t.repeatId && (
+        <span
+          className="task-repeat faint small"
+          title={ещё ? т('Регулярная задача; дальше ещё {0} — они в календаре', ещё) : т('Регулярная задача')}
+        >
+          <Icon name="repeat" size={13} />{ещё ? ' +' + ещё : ''}
+        </span>
+      )}
       {важность > 0 && (
         <span className="task-flag" title={т('Важность: {0}', PRIORITIES[важность].t.toLowerCase())}>
           <Icon name="sparkle" size={13} />
@@ -166,14 +183,15 @@ function Список({ onEdit }: { onEdit: (t: Task) => void }) {
   const все = data.tasks ?? []
   const списки = (data.taskLists ?? []).filter((l) => !l.archived)
   const свои = все.filter((t) => (listId === ВХОДЯЩИЕ ? !t.listId : t.listId === listId))
-  const видимые = sortTasks(показать ? свои : свои.filter((t) => !t.done))
+  const { видимые: ближние, скрыто } = ближайшиеПовторы(показать ? свои : свои.filter((t) => !t.done))
+  const видимые = sortTasks(ближние)
   const закрытых = свои.filter((t) => t.done).length
 
   const добавить = () => {
     const title = быстро.trim()
     if (!title) return
     upsertTask({
-      ...пустая(все.length),
+      ...пустая(data),
       title,
       ...(listId === ВХОДЯЩИЕ ? {} : { listId }),
     })
@@ -210,7 +228,7 @@ function Список({ onEdit }: { onEdit: (t: Task) => void }) {
             <Icon name="plus" size={14} /> {т(' Добавить')}</button>
         </div>
 
-        {видимые.map((t) => <Строка key={t.id} t={t} onEdit={onEdit} />)}
+        {видимые.map((t) => <Строка key={t.id} t={t} onEdit={onEdit} ещё={t.repeatId ? скрыто.get(t.repeatId) : undefined} />)}
         {!видимые.length && <div className="empty">{т('Здесь пусто')}</div>}
 
         {закрытых > 0 && (
@@ -294,7 +312,7 @@ const ВИДНО_В_ЧЕТВЕРТИ = 5
 
 function Матрица({ onEdit }: { onEdit: (t: Task) => void }) {
   const { data, upsertTask } = useStore()
-  const открытые = (data.tasks ?? []).filter((t) => !t.done)
+  const открытые = ближайшиеПовторы((data.tasks ?? []).filter((t) => !t.done)).видимые
   // Перетаскивание: id запоминаем сами — dataTransfer есть не во всех средах.
   const [тащим, setТащим] = useState<string | null>(null)
   const [над, setНад] = useState<Quadrant | null>(null)
@@ -412,7 +430,7 @@ function Таймер() {
   const { data, patchSettings } = useStore()
   const p = usePomodoro()
   const задача = p.taskId ? data.tasks.find((t) => t.id === p.taskId) : undefined
-  const открытые = sortTasks((data.tasks ?? []).filter((t) => !t.done)).slice(0, 12)
+  const открытые = sortTasks(ближайшиеПовторы((data.tasks ?? []).filter((t) => !t.done)).видимые).slice(0, 12)
   const [pick, setPick] = useState<string>('')
 
   return (
@@ -481,16 +499,47 @@ function Таймер() {
 // ------------------------------------------------------------- карточка задачи
 
 export function TaskModal({ value, onClose }: { value: Task; onClose: () => void }) {
-  const { data, upsertTask, deleteTask, addTransaction } = useStore()
+  const { data, upsertTask, deleteTask, addTransaction, repeatTask, stopRepeat } = useStore()
   const app = useApp()
   const toast = useToast()
   const [t, setT] = useState<Task>(value)
+  const былПовтор = value.repeatId ? (data.taskRepeats ?? []).find((п) => п.id === value.repeatId) : undefined
+  const [повтор, setПовтор] = useState<ЧерновикПовтора | null>(() => (былПовтор ? черновикИз(былПовтор) : null))
   const удаление = useУдаление()
   const patch = (p: Partial<Task>) => setT((x) => ({ ...x, ...p }))
   const есть = (data.tasks ?? []).some((x) => x.id === value.id)
   const cats = data.categories.filter((c) => !c.archived && c.kind === (t.moneyKind === 'income' ? 'income' : 'expense'))
   const времяНаЗадачу = t.moneyKind === 'time'
   const минутыИз = (ч: number, м: number): number | undefined => (ч * 60 + м > 0 ? ч * 60 + м : undefined)
+
+  /**
+   * Сохранить. У повтора два пути: «только эту» правит одну задачу, «эту и
+   * следующие» переписывает образец и расписание — следующие открытые
+   * повторы вырастают заново. Сменили расписание — путь только второй.
+   */
+  const сохранить = (как: 'one' | 'all') => {
+    if (!t.title.trim()) {
+      toast(т('Напишите, что нужно сделать'))
+      return
+    }
+    if (повтор?.freq === 'weekdays' && !повтор.days.length) {
+      toast(т('Отметьте хотя бы один день недели'))
+      return
+    }
+    if (!повтор) {
+      if (былПовтор && t.due) {
+        // Повтор сняли: эта задача остаётся обычной, следующие уходят.
+        stopRepeat({ ...t, due: addDays(t.due, 1) })
+      }
+      upsertTask({ ...t, repeatId: undefined })
+    } else if (как === 'one') {
+      upsertTask(t)
+    } else {
+      const сСроком = t.due ? t : { ...t, due: today() }
+      repeatTask(сСроком, расписаниеИз(повтор, сСроком.due!))
+    }
+    onClose()
+  }
 
   /** Закрыть задачу и сразу записать трату: ради этого сумма у задачи и нужна. */
   const записатьОперацию = () => {
@@ -525,21 +574,27 @@ export function TaskModal({ value, onClose }: { value: Task; onClose: () => void
           <>
             {есть && (
               <button className="btn danger" style={{ marginRight: 'auto' }} onClick={() => { удаление.задачу(t.id); onClose() }}>
-                <Icon name="trash" size={15} /> {т(' Удалить')}</button>
+                <Icon name="trash" size={15} /> {былПовтор ? т(' Только эту') : т(' Удалить')}</button>
+            )}
+            {есть && былПовтор && (
+              <button
+                className="btn danger ghost"
+                title={т('Удалить эту задачу и все следующие открытые повторы; новых не будет')}
+                onClick={() => {
+                  stopRepeat(t)
+                  toast(т('Повтор остановлен'))
+                  onClose()
+                }}
+              >
+                {т('Эту и следующие')}</button>
             )}
             <button className="btn" onClick={onClose}>{т('Отмена')}</button>
-            <button
-              className="btn primary"
-              onClick={() => {
-                if (!t.title.trim()) {
-                  toast(т('Напишите, что нужно сделать'))
-                  return
-                }
-                upsertTask(t)
-                onClose()
-              }}
-            >
-              {т('Сохранить')}</button>
+            {былПовтор && повтор && !расписаниеИзменилось(былПовтор, расписаниеИз(повтор, t.due ?? today())) && (
+              <button className="btn" title={т('Изменения только у этой задачи')} onClick={() => сохранить('one')}>
+                {т('Сохранить эту')}</button>
+            )}
+            <button className="btn primary" onClick={() => сохранить('all')}>
+              {былПовтор && повтор ? т('Эту и следующие') : т('Сохранить')}</button>
           </>
         }
       >
@@ -578,6 +633,8 @@ export function TaskModal({ value, onClose }: { value: Task; onClose: () => void
         </div>
         <div className="faint small" style={{ marginBottom: 14 }}>
           {тр('{0}. В матрицу идёт средняя и выше.', PRIORITIES.find((p) => p.p === priorityOf(t))?.hint)}</div>
+
+        <ПовторЗадачи value={повтор} onChange={setПовтор} due={t.due} firstDay={data.settings.firstDayOfWeek ?? 1} />
 
         <div className="card-title">{времяНаЗадачу ? т('Время') : т('Деньги')}</div>
         <div className="faint small" style={{ marginBottom: 10, lineHeight: 1.6 }}>

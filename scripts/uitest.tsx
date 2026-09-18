@@ -2843,6 +2843,133 @@ async function ставкаКредита() {
   await wait(300)
 }
 
+/*
+ * 1.0.6: акцент и быстрые цвета, задача по умолчанию, регулярные задачи и
+ * новый граф.
+ */
+async function правки106() {
+  console.log('\n— акцент, задачи, граф (1.0.6) —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+  const корень = document.documentElement
+
+  // ------------------------------------------------ акцент
+  await open('Настройки')
+  const выбор = () => document.querySelector('.view .vybor-akcenta') as HTMLElement | null
+  check('в настройках есть выбор акцента с «Как в оформлении»', !!выбор() && (выбор()?.textContent || '').includes('Как в оформлении'))
+  const было = (await loadVault()).settings.accent
+  click(выбор()?.querySelector('.swatch-new'))
+  await wait(200)
+  check('«+» открывает панель своего цвета с кнопкой «Сохранить»', !!выбор()?.querySelector('.svoy-cvet') && !!byText('.vybor-akcenta .svoy-cvet .btn', 'Сохранить'))
+  ввести(выбор()?.querySelector('.svoy-cvet-hex'), '#ff7a00')
+  await wait(1300)
+  check('пока подбирают — цвет виден сразу', корень.style.getPropertyValue('--accent') === '#ff7a00', корень.style.getPropertyValue('--accent'))
+  check('но в хранилище не пишется до «Сохранить»', (await loadVault()).settings.accent === было)
+  click(byText('.vybor-akcenta .svoy-cvet .btn', 'Сохранить'))
+  await wait(1300)
+  let v = await loadVault()
+  check('«Сохранить» делает акцент своим', v.settings.accent === '#ff7a00' && v.settings.accentMode === 'own', `${v.settings.accent} ${v.settings.accentMode}`)
+  check('и кладёт цвет в быстрый выбор', (v.settings.palette ?? []).includes('#ff7a00'))
+  const тема = all('.view .card button').find((b) => (b.textContent || '').trim() === 'Мята')
+  click(тема)
+  await wait(400)
+  check('смена оформления не сбрасывает свой акцент', корень.style.getPropertyValue('--accent') === '#ff7a00', корень.style.getPropertyValue('--accent'))
+  // убрать из быстрого выбора
+  const оранжевый = all('.vybor-akcenta .swatch').find((s) => (s as HTMLElement).title === '#ff7a00')
+  click(оранжевый?.querySelector('.swatch-x'))
+  await wait(1300)
+  v = await loadVault()
+  check('крестик убирает цвет из быстрого выбора', !(v.settings.palette ?? []).includes('#ff7a00') && (v.settings.palette ?? []).length > 3)
+  check('а текущий цвет вне набора можно вернуть плюсиком', !!выбор()?.querySelector('.swatch-x.plus'))
+  click(byText('.vybor-akcenta .chip', 'Как в оформлении'))
+  await wait(400)
+  check('«Как в оформлении» возвращает цвет темы', корень.style.getPropertyValue('--accent') !== '#ff7a00' && (await loadVault()).settings.accentMode === 'theme')
+
+  // ------------------------------------------------ задача по умолчанию
+  const td = (сел: string) => document.querySelector('.view .nastroyki-zadachi ' + сел) as HTMLSelectElement | null
+  check('в настройках есть раздел «Новая задача»', !!td('.td-kind'))
+  ввести(td('.td-kind'), 'time')
+  await wait(100)
+  ввести(td('.td-prio'), '2')
+  await wait(100)
+  ввести(td('.td-due'), 'tomorrow')
+  await wait(1300)
+  v = await loadVault()
+  check('заготовка задачи сохранена', v.settings.taskDefaults?.kind === 'time' && v.settings.taskDefaults?.priority === 2 && v.settings.taskDefaults?.due === 'tomorrow',
+    JSON.stringify(v.settings.taskDefaults))
+
+  await open('Задачи')
+  click(byText('.view .btn.primary', 'Задача'))
+  await wait(300)
+  const окно = () => document.querySelector('.modal') as HTMLElement | null
+  check('новая задача открывается с заготовкой: время и средняя важность',
+    (окно()?.querySelector('.task-kind') as HTMLSelectElement)?.value === 'time' && !!окно()?.querySelector('.chip.prio.p2.on'))
+
+  // ------------------------------------------------ регулярная задача
+  ввести(окно()?.querySelector('input[type="text"]'), 'Пробежка')
+  await wait(100)
+  click(byText('.modal .povtor-freq button', 'По дням недели'))
+  await wait(150)
+  for (const д of ['Пн', 'Ср']) {
+    const чип = all('.modal .povtor-days .chip').find((c) => c.textContent === д)
+    if (чип && !чип.classList.contains('on')) click(чип)
+    await wait(80)
+  }
+  check('у повтора выбираются дни недели и срок', all('.modal .povtor-days .chip.on').length >= 2 && !!окно()?.querySelector('.povtor-srok'))
+  click(all('.modal-foot .btn.primary').pop())
+  await wait(1400)
+  v = await loadVault()
+  const повтор = (v.taskRepeats ?? []).find((п) => п.образец.title === 'Пробежка')
+  const повторы = v.tasks.filter((t) => t.repeatId && t.repeatId === повтор?.id)
+  check('задача стала регулярной и выросли повторы', !!повтор && повторы.length >= 4 && (повтор.days ?? []).includes(1) && (повтор.days ?? []).includes(3),
+    `${повторы.length} ${JSON.stringify(повтор?.days)}`)
+  check('повторы наследуют заготовку', повторы.every((t) => t.moneyKind === 'time' && t.priority === 2))
+  click(byText('.view .seg button', 'Список'))
+  await wait(300)
+  const строк = all('.view .task-row').filter((r) => (r.textContent || '').includes('Пробежка')).length
+  check('в списке у регулярной задачи одна строка — ближайшая', строк === 1, String(строк))
+  // Открыть повтор — две кнопки сохранения и удаления.
+  const строка = all('.view .task-row').find((r) => (r.textContent || '').includes('Пробежка'))
+  click(строка?.querySelector('.name'))
+  await wait(300)
+  check('у повтора сохранить можно «эту» или «эту и следующие»', !!byText('.modal-foot .btn', 'Сохранить эту') && !!byText('.modal-foot .btn.primary', 'Эту и следующие'))
+  click(byText('.modal-foot .btn.danger', 'Эту и следующие'))
+  await wait(1400)
+  v = await loadVault()
+  check('«эту и следующие» при удалении снимает повтор', !v.tasks.some((t) => t.repeatId === повтор?.id && !t.done))
+  // вернуть заготовку, чтобы не мешать другим проверкам
+  await open('Настройки')
+  ввести(td('.td-kind'), 'expense')
+  await wait(100)
+  ввести(td('.td-prio'), '0')
+  await wait(100)
+  ввести(td('.td-due'), 'none')
+  await wait(1200)
+
+  // ------------------------------------------------ граф
+  await open('Граф')
+  await wait(1200)
+  const узлы = all('.graph-node')
+  check('граф рисует узлы разных видов со значками', узлы.length > 10 && !!document.querySelector('.graph-node.k-account rect') && !!document.querySelector('.graph-node.k-category circle'),
+    String(узлы.length))
+  check('у графа есть подписи без наложений и панель поиска', all('.graph-labels > g').length > 3 && !!document.querySelector('.graph-search-input'))
+  ввести(document.querySelector('.graph-search-input'), 'Продук')
+  await wait(200)
+  const найден = document.querySelector('.graph-found-item')
+  check('поиск находит узел', !!найден && (найден.textContent || '').includes('Продукты'))
+  click(найден)
+  await wait(300)
+  check('выбранный узел показывает карточку со связями', (document.querySelector('.graph-card')?.textContent || '').includes('Продукты')
+    && (document.querySelector('.graph-card')?.textContent || '').includes('Связи'))
+  click(byText('.graph-mode button', 'Схема'))
+  await wait(300)
+  check('переключатель «Схема» делает граф плоским', !!document.querySelector('.graph-wrap.graph-flat'))
+  click(byText('.graph-mode button', '3D'))
+  await wait(200)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2868,6 +2995,7 @@ async function main() {
   await связиИВремя()
   await настройкаСводки()
   await ставкаКредита()
+  await правки106()
   await конструкторъОформленія()
   await themes()
   await cardGlare()
@@ -2893,5 +3021,6 @@ async function main() {
 
 main().catch((e) => {
   console.log('ФАТАЛЬНО:', e)
+  for (const x of renderErrors.slice(0, 5)) console.log('  ошибка рендера:', x.slice(0, 600))
   process.exit(2)
 })

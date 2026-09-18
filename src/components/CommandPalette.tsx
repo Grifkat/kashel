@@ -85,7 +85,7 @@ export function CommandPalette({ onClose }: { onClose: () => void }) {
         title: t.name,
         icon: 'palette',
         hint: t.mode === 'dark' ? т('тёмная') : т('светлая'),
-        run: () => store.patchSettings({ theme: t.id, accent: t.accent }),
+        run: () => store.patchSettings({ theme: t.id, customTheme: undefined }),
       })),
       {
         id: 'act:hide', section: т('Действия'), title: store.data.settings.hideBalance ? т('Показать баланс') : т('Скрыть баланс'),

@@ -2,10 +2,11 @@ import { путьЗначкаДопустимъ } from '../lib/svoiznachki'
 import type {
   Account, AccountType, Bucket, CanvasDoc, CanvasEdge, CanvasNode, Category, Freq, Goal,
   ImportRule, Money, Notice, Recurring, Reminder, ReminderEvent, ReminderRepeat, ReminderSound,
-  RankBranch, Scenario, Settings, Side, Task, TaskList, Transaction, TxKind, VaultData,
+  RankBranch, Scenario, Settings, Side, Task, TaskList, TaskRepeat, Transaction, TxKind, VaultData,
 } from '../lib/types'
 import { migrateSettings } from '../state/defaults'
 import { today } from '../lib/date'
+import { образецИз } from './povtory'
 import {
   bridge, canvasPath, listAttachments, listCanvases, listNotes, notePath,
   readAttachmentBase64, readCanvas, readNote, listIconFiles,
@@ -417,8 +418,34 @@ function normTask(v: unknown, drop: Drop): Task | null {
     note: opt(r.note),
     tags: strList(r.tags),
     ...(r.pomodoros == null ? {} : { pomodoros: Math.max(0, Math.round(num(r.pomodoros))) }),
+    ...(str(r.repeatId) ? { repeatId: str(r.repeatId) } : {}),
     order: Math.round(num(r.order)),
     createdAt: str(r.createdAt, today()),
+  }
+}
+
+/** Повтор задачи. Образец чистится так же, как задача: через normTask. */
+function normTaskRepeat(v: unknown, drop: Drop): TaskRepeat | null {
+  const r = asRaw(v)
+  const id = str(r.id)
+  const start = str(r.start)
+  const freq = r.freq === 'daily' || r.freq === 'weekdays' || r.freq === 'monthly' ? r.freq : null
+  const образец = normTask({ ...asRaw(r['образец']), id: 'x' }, { n: 0 })
+  if (!id || !isDate(start) || !freq || !образец) {
+    drop.n++
+    return null
+  }
+  const days = list(r.days).map((x) => Math.round(num(x, -1))).filter((x) => x >= 0 && x <= 6)
+  const md = Math.round(num(r.monthDay))
+  return {
+    id,
+    образец: образецИз(образец),
+    freq,
+    ...(freq === 'weekdays' ? { days } : {}),
+    ...(freq === 'monthly' && md >= 1 && md <= 31 ? { monthDay: md } : {}),
+    start,
+    ...(isDate(str(r.until)) ? { until: str(r.until) } : {}),
+    ...(isDate(str(r.grownTo)) ? { grownTo: str(r.grownTo) } : {}),
   }
 }
 
@@ -635,6 +662,7 @@ export function parseArchive(text: string): ParseResult {
     reminders: list(d.reminders).map((x) => normReminder(x, drop)).filter((x): x is Reminder => !!x),
     tasks: list(d.tasks).map((x) => normTask(x, drop)).filter((x): x is Task => !!x),
     taskLists: list(d.taskLists).map((x) => normTaskList(x, drop)).filter((x): x is TaskList => !!x),
+    taskRepeats: list(d.taskRepeats).map((x) => normTaskRepeat(x, drop)).filter((x): x is TaskRepeat => !!x),
     honors: normHonors(d.honors),
     goals: list(d.goals).map((x) => normGoal(x, drop)).filter((x): x is Goal => !!x),
     scenarios: list(d.scenarios).map((x) => normScenario(x, drop)).filter((x): x is Scenario => !!x),

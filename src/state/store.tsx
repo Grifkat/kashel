@@ -11,6 +11,7 @@ import {
 } from './defaults'
 import { перевестиКредиты } from '../engine/credit'
 import { провестиАвтосписания } from '../engine/avtospisaniya'
+import { вырастить, задатьПовтор, оборватьПовтор, type Расписание } from '../engine/povtory'
 import { перевестиДолги } from '../engine/stats'
 import { безРодителя } from '../engine/podkategorii'
 import { отметитьУчётКредитов } from '../engine/pogashenie'
@@ -62,6 +63,10 @@ interface Store {
   deleteReminder(id: string): void
   upsertTask(t: Task): void
   deleteTask(id: string): void
+  /** Сделать задачу регулярной или переписать повтор с этой задачи и дальше. */
+  repeatTask(t: Task, расписание: Расписание): void
+  /** Прекратить повтор с этой задачи: она и следующие открытые повторы уходят. */
+  stopRepeat(t: Task): void
   upsertTaskList(l: TaskList): void
   deleteTaskList(id: string): void
   patchHonors(p: Partial<Honors>): void
@@ -185,7 +190,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       // Автосписания — см. engine/avtospisaniya: точные даты правил и догон
       // пропущенного. Отметка дня обязательна: без неё удалённое автосписание
       // воскресало бы при следующем запуске.
-      const posted = провестиАвтосписания(сКредитами, today(), () => uid('t'))
+      const posted0 = провестиАвтосписания(сКредитами, today(), () => uid('t'))
+      // Регулярные задачи — дорастить повторы до горизонта (engine/povtory).
+      const выросло = вырастить(posted0.data, today(), () => uid('task'))
+      const posted = { ...posted0, data: выросло.data, coreChanged: posted0.coreChanged || выросло.changed }
       if (seq !== bootSeq.current) return
       // Отметка версии; новому хранилищу показывать «Что нового» незачем.
       const отметкаВерсии = posted.data.settings.appVersion !== ВЕРСИЯ || (новое && posted.data.settings.whatsNewSeen !== ВЕРСИЯ)
@@ -424,6 +432,21 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   )
 
   // -------------------------------------------------------------- справочники
+  /*
+   * Регулярные задачи растут и без перезапуска: программу держат открытой
+   * сутками, а горизонт повторов сдвигается с каждым днём. Раз в час
+   * проверяем; расти нечему — ничего не пишем.
+   */
+  useEffect(() => {
+    if (!ready) return
+    const дорастить = () => {
+      if (!вырастить(dataRef.current, today(), () => uid('task')).changed) return
+      setData((d) => вырастить(d, today(), () => uid('task')).data, undefined, { безОтметки: true })
+    }
+    const id = window.setInterval(дорастить, 60 * 60 * 1000)
+    return () => window.clearInterval(id)
+  }, [ready, setData])
+
   const upsert = <K extends keyof VaultData>(key: K) =>
     useCallback(
       (item: { id: string }) => {
@@ -478,6 +501,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   const deleteReminder = remove('reminders')
   const upsertTask = upsert('tasks') as (t: Task) => void
   const deleteTask = remove('tasks')
+  const repeatTask = useCallback(
+    (t: Task, расписание: Расписание) =>
+      setData((d) => задатьПовтор(d, t, расписание, t.repeatId ?? uid('rep'), () => uid('task'))),
+    [setData],
+  )
+  const stopRepeat = useCallback((t: Task) => setData((d) => оборватьПовтор(d, t)), [setData])
   const upsertTaskList = upsert('taskLists') as (l: TaskList) => void
   const deleteTaskList = remove('taskLists')
   const upsertGoal = upsert('goals') as (g: Goal) => void
@@ -573,7 +602,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       addTransaction, updateTransaction, deleteTransaction, deleteTransactions, restoreTransactions,
       upsertAccount, deleteAccount, upsertCategory, deleteCategory,
       upsertRecurring, deleteRecurring, upsertReminder, deleteReminder,
-      upsertTask, deleteTask, upsertTaskList, deleteTaskList, upsertGoal, deleteGoal,
+      upsertTask, deleteTask, repeatTask, stopRepeat, upsertTaskList, deleteTaskList, upsertGoal, deleteGoal,
       upsertScenario, deleteScenario, setImportRules, patchSettings, patchHonors,
       wipeAll, replaceAll, chooseVault,
       failure, saveError, retryBoot: boot,
