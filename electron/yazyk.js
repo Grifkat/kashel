@@ -69,6 +69,7 @@ const EN = {
   'скачанный файл не совпал с объявленным — установка отменена': 'the downloaded file does not match the announcement — installation cancelled',
   'установщик запущен, программа закроется': 'the installer is running, the app will close',
   'новая версия скачана рядом со старой — запустите её': 'the new version was downloaded next to the old one — run it',
+  'образ скачан в «Загрузки» и открыт — перетащите Кошель в «Программы»': 'the disk image was saved to Downloads and opened — drag Koshel to Applications',
 }
 
 /** Отказы с хвостом, который меняется: код ответа, путь, текст сетевой ошибки. */

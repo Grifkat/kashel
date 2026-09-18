@@ -1682,6 +1682,23 @@ check('пустая нынѣшняя версія не роняетъ сравн
 
 check('на Windows берётся win', родъ('win32') === 'win')
 check('на прочихъ — linux', родъ('linux') === 'linux')
+check('на макѣ съ Apple Silicon — свой образъ, а не AppImage', родъ('darwin', 'arm64') === 'mac-arm64')
+check('на макѣ съ Intel — образъ для Intel', родъ('darwin', 'x64') === 'mac-x64')
+{
+  const всѣ = JSON.stringify({
+    version: '1.2.0',
+    files: {
+      linux: { url: 'https://x.test/k.AppImage', size: 10, sha256: 'c'.repeat(64) },
+      'mac-arm64': { url: 'https://x.test/k-arm64.dmg', size: 20, sha256: 'd'.repeat(64) },
+      'mac-x64': { url: 'https://x.test/k-x64.dmg', size: 30, sha256: 'e'.repeat(64) },
+    },
+  })
+  check('макъ съ Apple Silicon беретъ свой .dmg', разобрать(всѣ, 'darwin', 'arm64').url.endsWith('k-arm64.dmg'))
+  check('макъ съ Intel беретъ свой .dmg', разобрать(всѣ, 'darwin', 'x64').url.endsWith('k-x64.dmg'))
+  let упало = false
+  try { разобрать(JSON.stringify({ version: '1.2.0', files: { linux: { url: 'https://x.test/k.AppImage', size: 10, sha256: 'c'.repeat(64) } } }), 'darwin', 'arm64') } catch { упало = true }
+  check('безъ образа мака маку обновленія нѣтъ — AppImage ему не предлагается', упало)
+}
 
 // Подпись. Ключи заводятся тутъ же: постоянныхъ въ проверкахъ быть не должно.
 const пара = крипто.generateKeyPairSync('ed25519')
