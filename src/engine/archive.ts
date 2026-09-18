@@ -493,6 +493,16 @@ function normGoal(v: unknown, drop: Drop): Goal | null {
     priority: Math.round(num(r.priority, 1)),
     note: opt(r.note),
     ...(bool(r.done) ? { done: true } : {}),
+    ...(r.kind === 'earn'
+      ? {
+          kind: 'earn' as const,
+          earn: {
+            mode: asRaw(r.earn).mode === 'monthly' ? ('monthly' as const) : ('once' as const),
+            categoryIds: strList(asRaw(r.earn).categoryIds),
+            start: isDate(str(asRaw(r.earn).start)) ? str(asRaw(r.earn).start) : today(),
+          },
+        }
+      : {}),
   }
 }
 

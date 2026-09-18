@@ -743,7 +743,8 @@ function ruleDebts(c: Ctx): Advice[] {
 /** Достижимость целей при текущем свободном остатке. */
 function ruleGoals(c: Ctx): Advice[] {
   const bal = balances(c.data.accounts, c.data.transactions)
-  const active = c.data.goals.filter((g) => !g.done)
+  // Только накопления: заработок в цель не откладывается и свободных денег не просит.
+  const active = c.data.goals.filter((g) => !g.done && g.kind !== 'earn')
   if (!active.length) return []
 
   const free = c.fc.avgNet

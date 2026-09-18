@@ -1,4 +1,5 @@
 import type { VaultData } from '../lib/types'
+import { прогрессЗаработка, этоЗаработок } from './zarabotok'
 import { money, pct } from '../lib/format'
 import { monthTitle, monthKey, addMonths, today } from '../lib/date'
 import { balances, categoryTotals, monthlySeries, tagTotals } from './stats'
@@ -141,6 +142,14 @@ export function сводкаДляМодели(данные: VaultData, now: str
   if (цѣли.length) {
     п(т('## Цели'))
     for (const g of цѣли) {
+      if (этоЗаработок(g)) {
+        const пр = прогрессЗаработка(g, д)
+        const откуда = (g.earn?.categoryIds ?? []).map((id) => д.categories.find((c) => c.id === id)?.name).filter(Boolean).join(', ')
+        п(т('- {0}: заработать {1}{2}, заработано {3}, источник: {4}{5}', g.name, рубли(g.targetAmount),
+          пр.ежемесячная ? т(' в месяц') : '', рубли(пр.заработано), откуда || т('все доходы'),
+          !пр.ежемесячная && g.targetDate ? т(', срок {0}', g.targetDate) : ''))
+        continue
+      }
       п(т('- {0}: нужно {1}, отложено {2}{3}', g.name, рубли(g.targetAmount), рубли(g.saved), g.targetDate ? т(', срок {0}', g.targetDate) : ''))
     }
     п('')

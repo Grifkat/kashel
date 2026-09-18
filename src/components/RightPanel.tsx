@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { прогрессЦели } from '../engine/zarabotok'
 import { сЗначкомъ } from '../lib/catalog'
 import { Amount, Money } from './anim'
 import { useApp } from '../App'
@@ -167,8 +168,8 @@ export function RightPanel({ open }: { open: boolean }) {
           <div className="card tight">
             <div className="card-title" style={{ marginBottom: 8 }}>{т('Цели')}</div>
             {goals.map((g) => {
-              const saved = g.accountId ? bal.byAccount.get(g.accountId) || 0 : g.saved
-              const share = g.targetAmount ? Math.min(1, saved / g.targetAmount) : 0
+              // У цели «заработать» — заработанное за её период, у накопления — отложенное.
+              const share = прогрессЦели(g, data, bal.byAccount).доля
               return (
                 <div key={g.id} style={{ marginBottom: 10, cursor: 'pointer' }} onClick={() => app.openTab('goals')}>
                   <div className="row small" style={{ marginBottom: 4 }}>

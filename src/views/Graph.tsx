@@ -13,6 +13,7 @@
  * Рисуется SVG: узлов здесь десятки, а не тысячи, и SVG даёт значки из
  * каталога как есть, выделение текста и проверку в jsdom.
  */
+import { прогрессЗаработка, этоЗаработок } from '../engine/zarabotok'
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
@@ -51,6 +52,8 @@ interface GNode {
   amount?: number
   count?: number
   sub?: string
+  /** Цель «заработать»: сумма — заработанное, а не отложенное. */
+  earn?: boolean
 }
 interface GLink {
   a: string
@@ -195,8 +198,9 @@ export default function GraphView() {
       const acc = g.accountId ? data.accounts.find((a) => a.id === g.accountId) : undefined
       push({
         id: 'goal:' + g.id, label: g.name, kind: 'goal', r: 12, ref: g.id, color: g.color, icon: g.icon,
-        amount: acc ? accountBalance(acc, data.transactions) : g.saved,
-        sub: т('из {0}', money(g.targetAmount)),
+        amount: этоЗаработок(g) ? прогрессЗаработка(g, data).заработано : acc ? accountBalance(acc, data.transactions) : g.saved,
+        sub: этоЗаработок(g) ? т('заработать {0}', money(g.targetAmount)) : т('из {0}', money(g.targetAmount)),
+        earn: этоЗаработок(g),
       })
     }
 
@@ -231,6 +235,8 @@ export default function GraphView() {
       link(a, b, 0.4 + (v / maxPair) * 2.4, v)
     }
     for (const g of data.goals) if (g.accountId) link('goal:' + g.id, 'acc:' + g.accountId, 2)
+    // Цель «заработать» связана с категориями, с которых идёт заработок.
+    for (const g of data.goals) for (const id of g.earn?.categoryIds ?? []) if (этоЗаработок(g)) link('goal:' + g.id, 'cat:' + id, 2)
     const tagPairs = new Set<string>()
     for (const t of scoped) {
       if (!t.categoryId) continue
@@ -862,7 +868,7 @@ function КарточкаУзла({
       {n.kind === 'goal' && (
         <div className="graph-card-stat">
           <span className="num strong">{money(n.amount ?? 0)}</span>
-          <span className="faint small">{т('накоплено')}</span>
+          <span className="faint small">{n.earn ? т('заработано') : т('накоплено')}</span>
         </div>
       )}
 

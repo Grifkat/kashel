@@ -50,6 +50,10 @@ const база = АДРЕСЪ_ПО_УМОЛЧАНІЮ.replace(/\/+$/, '')
 const ЦѢЛИ = [
   { родъ: 'win', файлъ: `Кошель ${version} установщик.exe`, имя: `Koshel-${version}-setup.exe` },
   { родъ: 'linux', файлъ: `Koshel-${version}-x86_64.AppImage`, имя: `Koshel-${version}-x86_64.AppImage` },
+  // Мак собирается на GitHub (.github/workflows/mac.yml): образы оттуда
+  // кладутся в release/ руками. Нет их — выпуск идёт без мака, как раньше.
+  { родъ: 'mac-arm64', файлъ: `Koshel-${version}-mac-arm64.dmg`, имя: `Koshel-${version}-mac-arm64.dmg` },
+  { родъ: 'mac-x64', файлъ: `Koshel-${version}-mac-x64.dmg`, имя: `Koshel-${version}-mac-x64.dmg` },
 ]
 
 const files = {}

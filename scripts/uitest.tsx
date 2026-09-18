@@ -3116,6 +3116,48 @@ async function правки107() {
   await wait(200)
 }
 
+/** 1.0.8: цель «заработать» с выбором категорий. */
+async function цельЗаработатьЭкраны() {
+  console.log('\n— цель «заработать» —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+  await open('Цели')
+  click(byText('.view .btn.primary', 'Новая цель'))
+  await wait(300)
+  const окно = () => document.querySelector('.modal') as HTMLElement | null
+  check('в окне цели есть «Накопить / Заработать»', !!byText('.modal .goal-kind button', 'Заработать'))
+  ввести(окно()?.querySelector('input[type="text"]'), 'Заработать на играх')
+  click(byText('.modal .goal-kind button', 'Заработать'))
+  await wait(200)
+  check('у заработка — «К сроку / Каждый месяц» и выбор категорий', !!byText('.modal .goal-earn-mode button', 'Каждый месяц') && (окно()?.textContent || '').includes('С каких категорий заработок'))
+  const деньги = [...(окно()?.querySelectorAll('input') ?? [])].find((i) => (i.closest('.field')?.textContent || '').includes('Сколько заработать'))
+  ввести(деньги, '300000')
+  await wait(100)
+  // категория дохода из списка
+  const выбор = окно()?.querySelector('.kat-vybor') as HTMLElement | null
+  click(выбор)
+  await wait(250)
+  const пункт = all('.kat-pop .schet-opt').find((x) => /Зарплата|Навар|Подработка/.test(x.textContent || ''))
+  click(пункт)
+  await wait(250)
+  const выбрано = all('.modal .goal-earn-cats .chip').length
+  check('категория дохода добавляется к цели', выбрано === 1, String(выбрано))
+  click(all('.modal-foot .btn.primary').pop())
+  await wait(1300)
+  const v = await loadVault()
+  const цель = v.goals.find((g) => g.name === 'Заработать на играх')
+  check('цель «заработать» сохранена с категорией', цель?.kind === 'earn' && цель.earn?.mode === 'once' && цель.earn.categoryIds.length === 1 && цель.targetAmount === 300_000_00,
+    JSON.stringify(цель?.earn))
+  const карточка = all('.view .goal-earn').find((c) => (c.textContent || '').includes('Заработать на играх'))
+  check('карточка показывает заработанное, темп и «Записать доход»', !!карточка && /из 300/.test(карточка.textContent || '') && (карточка.textContent || '').includes('Ваш темп') && !!карточка.querySelector('.btn') && (карточка.textContent || '').includes('Записать доход'))
+  check('«Пополнить» у заработка нет', !(карточка?.textContent || '').includes('Пополнить'))
+  // убрать цель, чтобы не мешать остальным проверкам
+  click(карточка?.querySelector('.btn.danger'))
+  await wait(900)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -3143,6 +3185,7 @@ async function main() {
   await ставкаКредита()
   await правки106()
   await правки107()
+  await цельЗаработатьЭкраны()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

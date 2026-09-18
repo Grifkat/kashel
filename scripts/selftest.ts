@@ -24,6 +24,7 @@ import { платежиМесяца } from '../src/engine/platezhi'
 import { elbowOf, lineOf, pathOf, pointAt } from '../src/components/canvas/geometry'
 import { безСвоегоВида, линииПоУмолчанию, свойВид, видСвязи, штрихЛинии } from '../src/components/canvas/linii'
 import { громкость, звукиВключены, звукСобытия } from '../src/lib/zvuki'
+import { доходЗа, прогрессЗаработка, прогрессЦели } from '../src/engine/zarabotok'
 import { связьПодКарточкой, встроитьВСвязь } from '../src/components/canvas/vstavka'
 import { буква } from '../src/lib/klavishi'
 import { платёжАннуитета, подобратьСтавку, прикидкаСтавки } from '../src/engine/stavka'
@@ -3132,6 +3133,58 @@ function правки103() {
   check('архив хранит «потраченное время» и минуты', ра[0]?.moneyKind === 'time' && ра[0]?.minutes === 75 && ра[1]?.moneyKind === 'time' && ра[1]?.minutes === undefined)
 }
 
+function цельЗаработать() {
+  console.log('\n— цель «заработать» —')
+  const игры = { id: 'c_games', name: 'Игры', icon: '🎮', color: '#8b5cf6', kind: 'income' as const, archived: false }
+  const стрим = { id: 'c_stream', name: 'Стримы', icon: '📺', color: '#8b5cf6', kind: 'income' as const, parentId: 'c_games', archived: false }
+  const зп = { id: 'c_salary', name: 'Зарплата', icon: '💼', color: '#4cc46a', kind: 'income' as const, archived: false }
+  const tx = (id: string, date: string, amount: number, categoryId: string | undefined, kind: 'income' | 'expense' | 'transfer' = 'income', splits?: { categoryId: string; amount: number }[]) =>
+    ({ id, date, amount, categoryId, kind, accountId: 'a1', tags: [], createdAt: date, ...(splits ? { splits } : {}) }) as unknown as Transaction
+  const д = {
+    ...data,
+    categories: [...data.categories, игры, стрим, зп] as typeof data.categories,
+    transactions: [
+      tx('t1', '2026-06-20', 50_000_00, 'c_games'), // до начала цели
+      tx('t2', '2026-07-05', 30_000_00, 'c_games'),
+      tx('t3', '2026-08-10', 20_000_00, 'c_stream'), // подкатегория игр
+      tx('t4', '2026-08-15', 90_000_00, 'c_salary'), // не та категория
+      tx('t5', '2026-09-03', 40_000_00, undefined, 'income', [{ categoryId: 'c_games', amount: 15_000_00 }, { categoryId: 'c_salary', amount: 25_000_00 }]),
+      tx('t6', '2026-09-05', 10_000_00, 'c_games', 'transfer'),
+      tx('t7', '2026-09-10', 5_000_00, 'c_games', 'expense'),
+      tx('t8', '2026-09-12', 12_000_00, 'c_games'),
+    ],
+  }
+  const разовая = {
+    id: 'g_earn', name: 'Заработать на играх', icon: '🎮', color: '#8b5cf6', targetAmount: 300_000_00,
+    targetDate: '2026-12-31', saved: 0, priority: 1, kind: 'earn' as const,
+    earn: { mode: 'once' as const, categoryIds: ['c_games'], start: '2026-07-01' },
+  }
+  const п = прогрессЗаработка(разовая, д, '2026-09-18')
+  check('заработок считает только выбранные категории с подкатегориями, с дня начала', п.заработано === 77_000_00, money(п.заработано))
+  check('доля «игр» в разделённой операции учитывается, перевод и трата — нет', доходЗа(разовая, д, '2026-09-01', '2026-09-30') === 27_000_00)
+  check('осталось и нужно в месяц до срока', п.осталось === 223_000_00 && п.месяцевДоСрока === 4 && п.нужноВМесяц === Math.round(223_000_00 / 4), `${п.месяцевДоСрока} ${money(п.нужноВМесяц ?? 0)}`)
+  check('темп — средний месяц за три полных прошлых, и до начала цели тоже', п.темп === Math.round(100_000_00 / 3), money(п.темп))
+  check('темпа не хватает — видно сразу', п.успевает === false)
+  const все = { ...разовая, earn: { ...разовая.earn, categoryIds: [] } }
+  check('без категорий — все доходы', прогрессЗаработка(все, д, '2026-09-18').заработано === 30_000_00 + 20_000_00 + 90_000_00 + 40_000_00 + 12_000_00)
+
+  const месяц = { ...разовая, targetAmount: 30_000_00, targetDate: undefined, earn: { mode: 'monthly' as const, categoryIds: ['c_games'], start: '2026-07-01' } }
+  const м = прогрессЗаработка(месяц, д, '2026-09-18')
+  check('ежемесячная считает только текущий месяц', м.заработано === 27_000_00 && м.от === '2026-09-01', `${money(м.заработано)} с ${м.от}`)
+  check('ежемесячная: дней до конца месяца и сколько нужно в день', м.днейОсталось === 13 && м.нужноВДень === Math.round(3_000_00 / 13))
+  check('в новом месяце ежемесячная начинается заново', прогрессЗаработка(месяц, д, '2026-10-02').заработано === 0)
+  check('разовая после срока считает только до срока и говорит, что срок прошёл',
+    прогрессЗаработка({ ...разовая, targetDate: '2026-08-31' }, д, '2026-09-18').заработано === 50_000_00 && прогрессЗаработка({ ...разовая, targetDate: '2026-08-31' }, д, '2026-09-18').срокПрошёл)
+
+  const общий = прогрессЦели(разовая, д, new Map(), '2026-09-18')
+  check('общий прогресс цели для панели и канваса — заработанное', общий.сумма === 77_000_00 && Math.abs(общий.доля - 77 / 300) < 1e-9)
+  const копилка = { ...разовая, kind: undefined, earn: undefined, saved: 60_000_00 }
+  check('у накопления общий прогресс — отложенное, как прежде', прогрессЦели(копилка, д, new Map()).сумма === 60_000_00)
+
+  const архив = parseArchive(JSON.stringify({ kashel: 'vault', formatVersion: 1, data: { ...д, goals: [разовая] } }))
+  check('архив переносит цель «заработать» с категориями', архив.ok && архив.archive.data.goals[0].kind === 'earn' && архив.archive.data.goals[0].earn?.categoryIds[0] === 'c_games' && архив.archive.data.goals[0].earn?.start === '2026-07-01')
+}
+
 function линииИЗвуки() {
   console.log('\n— линии канваса и звуки —')
   // Ломаная: каждый отрезок горизонтален или вертикален, концы — на карточках.
@@ -3301,6 +3354,7 @@ async function завершить() {
   повторыЗадач()
   акцентИЦвета()
   линииИЗвуки()
+  цельЗаработать()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

@@ -1,4 +1,5 @@
 import React, { useLayoutEffect, useRef } from 'react'
+import { прогрессЦели, этоЗаработок } from '../../engine/zarabotok'
 import { money, moneyShort } from '../../lib/format'
 import { accountBalance, balances, categoryTotals, creditRemaining } from '../../engine/stats'
 import { renderMarkdown } from '../../lib/markdown'
@@ -253,13 +254,13 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
     case 'goal': {
       const g = data.goals.find((x) => x.id === node.ref)
       if (!g) return { title: т('Цель удалена'), missing: true }
-      const saved = g.accountId ? ctx.balance.get(g.accountId) ?? 0 : g.saved
+      const п = прогрессЦели(g, data, ctx.balance)
       return {
         title: g.name,
         icon: g.icon,
-        value: saved,
-        sub: т('цель {0}', moneyShort(g.targetAmount)),
-        progress: g.targetAmount ? Math.min(1, saved / g.targetAmount) : 0,
+        value: п.сумма,
+        sub: этоЗаработок(g) ? т('заработать {0}', moneyShort(g.targetAmount)) : т('цель {0}', moneyShort(g.targetAmount)),
+        progress: п.доля,
       }
     }
     case 'scenario': {

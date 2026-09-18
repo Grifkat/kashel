@@ -14,6 +14,8 @@ import { accountBalance, balances } from '../engine/stats'
 import { Avatar, ColorPicker, Confirm, Field, IconPicker, Modal, MoneyInput, Toggle, useToast } from '../components/ui'
 import type { Goal } from '../lib/types'
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../engine/goals'
+import { прогрессЗаработка, этоЗаработок } from '../engine/zarabotok'
+import { KategoriyaVybor } from '../components/KategoriyaVybor'
 import { т, тр } from '../i18n'
 
 export default function Goals() {
@@ -45,7 +47,8 @@ export default function Goals() {
     [data.goals, bal, free],
   )
 
-  const totalNeed = rows.filter((r) => !r.g.done).reduce((s, r) => s + (r.need ?? 0), 0)
+  // Свободных денег требуют только цели «накопить»: заработок в них не откладывается.
+  const totalNeed = rows.filter((r) => !r.g.done && !этоЗаработок(r.g)).reduce((s, r) => s + (r.need ?? 0), 0)
 
   return (
     <div className="view">
@@ -77,6 +80,7 @@ export default function Goals() {
 
       <div className="grid c2">
         {rows.map(({ g, saved, left, monthsLeft, need, atPace, share }) => {
+          if (этоЗаработок(g)) return <КарточкаЗаработка key={g.id} g={g} onEdit={() => setEdit(g)} />
           const late = need != null && need > Math.max(0, free)
           return (
             <div key={g.id} className="card fx-glare" style={цвѣтъПодсвѣтки(g.color)}>
@@ -174,7 +178,7 @@ export default function Goals() {
               return
             }
             if (!(g.targetAmount > 0)) {
-              toast(т('Укажите, сколько нужно собрать'))
+              toast(этоЗаработок(g) ? т('Укажите, сколько нужно заработать') : т('Укажите, сколько нужно собрать'))
               return
             }
             upsertGoal(g)
@@ -283,6 +287,7 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
   // У цели со счётом накоплено то, что лежит на счёте, — как на карточке.
   const счётЦели = data.accounts.find((a) => a.id === g.accountId)
   const накоплено = g.accountId ? (счётЦели ? accountBalance(счётЦели, data.transactions) : 0) : g.saved
+  const заработок = этоЗаработок(g)
 
   return (
     <>
@@ -308,6 +313,20 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
           </div>
         </div>
 
+        <div className="seg goal-kind" style={{ marginBottom: 14 }}>
+          <button type="button" className={!заработок ? 'on' : ''} onClick={() => patch({ kind: undefined })}>{т('Накопить')}</button>
+          <button
+            type="button"
+            className={заработок ? 'on' : ''}
+            onClick={() => patch({ kind: 'earn', earn: g.earn ?? { mode: 'once', categoryIds: [], start: today() } })}
+          >
+            {т('Заработать')}</button>
+        </div>
+
+        {заработок && g.earn ? (
+          <ПоляЗаработка g={g} patch={patch} />
+        ) : (
+        <>
         <div className="grid c2">
           <Field label={т('Нужная сумма')}>
             <MoneyInput value={g.targetAmount || undefined} onChange={(v) => patch({ targetAmount: v })} />
@@ -331,12 +350,14 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
             <MoneyInput value={g.saved} onChange={(v) => patch({ saved: v })} />
           </Field>
         )}
+        </>
+        )}
 
         <Field label={т('Заметка')}>
           <input type="text" value={g.note ?? ''} onChange={(e) => patch({ note: e.target.value })} placeholder={т('Зачем эта цель')} />
         </Field>
 
-        {monthsLeft && g.targetAmount > 0 && (
+        {!заработок && monthsLeft && g.targetAmount > 0 && (
           <div className="advice-card info" style={{ padding: '10px 12px' }}>
             {тр('До срока {0}. Чтобы успеть, откладывать нужно{1}', monthsWord(monthsLeft), ' ')}<b>{money(Math.round(Math.max(0, g.targetAmount - накоплено) / monthsLeft))}</b> {т(' в месяц.')}</div>
         )}
@@ -354,5 +375,173 @@ function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) 
         />
       )}
     </>
+  )
+}
+
+// ------------------------------------------------------------------ заработок
+
+/**
+ * Поля цели «заработать»: сумма, разовая или ежемесячная, с какой даты и с
+ * каких категорий дохода. Категорий может быть несколько; ни одной — все
+ * доходы.
+ */
+function ПоляЗаработка({ g, patch }: { g: Goal; patch: (p: Partial<Goal>) => void }) {
+  const { data } = useStore()
+  const e = g.earn!
+  const задать = (p: Partial<NonNullable<Goal['earn']>>) => patch({ earn: { ...e, ...p } })
+  const доходные = data.categories.filter((c) => !c.archived && c.kind === 'income')
+  const выбраны = e.categoryIds.map((id) => data.categories.find((c) => c.id === id)).filter((c): c is NonNullable<typeof c> => !!c)
+  const п = прогрессЗаработка(g, data)
+  return (
+    <>
+      <div className="seg goal-earn-mode" style={{ marginBottom: 12 }}>
+        <button type="button" className={e.mode === 'once' ? 'on' : ''} onClick={() => задать({ mode: 'once' })}>{т('К сроку')}</button>
+        <button type="button" className={e.mode === 'monthly' ? 'on' : ''} onClick={() => задать({ mode: 'monthly' })}>{т('Каждый месяц')}</button>
+      </div>
+      <div className="grid c2">
+        <Field label={e.mode === 'monthly' ? т('Сколько зарабатывать в месяц') : т('Сколько заработать')}>
+          <MoneyInput value={g.targetAmount || undefined} onChange={(v) => patch({ targetAmount: v })} />
+        </Field>
+        {e.mode === 'once' ? (
+          <Field label={т('Срок')}>
+            <DateField allowEmpty value={g.targetDate ?? ''} onChange={(v) => patch({ targetDate: v || undefined })} />
+          </Field>
+        ) : (
+          <Field label={т('Считать с')}>
+            <DateField value={e.start} onChange={(v) => v && задать({ start: v })} />
+          </Field>
+        )}
+      </div>
+      {e.mode === 'once' && (
+        <Field label={т('Считать с')} hint={т('Доходы до этого дня в цель не идут')}>
+          <DateField value={e.start} onChange={(v) => v && задать({ start: v })} />
+        </Field>
+      )}
+      <Field label={т('С каких категорий заработок')} hint={т('Подкатегории выбранных считаются тоже. Ни одной не выбрано — все доходы.')}>
+        <div className="row wrap goal-earn-cats" style={{ gap: 6, marginBottom: 6 }}>
+          {выбраны.map((c) => (
+            <span key={c.id} className="chip on" onClick={() => задать({ categoryIds: e.categoryIds.filter((x) => x !== c.id) })} title={т('Убрать')}>
+              {сЗначкомъ(c.icon, c.name)} <Icon name="x" size={11} />
+            </span>
+          ))}
+          {!выбраны.length && <span className="faint small">{т('Все доходы')}</span>}
+        </div>
+        <KategoriyaVybor
+          value=""
+          onChange={(id) => id && !e.categoryIds.includes(id) && задать({ categoryIds: [...e.categoryIds, id] })}
+          cats={доходные.filter((c) => !e.categoryIds.includes(c.id))}
+          pusto={т('Добавить категорию…')}
+        />
+      </Field>
+      {g.targetAmount > 0 && (
+        <div className="advice-card info" style={{ padding: '10px 12px' }}>
+          {e.mode === 'monthly'
+            ? тр('В среднем за месяц сейчас приходит {0} — {1}', money(п.темп), п.темп >= g.targetAmount ? т('цель по силам.') : т('до цели не хватает {0} в месяц.', money(g.targetAmount - п.темп)))
+            : п.нужноВМесяц != null
+              ? тр('Чтобы успеть, нужно зарабатывать {0} в месяц. Сейчас в среднем — {1}.', money(п.нужноВМесяц), money(п.темп))
+              : тр('Уже заработано {0}. В среднем в месяц приходит {1}.', money(п.заработано), money(п.темп))}
+        </div>
+      )}
+    </>
+  )
+}
+
+/** Карточка цели «заработать». */
+function КарточкаЗаработка({ g, onEdit }: { g: Goal; onEdit: () => void }) {
+  const money = useДеньги()
+  const app = useApp()
+  const { data, upsertGoal } = useStore()
+  const удаление = useУдаление()
+  const п = прогрессЗаработка(g, data)
+  const категории = (g.earn?.categoryIds ?? []).map((id) => data.categories.find((c) => c.id === id)?.name).filter(Boolean)
+  const достигнута = п.осталось === 0
+  return (
+    <div className="card fx-glare goal-earn" style={цвѣтъПодсвѣтки(g.color)}>
+      <div className="row">
+        <Avatar icon={g.icon} color={g.color} size="lg" />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div className="row" style={{ gap: 7 }}>
+            <span className="strong">{g.name}</span>
+            <span className="badge">{п.ежемесячная ? т('заработать в месяц') : т('заработать')}</span>
+            {g.done && <span className="badge good">{т('закрыта')}</span>}
+          </div>
+          <div className="faint small">
+            {п.ежемесячная ? т('этот месяц') : g.targetDate ? т('до {0}', humanDate(g.targetDate, true)) : т('без срока')}
+            {' · '}{категории.length ? т('с категорий: {0}', категории.join(', ')) : т('все доходы')}
+          </div>
+        </div>
+        <button className="icon-btn" onClick={onEdit}>
+          <Icon name="edit" size={15} />
+        </button>
+      </div>
+
+      <div className="row" style={{ margin: '14px 0 6px', alignItems: 'baseline' }}>
+        <span className="num strong" style={{ fontSize: 21 }}><Money value={п.заработано} /></span>
+        <span className="faint">{тр('из {0}', money(g.targetAmount))}</span>
+        <span className="spacer" />
+        <span className="num faint">{Math.round(п.доля * 100)}%</span>
+      </div>
+      <div className="bar-track" style={{ height: 8 }}>
+        <div className="bar-fill" style={{ width: `${Math.min(100, п.доля * 100)}%`, background: g.color }} />
+      </div>
+
+      <div className="row wrap" style={{ marginTop: 12, gap: 18 }}>
+        <div className="stat">
+          <span className="l">{достигнута ? т('Цель') : т('Осталось заработать')}</span>
+          <span className={'v' + (достигнута ? ' pos' : '')} style={{ fontSize: 16 }}>{достигнута ? т('достигнута') : money(п.осталось)}</span>
+        </div>
+        {п.срокПрошёл && (
+          <div className="stat">
+            <span className="l">{т('Срок')}</span>
+            <span className="v neg" style={{ fontSize: 16 }}>{т('прошёл')}</span>
+            <span className="d faint">{т('поправьте дату или сумму')}</span>
+          </div>
+        )}
+        {!достигнута && п.нужноВМесяц != null && (
+          <div className="stat">
+            <span className="l">{т('Нужно в месяц')}</span>
+            <span className={'v ' + (п.успевает === false ? 'neg' : 'pos')} style={{ fontSize: 16 }}>{money(п.нужноВМесяц)}</span>
+            <span className="d faint">{тр('на {0}', monthsWord(п.месяцевДоСрока!))}</span>
+          </div>
+        )}
+        {!достигнута && п.нужноВДень != null && (
+          <div className="stat">
+            <span className="l">{т('Нужно в день')}</span>
+            <span className="v" style={{ fontSize: 16 }}>{money(п.нужноВДень)}</span>
+            <span className="d faint">{т('осталось дней: {0}', п.днейОсталось)}</span>
+          </div>
+        )}
+        <div className="stat">
+          <span className="l">{т('Ваш темп')}</span>
+          <span className={'v' + (п.успевает === false ? ' neg' : п.успевает ? ' pos' : '')} style={{ fontSize: 16 }}>{money(п.темп)}</span>
+          <span className="d faint">{т('в среднем за месяц')}</span>
+        </div>
+      </div>
+
+      {п.успевает === false && !достигнута && (
+        <div className="faint small" style={{ marginTop: 10, lineHeight: 1.5 }}>
+          {п.ежемесячная
+            ? т('Обычно в месяц приходит {0} — на {1} меньше цели.', money(п.темп), money(g.targetAmount - п.темп))
+            : т('При нынешнем темпе к сроку наберётся около {0} из {1}.', money(п.заработано + п.темп * (п.месяцевДоСрока ?? 0)), money(g.targetAmount))}
+        </div>
+      )}
+
+      <div className="row" style={{ marginTop: 12, gap: 6 }}>
+        {!g.done && (
+          <button
+            className="btn sm"
+            onClick={() => app.editTransaction({ kind: 'income', ...(g.earn?.categoryIds[0] ? { categoryId: g.earn.categoryIds[0] } : {}) })}
+          >
+            <Icon name="plus" size={13} /> {т(' Записать доход')}</button>
+        )}
+        <button className="btn sm ghost" onClick={() => upsertGoal({ ...g, done: !g.done })}>
+          {g.done ? т('Вернуть в работу') : т('Отметить закрытой')}
+        </button>
+        <span className="spacer" />
+        <button className="btn sm danger" onClick={() => удаление.цель(g.id)}>
+          <Icon name="trash" size={13} />
+        </button>
+      </div>
+    </div>
   )
 }
