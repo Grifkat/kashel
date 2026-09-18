@@ -3119,6 +3119,7 @@ async function правки107() {
 /** 1.0.8: цель «заработать» с выбором категорий. */
 async function цельЗаработатьЭкраны() {
   console.log('\n— цель «заработать» —')
+  check('подпись создателя внизу левой панели', (document.querySelector('.sidebar .sidebar-foot')?.textContent || '') === 'Создатель — Мостовой, г. Орск')
   const ввести = (поле: Element | null | undefined, значение: string) => {
     const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
     с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })

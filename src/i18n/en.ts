@@ -61,6 +61,7 @@ export const EN: Record<string, string> = {
   'Развернуть все группы': 'Expand all groups',
   'Свернуть все группы': 'Collapse all groups',
   'Есть новая версия': 'New version available',
+  'Создатель — Мостовой, г. Орск': 'Made by Mostovoy, Orsk',
   'Идёт работа': 'Focus',
   'Перерыв': 'Break',
   ' · пауза': ' · paused',
@@ -1463,6 +1464,7 @@ export const EN: Record<string, string> = {
   'Пикми ночная': 'Pick-me night',
   'Та же розовая с лиловым, но по сливовой темноте. Вечером глазам легче, и розовый на тёмном звучит резче.': 'The same pink and lilac, but on a plum-dark background. Easier on the eyes in the evening, and pink sounds sharper on dark.',
   // lib/versiya.ts
+  'Внизу левой панели и в «Настройках» → «О программе» — подпись создателя.': 'The creator’s signature now sits at the bottom of the left panel and in “Settings” → “About”.',
   'Цель «заработать»: не сколько отложить, а сколько принести дохода — к сроку или каждый месяц. Можно выбрать, с каких категорий идёт заработок (например, «Игры»), подкатегории считаются тоже. На карточке — заработано, сколько нужно в месяц или в день и ваш средний темп.': 'An “earn” goal: not how much to put aside but how much income to bring in — by a date or every month. You can choose which categories the earnings come from (say, “Games”); their subcategories count too. The card shows what is earned, how much is needed per month or per day, and your average pace.',
   'Линии в канвасе настраиваются: ломаная, изогнутая или прямая, толщина, пунктир или точки, стрелки и цвет. Кнопка «Линии» задаёт вид по умолчанию для всех досок, а щелчок по связи → «Вид линии» — вид одной связи. Новые линии по умолчанию ломаные, как в Miro.': 'Canvas lines can be styled: elbow, curved or straight, width, dashed or dotted, arrows and colour. The “Lines” button sets the default for all boards, and clicking a link → “Line style” styles just that link. New lines are elbow by default, as in Miro.',
   'Звуки: «Настройки» → «Звуки и уведомления» — выключатель, громкость и свой звук у каждого события, можно и свой файл. Помидор теперь звучит и на старте, а его звуки настраиваются прямо во вкладке «Таймер».': 'Sounds: “Settings” → “Sounds and alerts” — a switch, volume and a sound for each event, including your own file. The pomodoro now sounds at the start too, and its sounds can be set right on the “Timer” tab.',

@@ -69,6 +69,7 @@ export function ОПрограмме() {
         <span className="small o-programme-versiya">{т('Кошель, версия {0}', ВЕРСИЯ)}</span>
         <button className="btn sm" onClick={() => setОткрыто(true)}>{т('Что нового')}</button>
       </div>
+      <div className="faint small o-programme-sozdatel">{т('Создатель — Мостовой, г. Орск')}</div>
       {открыто && <ЧтоНовогоОкно выпуски={ВЫПУСКИ} onClose={() => setОткрыто(false)} />}
     </div>
   )

@@ -126,6 +126,20 @@ button, input, select, textarea { font: inherit; color: inherit; }
   overflow: hidden;
 }
 .sidebar.hidden { display: none; }
+.sidebar-foot {
+  flex-shrink: 0;
+  padding: 10px 14px 12px;
+  border-top: 1px solid var(--border-soft);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  /* Приглушённый, но не бледный: мелкий шрифт на --faint в светлых темах
+     проваливался ниже читаемого. */
+  color: color-mix(in srgb, var(--muted) 65%, var(--text));
+  text-wrap: balance;
+  user-select: text;
+}
+.o-programme-sozdatel { margin-top: 8px; }
 
 .sidebar-head {
   height: var(--tab-h);
