@@ -455,6 +455,25 @@ export interface Settings {
   /** Быстрый выбор цветов — везде, где выбирают цвет. Пусто — исходная палитра. */
   palette?: string[]
   hideBalance: boolean
+  /** Разделы на полосе значков слева, по порядку. Пусто — набор по умолчанию. */
+  ribbon?: string[]
+  /** Звуки событий — см. lib/zvuki. Пусто — звуки по умолчанию. */
+  sounds?: {
+    enabled?: boolean
+    /** 0…1 */
+    volume?: number
+    /** Событие → звук: встроенный, 'none', 'auto' или 'file'. */
+    events?: Partial<Record<string, string>>
+    /** Событие → свой файл в хранилище (attachments/…). */
+    files?: Partial<Record<string, string>>
+  }
+  /** Уведомления: большая плашка и системные уведомления Windows. */
+  notices?: {
+    /** Системные уведомления, когда окно свёрнуто или в трее. Пусто — включены. */
+    system?: boolean
+  }
+  /** Линии канваса по умолчанию — для всех досок. */
+  canvasLines?: Partial<ВидЛинии>
   /** Чем заполняется новая задача. Пусто — трата, без важности, во «Входящие», без срока. */
   taskDefaults?: ЗадачаПоУмолчанию
   forecastHorizon: number
@@ -567,12 +586,27 @@ export interface CanvasEdge {
   label?: string
   arrow?: EdgeArrow
   flow?: boolean // ребро-денежный поток: толщина по сумме
-  /** Форма линии. Пусто — как задано у доски. */
+  /** Форма линии. Пусто — как в настройках линий по умолчанию. */
   shape?: EdgeShape
+  /** Толщина, px. Пусто — по умолчанию. У денежного потока толщину задаёт оборот. */
+  width?: number
+  /** Штрих. Пусто — по умолчанию. */
+  dash?: EdgeDash
 }
 
-/** Изогнутая или прямая связь. */
-export type EdgeShape = 'curve' | 'line'
+/** Изогнутая, прямая или ломаная с прямыми углами (как в Miro). */
+export type EdgeShape = 'curve' | 'line' | 'elbow'
+export type EdgeDash = 'solid' | 'dash' | 'dot'
+
+/** Вид линии: настройки по умолчанию для всех досок и своё у каждой связи. */
+export interface ВидЛинии {
+  shape: EdgeShape
+  width: number
+  dash: EdgeDash
+  arrow: EdgeArrow
+  /** Пусто — приглушённый цвет темы. */
+  color?: string
+}
 
 /** Оформление карточек: у каждой доски своё. */
 export type CardStyle = 'rich' | 'minimal' | 'flat'
@@ -581,7 +615,10 @@ export interface CanvasDoc {
   nodes: CanvasNode[]
   edges: CanvasEdge[]
   cardStyle?: CardStyle
-  /** Форма связей по умолчанию у этой доски. Пусто — изогнутые. */
+  /**
+   * Форма связей у этой доски — из версий до настроек линий. Действует,
+   * пока в настройках не выбрана форма линий по умолчанию.
+   */
   edgeShape?: EdgeShape
   /** Цвета быстрого доступа в меню карточки — свои у каждой доски. */
   quickColors?: string[]

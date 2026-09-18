@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Icon } from '../../lib/icons'
 
 export interface MenuItem {
@@ -17,7 +17,10 @@ export interface MenuItem {
 
 /**
  * Меню у точки экрана: используется и по правому клику, и при отпускании
- * стрелки на пустом месте. Умеет один уровень вложенности и палитру.
+ * стрелки на пустом месте. Вложенность — любая: «Добавить» в меню по
+ * правому клику само подменю, а «Счёт» и «Категория» в нём — ещё уровень.
+ * Прежде меню помнило одно раскрытое подменю на всё меню, и щелчок по
+ * «Счёт» внутри «Добавить» сворачивал «Добавить» целиком.
  */
 export function ContextMenu({
   x,
@@ -32,19 +35,21 @@ export function ContextMenu({
   onClose(): void
   title?: string
 }) {
-  const [open, setOpen] = useState<string | null>(null)
+  /** Раскрытые подменю по уровням: [верхний, внутри него, …]. */
+  const [open, setOpen] = useState<string[]>([])
   const ref = useRef<HTMLDivElement>(null)
   const [pos, setPos] = useState({ x, y })
 
-  // Не даём меню уехать за край окна.
-  useEffect(() => {
+  // Не даём меню уехать за край окна — и когда раскрывается подменю: меню
+  // растёт вниз, и пункты у нижнего края иначе уходили за окно.
+  useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
     const r = el.getBoundingClientRect()
     const maxX = window.innerWidth - r.width - 8
     const maxY = window.innerHeight - r.height - 8
     setPos({ x: Math.max(8, Math.min(x, maxX || x)), y: Math.max(8, Math.min(y, maxY || y)) })
-  }, [x, y])
+  }, [x, y, open])
 
   useEffect(() => {
     const away = (e: MouseEvent) => {
@@ -70,7 +75,7 @@ export function ContextMenu({
     }
   }, [onClose])
 
-  const row = (i: MenuItem, nested = false) => {
+  const row = (i: MenuItem, depth = 0): React.ReactNode => {
     if (i.swatches) {
       return (
         <div key={i.id} className="ctx-swatches">
@@ -92,11 +97,11 @@ export function ContextMenu({
     return (
       <button
         key={i.id}
-        className={'ctx-item' + (i.danger ? ' danger' : '') + (open === i.id ? ' open' : '')}
+        className={'ctx-item' + (i.danger ? ' danger' : '') + (open[depth] === i.id ? ' open' : '')}
         disabled={i.disabled}
         onClick={() => {
           if (i.children?.length) {
-            setOpen(open === i.id ? null : i.id)
+            setOpen((o) => (o[depth] === i.id ? o.slice(0, depth) : [...o.slice(0, depth), i.id]))
             return
           }
           i.onClick?.()
@@ -106,10 +111,20 @@ export function ContextMenu({
         {i.icon && <Icon name={i.icon} size={15} />}
         <span className="ctx-label">{i.label}</span>
         {i.hint && <kbd className="ctx-hint">{i.hint}</kbd>}
-        {i.children?.length ? <Icon name={open === i.id ? 'down' : 'right'} size={13} /> : null}
+        {i.children?.length ? <Icon name={open[depth] === i.id ? 'down' : 'right'} size={13} /> : null}
       </button>
     )
   }
+
+  const уровень = (list: MenuItem[], depth: number): React.ReactNode =>
+    list.map((i) => (
+      <React.Fragment key={i.id}>
+        {row(i, depth)}
+        {open[depth] === i.id && i.children && (
+          <div className={'ctx-sub' + (depth ? ' deep' : '')}>{уровень(i.children, depth + 1)}</div>
+        )}
+      </React.Fragment>
+    ))
 
   return (
     <div
@@ -120,14 +135,7 @@ export function ContextMenu({
       onContextMenu={(e) => e.preventDefault()}
     >
       {title && <div className="ctx-title">{title}</div>}
-      {items.map((i) => (
-        <React.Fragment key={i.id}>
-          {row(i)}
-          {open === i.id && i.children && (
-            <div className="ctx-sub">{i.children.map((c) => row(c, true))}</div>
-          )}
-        </React.Fragment>
-      ))}
+      {уровень(items, 0)}
     </div>
   )
 }

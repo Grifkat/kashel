@@ -9,6 +9,7 @@ import { StoreProvider } from '../src/state/store'
 import { ToastProvider } from '../src/components/ui'
 import { buildSeed, seedCanvas, seedNotes } from './fixture'
 import { THEMES } from '../src/lib/themes'
+import { оповестить } from '../src/components/Opoveshchenie'
 import { Boundary } from '../src/components/Boundary'
 import { applyArchive, archiveText, buildArchive, parseArchive } from '../src/engine/archive'
 import { bridge, listCanvases, listNotes, loadVault, readCanvas, saveCore, saveTransactions, writeCanvas } from '../src/state/vault'
@@ -1083,6 +1084,12 @@ async function конструкторъОформленія() {
   const новая = document.querySelector('.svoya-tema-new') as any
   check('в галерее есть «Своё оформление»', !!новая)
   click(новая)
+  await wait(400)
+  // Основу новой темы выбирают сами — берём ту же, что включена сейчас.
+  check('новая тема начинается с выбора основы', all('.modal .osnova-btn').length >= 10)
+  const включённая = (await loadVault()).settings.theme
+  const имяОсновы = THEMES.find((t) => t.id === включённая)?.name ?? ''
+  click(all('.modal .osnova-btn').find((b) => (b.textContent || '').trim() === имяОсновы))
   await wait(400)
   const окно = () => [...document.querySelectorAll('.modal')].find((м) => м.querySelector('.konstruktor')) as HTMLElement | undefined
   check('конструктор открылся', !!окно())
@@ -2580,10 +2587,14 @@ async function правкиЭкраны() {
   check('зажатое колесо на карточке двигает холст, а не карточку',
     (all('.cnode').find((c) => c.className.includes('cnode-t-task')) as HTMLElement)?.style.left === x0)
 
-  click(byText('.canvas-tools .seg button', 'Прямые'))
-  await wait(700)
+  click(document.querySelector('.canvas-tools .canvas-lines-btn'))
+  await wait(200)
+  click(document.querySelector('.canvas-lines-pop .liniya-shape-line'))
+  await wait(1300)
   const имяДоски = (document.querySelector('.canvas-tools select') as HTMLSelectElement).value
-  check('форма связей доски сохраняется', JSON.parse(ls.getItem(`kashel:canvas/${имяДоски}.canvas`) || '{}').edgeShape === 'line')
+  check('форма линий по умолчанию сохраняется — для всех досок', (await loadVault()).settings.canvasLines?.shape === 'line')
+  click(document.querySelector('.canvas-tools .canvas-lines-btn'))
+  await wait(150)
   click(document.querySelector('.canvas-tools [title="Переименовать доску"]'))
   await wait(100)
   const поле = document.querySelector('.canvas-rename')
@@ -2970,6 +2981,141 @@ async function правки106() {
   await wait(200)
 }
 
+/*
+ * 1.0.7: выбор дня, недели и периода; «Добавить» в меню канваса; линии;
+ * звуки и оповещения; полоса значков.
+ */
+async function правки107() {
+  console.log('\n— период, канвас, звуки, оповещения, полоса (1.0.7) —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+
+  // ------------------------------------------------ период на «Сводке»
+  await open('Дашборд')
+  const ярлык = () => (document.querySelector('.view .period-label')?.textContent || '').trim()
+  click(byText('.view .seg button', 'День'))
+  await wait(200)
+  const д = Number(today().slice(8))
+  check('«День» встаёт на сегодня, а не на давнюю дату', ярлык().includes(String(д)), ярлык())
+  click(document.querySelector('.view .period-label'))
+  await wait(200)
+  check('у дня открывается календарь по дням', !!document.querySelector('.period-pick.days') && all('.period-pick .datepop-day').length === 42)
+  const пятнадцатое = all('.period-pick .datepop-day').find((b) => !b.classList.contains('other') && b.textContent === '15')
+  click(пятнадцатое)
+  await wait(200)
+  check('щелчок по дню выбирает этот день', ярлык().includes('15') && !document.querySelector('.period-pick'), ярлык())
+  click(byText('.view .seg button', 'Неделя'))
+  await wait(200)
+  click(document.querySelector('.view .period-label'))
+  await wait(200)
+  const третье = all('.period-pick .datepop-day').find((b) => !b.classList.contains('other') && b.textContent === '3')
+  click(третье)
+  await wait(200)
+  check('у недели щелчок по дню берёт всю его неделю', /—/.test(ярлык()) && !document.querySelector('.period-pick'), ярлык())
+  click(byText('.view .seg button', 'Период'))
+  await wait(250)
+  check('«Период» сразу открывает календарь для выбора', !!document.querySelector('.period-pick.days'))
+  check('полей дат под строкой больше нет', !document.querySelector('.view .dashboard-custom-dates, .view input[type="date"]'))
+  const день = (n: string) => all('.period-pick .datepop-day').find((b) => !b.classList.contains('other') && b.textContent === n)
+  click(день('5'))
+  await wait(150)
+  check('после первого щелчка просит последний день', (document.querySelector('.period-pick-hint')?.textContent || '').includes('последний день'))
+  click(день('20'))
+  await wait(200)
+  check('второй щелчок задаёт период', /5.*—.*20/.test(ярлык()) && !document.querySelector('.period-pick'), ярлык())
+  click(byText('.view .seg button', 'Месяц'))
+  await wait(200)
+
+  // ------------------------------------------------ канвас: «Добавить» в меню
+  await open('Канвас')
+  await wait(500)
+  const карточек = () => all('.cnode').length
+  const было = карточек()
+  const полотно = document.querySelector('.canvas-wrap')!
+  полотно.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 420, clientY: 420 }))
+  await wait(250)
+  click(menuItem('Добавить'))
+  await wait(150)
+  click(all('.ctx-sub .ctx-item').find((b) => (b.textContent || '').trim() === 'Счёт'))
+  await wait(150)
+  check('в меню правой кнопки «Добавить → Счёт» раскрывается', all('.ctx-sub.deep .ctx-item').length > 0 && !!menuItem('Добавить'))
+  click(all('.ctx-sub.deep .ctx-item')[0])
+  await wait(500)
+  check('и добавляет карточку счёта', карточек() === было + 1, `${было} → ${карточек()}`)
+
+  // ------------------------------------------------ линии
+  const связи = () => all('.cv-hit')
+  if (связи().length) {
+    mouse(связи()[0] as any, 'mousedown', 300, 300)
+    mouse(dom.window, 'mouseup', 300, 300)
+    await wait(200)
+    click(byText('.edge-bar .btn', 'Вид линии'))
+    await wait(200)
+    check('у выделенной связи открывается «Вид линии»', !!document.querySelector('.edge-style-pop .liniya-panel'))
+    click(document.querySelector('.edge-style-pop .liniya-dash-dot'))
+    await wait(150)
+    click(document.querySelector('.edge-style-pop .liniya-shape-curve'))
+    await wait(900)
+    const линия = () => document.querySelector('.cv-edge.on path:not(.cv-hit)')
+    check('свой вид связи: точки и изгиб', (линия()?.getAttribute('stroke-dasharray') || '').startsWith('0 ') && /C/.test(линия()?.getAttribute('d') || ''))
+    click(document.querySelector('.edge-style-pop .liniya-reset'))
+    await wait(700)
+    check('«Как по умолчанию» возвращает вид из настроек', !(линия()?.getAttribute('stroke-dasharray') || '') && !document.querySelector('.edge-bar [title="Как по умолчанию"]'))
+    // ломаная по умолчанию
+    click(document.querySelector('.canvas-tools .canvas-lines-btn'))
+    await wait(200)
+    click(document.querySelector('.canvas-lines-pop .liniya-shape-elbow'))
+    click(document.querySelector('.canvas-lines-pop .liniya-w:nth-of-type(4)') ?? all('.canvas-lines-pop .liniya-w')[3])
+    await wait(1300)
+    const v = await loadVault()
+    check('умолчание линий: ломаная и толщина — для всех досок', v.settings.canvasLines?.shape === 'elbow' && v.settings.canvasLines?.width === 5,
+      JSON.stringify(v.settings.canvasLines))
+    check('ломаная рисуется прямыми отрезками с поворотами', /L.*Q/.test(all('.cv-edge path:not(.cv-hit)')[0]?.getAttribute('d') || ''))
+    click(document.querySelector('.canvas-tools .canvas-lines-btn'))
+    await wait(150)
+  }
+
+  // ------------------------------------------------ звуки и оповещения
+  await open('Настройки')
+  const карточкаЗвуков = () => document.querySelector('.view .nastroyki-zvuki')
+  check('в настройках есть «Звуки и уведомления»', !!карточкаЗвуков() && all('.view .nastroyki-zvuki .zvuki-row').length >= 7)
+  ввести(карточкаЗвуков()?.querySelector('.zvuki-task'), 'gong')
+  await wait(1300)
+  check('звук события выбирается', (await loadVault()).settings.sounds?.events?.task === 'gong')
+  click(byText('.view .nastroyki-zvuki .btn', 'Показать пример'))
+  await wait(300)
+  check('оповещение — большая плашка сверху', !!document.querySelector('.opov-stack .opov .opov-title'))
+  click(document.querySelector('.opov .opov-close'))
+  await wait(200)
+  оповестить({ title: 'Орденъ Св. Анны', body: 'За доходъ', вид: 'award' })
+  await wait(300)
+  check('награда — окно посередине', (document.querySelector('.opov-award')?.textContent || '').includes('Пожалована награда'))
+  click(byText('.opov-award .btn', 'Благодарствую'))
+  await wait(200)
+  check('окно награды закрывается', !document.querySelector('.opov-award'))
+  await open('Задачи')
+  click(byText('.view .seg button', 'Таймер'))
+  await wait(250)
+  check('во вкладке «Таймер» — звуки помидора', all('.view .zvuki-row').length === 3)
+
+  // ------------------------------------------------ полоса значков
+  document.querySelector('.ribbon')!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 20, clientY: 200 }))
+  await wait(250)
+  check('правый щелчок по полосе открывает её настройку', /Полоса значков/.test(document.querySelector('.modal')?.textContent || ''))
+  const задачи = all('.modal .lenta-row').find((r) => (r.querySelector('.lenta-name')?.textContent || '') === 'Задачи')
+  click(задачи?.querySelector('.toggle, input[type="checkbox"], [role="switch"]') ?? задачи?.lastElementChild)
+  await wait(1300)
+  check('раздел добавляется на полосу', ((await loadVault()).settings.ribbon ?? []).includes('tasks')
+    && all('.ribbon .ribbon-btn').some((b) => ((b as HTMLElement).title || '').startsWith('Задачи')))
+  click(byText('.modal-foot .btn', 'Как было'))
+  await wait(900)
+  check('«Как было» возвращает исходный набор', (await loadVault()).settings.ribbon === undefined)
+  click(byText('.modal-foot .btn', 'Готово'))
+  await wait(200)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -2996,6 +3142,7 @@ async function main() {
   await настройкаСводки()
   await ставкаКредита()
   await правки106()
+  await правки107()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

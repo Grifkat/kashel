@@ -10,7 +10,8 @@ import { addDays, addMonths, daysInMonth, humanDate, monthKey, monthTitle, parse
 import { isCatalogIcon, сЗначкомъ } from '../lib/catalog'
 import { Confirm, Field, Modal, MoneyInput, useToast } from '../components/ui'
 import { clock, usePomodoro } from '../components/PomodoroHost'
-import { playTone } from '../lib/sound'
+import { звук } from '../lib/zvuki'
+import { ЗвукиНастройки } from '../components/ZvukiNastroyki'
 import {
   daysWithTasks, isImportant, isOverdue, plannedTotals, PRIORITIES, priorityOf, QUADRANTS, quadrantOf,
   sortTasks, tasksOn, вЧетверть, переключитьВажность, времяВперёд, времяЗадачи, форматВремени, type Priority, type Quadrant,
@@ -128,7 +129,7 @@ function Строка({ t, onEdit, ещё }: { t: Task; onEdit: (t: Task) => voi
         onClick={() => {
           // Звонимъ только на закрытіи. Возвратъ въ работу — не событіе,
           // а исправленіе, и подтверждать его звономъ незачѣмъ.
-          if (!t.done) playTone('bell')
+          if (!t.done) звук(data.settings, 'task')
           upsertTask({ ...t, done: !t.done, doneAt: t.done ? undefined : today() })
         }}
       >
@@ -374,7 +375,7 @@ function Матрица({ onEdit }: { onEdit: (t: Task) => void }) {
                       className="icon-btn"
                       title={т('Сделано')}
                       onClick={() => {
-                        playTone('bell')
+                        звук(data.settings, 'task')
                         upsertTask({ ...t, done: true, doneAt: today() })
                       }}
                     >
@@ -475,7 +476,9 @@ function Таймер() {
           </Field>
         </div>
         <div className="faint small" style={{ lineHeight: 1.6 }}>
-          {т('Отсчёт идёт по часам, а не по тикам, поэтому не отстаёт, пока вы смотрите другие разделы. Таймер продолжает идти при переключении вкладок и останавливается только закрытием программы.')}</div>
+          {т('Отсчёт идёт по часам, а не по тикам, поэтому не отстаёт, пока вы смотрите другие разделы. Таймер продолжает идти при переключении вкладок и в трее, а о конце отрезка скажет и уведомление Windows.')}</div>
+        <div className="card-title" style={{ marginTop: 16 }}>{т('Звуки помидора')}</div>
+        <ЗвукиНастройки только={['pomodoroStart', 'pomodoroWorkEnd', 'pomodoroRestEnd']} кратко />
       </div>
 
       <div className="card">
@@ -558,7 +561,7 @@ export function TaskModal({ value, onClose }: { value: Task; onClose: () => void
       tags: t.tags,
       note: t.title,
     } as never)
-    playTone('bell')
+    звук(data.settings, 'task')
     upsertTask({ ...t, done: true, doneAt: today() })
     toast(т('Записано {0} и задача закрыта', money(t.amount)))
     onClose()

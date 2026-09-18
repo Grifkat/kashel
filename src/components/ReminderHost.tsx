@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react'
 import { useStore } from '../state/store'
 import { useToast } from './ui'
 import { dueReminders } from '../engine/reminders'
-import { playFile, playTone } from '../lib/sound'
-import { readAttachmentBase64 } from '../state/vault'
+import { проиграть, звукиВключены } from '../lib/zvuki'
+import { оповестить } from './Opoveshchenie'
 import { today } from '../lib/date'
 
 /*
@@ -36,25 +36,12 @@ export function ReminderHost() {
         if (показаны.current.has(ключ)) continue
         показаны.current.add(ключ)
 
-        toast(`${reminder.title} — ${detail}`)
+        оповестить({ title: reminder.title, body: detail, icon: 'bulb', tone: 'warn' })
 
-        // Системное уведомление приходит поверх других окон; если браузерный
-        // движок его запретил, тихо обходимся всплывающей подсказкой.
-        try {
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            new Notification(reminder.title, { body: detail, silent: reminder.sound !== 'none' })
-          }
-        } catch {
-          /* уведомления недоступны — не повод падать */
-        }
-
-        if (reminder.sound === 'file' && reminder.soundFile) {
-          void readAttachmentBase64(reminder.soundFile).then((b64) => {
-            if (b64) playFile('data:audio/mpeg;base64,' + b64)
-          })
-        } else if (reminder.sound !== 'none') {
-          playTone(reminder.sound)
-        }
+        // Системное уведомление Windows, когда окно не на виду, шлёт само
+        // оповещение. Звук — свой у напоминания, но выключатель и громкость
+        // из «Звуков» действуют и на него.
+        if (звукиВключены(data.settings)) проиграть(reminder.sound, data.settings, reminder.soundFile)
 
         upsertReminder({ ...reminder, lastFired: день })
       }

@@ -1,4 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { НастройкаЛенты } from './components/NastroykaLenty'
 import { буква } from './lib/klavishi'
 import { ClickSparkLayer, ShinyText, useПодсвѣткаЗаКурсоромъ } from './components/effects'
 import { useAnimLevel } from './components/anim'
@@ -17,6 +18,7 @@ import { ThemePicker } from './components/ThemePicker'
 import { ArchiveProvider } from './components/ArchiveHost'
 import { ReminderHost } from './components/ReminderHost'
 import { HonorsHost } from './components/HonorsHost'
+import { OpoveshchenieHost } from './components/Opoveshchenie'
 import { UvedomleniyaHost, UvedomleniyaKnopka } from './components/Uvedomleniya'
 import { ЧтоНовогоХост } from './components/ChtoNovogo'
 import { PomodoroProvider, clock, usePomodoro } from './components/PomodoroHost'
@@ -435,6 +437,7 @@ export default function App() {
       <PomodoroProvider>
       <ReminderHost />
       <HonorsHost />
+      <OpoveshchenieHost />
       <UvedomleniyaHost />
       <ЧтоНовогоХост />
       <div className="app">
@@ -565,14 +568,30 @@ const RIBBON: { view: ViewId; hint: string }[] = [
   { view: 'graph', hint: т('Граф') },
 ]
 
+/** Разделы, которые можно поставить на полосу, — все, кроме настроек (они внизу всегда). */
+export const РАЗДЕЛЫ_ЛЕНТЫ = (Object.keys(VIEW_META) as ViewId[])
+  .filter((v) => v !== 'settings')
+  .map((v) => ({ view: v, title: VIEW_META[v].title, icon: VIEW_META[v].icon }))
+export const ЛЕНТА_ИСХОДНАЯ: string[] = RIBBON.map((r) => r.view)
+
 function Ribbon({ onTheme }: { onTheme: () => void }) {
   const app = useApp()
   const store = useStore()
   const cur = app.activeTab?.view
   const обновленіе = useЕстьОбновленіе()
+  const [настройка, setНастройка] = useState(false)
+  // Свой набор разделов — из настроек; незнакомые (из более новой версии) пропускаем.
+  const разделы = (store.data.settings.ribbon ?? ЛЕНТА_ИСХОДНАЯ).filter((v): v is ViewId => v in VIEW_META && v !== 'settings')
 
   return (
-    <div className="ribbon">
+    <div
+      className="ribbon"
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setНастройка(true)
+      }}
+    >
+      {настройка && <НастройкаЛенты все={РАЗДЕЛЫ_ЛЕНТЫ} исходные={ЛЕНТА_ИСХОДНАЯ} onClose={() => setНастройка(false)} />}
       {/* Единственная кнопка левой панели — и в ленте, а не на самой панели:
           кнопка, которая прячется вместе с тем, что прячет, вернуть его уже
           не может. Так и было: свернул — и развернуть нечем. */}
@@ -594,14 +613,14 @@ function Ribbon({ onTheme }: { onTheme: () => void }) {
         <Icon name="plus" size={19} />
       </button>
       <div style={{ height: 8 }} />
-      {RIBBON.map((r) => (
+      {разделы.map((v) => (
         <button
-          key={r.view}
-          className={'ribbon-btn' + (cur === r.view ? ' active' : '')}
-          title={r.hint}
-          onClick={() => app.openTab(r.view)}
+          key={v}
+          className={'ribbon-btn' + (cur === v ? ' active' : '')}
+          title={VIEW_META[v].title + т(' · правый щелчок — настроить полосу')}
+          onClick={() => app.openTab(v)}
         >
-          <Icon name={VIEW_META[r.view].icon} size={18} />
+          <Icon name={VIEW_META[v].icon} size={18} />
         </button>
       ))}
       <div className="ribbon-spacer" />

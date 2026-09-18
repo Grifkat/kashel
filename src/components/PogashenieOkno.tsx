@@ -6,7 +6,7 @@ import { SchetVybor } from './SchetVybor'
 import { useУдаление } from './Udalenie'
 import { humanDate, today } from '../lib/date'
 import { money, plural, uid } from '../lib/format'
-import { звукЗаписи } from '../lib/sound'
+import { звукЗаписи } from '../lib/zvuki'
 import { счётПоУмолчанию, остатокДолга } from '../engine/stats'
 import { назначеніе, планъПлатежа } from '../engine/credit'
 import {
@@ -182,7 +182,7 @@ export function PogashenieOkno({ цель, onClose }: { цель: ЦельПог
       for (const с of п.статьи) upsertCategory(с)
       const ids = п.операціи.map((о) => addTransaction(о).id)
       закрытьУведомление(ids)
-      звукЗаписи('expense', data.settings.saveSound)
+      звукЗаписи(data.settings, 'expense')
       toast(т('Платёж {0} по кредиту «{1}» записан', money(сумма), кредит.name))
       onClose()
       return
@@ -201,7 +201,7 @@ export function PogashenieOkno({ цель, onClose }: { цель: ЦельПог
       return
     }
     addTransaction(операция)
-    звукЗаписи(уходят ? 'expense' : 'income', data.settings.saveSound)
+    звукЗаписи(data.settings, уходят ? 'expense' : 'income')
     toast(`${операция.note} — ${money(сумма)}`)
     onClose()
   }

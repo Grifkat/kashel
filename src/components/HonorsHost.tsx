@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useStore } from '../state/store'
-import { useToast } from './ui'
-import { playTone } from '../lib/sound'
+import { оповестить } from './Opoveshchenie'
 import { freshAwards } from '../engine/honors'
 import { today } from '../lib/date'
 import { т } from '../i18n'
@@ -23,7 +22,6 @@ import { т } from '../i18n'
  */
 export function HonorsHost() {
   const { data, ready, patchHonors } = useStore()
-  const toast = useToast()
   const первыйРазъ = useRef(true)
 
   useEffect(() => {
@@ -43,9 +41,11 @@ export function HonorsHost() {
       первыйРазъ.current = false
       return
     }
-    playTone('bell')
-    for (const a of свѣжія.slice(0, 3)) toast(т('Пожаловано: {0} — {1}', a.title, a.about))
-  }, [data, ready, patchHonors, toast])
+    // Награда — окно посередине, а не подсказка в углу: её прежде не замечали.
+    свѣжія.slice(0, 3).forEach((a, i) =>
+      оповестить({ title: a.title, body: a.about, вид: 'award', ...(i === 0 ? { звук: 'award' as const } : {}) }),
+    )
+  }, [data, ready, patchHonors])
 
   return null
 }

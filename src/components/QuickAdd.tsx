@@ -10,7 +10,7 @@ import { useKategoriyaMenyu } from './KategoriyaMenyu'
 import { деревоКатегорий, родитель } from '../engine/podkategorii'
 import { PALETTE } from '../lib/emoji'
 import type { Category } from '../lib/types'
-import { звукЗаписи } from '../lib/sound'
+import { звукЗаписи } from '../lib/zvuki'
 import { addMonths, relDate, today } from '../lib/date'
 import { groupDigits, money, uid } from '../lib/format'
 import { Icon } from '../lib/icons'
@@ -129,7 +129,7 @@ export function QuickAdd({
       tags: draft.tags,
       note: draft.note || undefined,
     } as Omit<Transaction, 'id' | 'createdAt'>)
-    звукЗаписи(kind, data.settings.saveSound)
+    звукЗаписи(data.settings, kind)
     // Счёт называется в подтверждении: иначе запись на «не тот» счёт
     // выглядела как несохранённая.
     toast(т('{0} {1} записан на «{2}»', kind === 'income' ? т('Доход') : т('Расход'), money(draft.amount), счётЗаписи?.name ?? ''))

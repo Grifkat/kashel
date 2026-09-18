@@ -5,7 +5,7 @@ import { SchetVybor } from './SchetVybor'
 import { Icon } from '../lib/icons'
 import { humanDate, today } from '../lib/date'
 import { money } from '../lib/format'
-import { playTone } from '../lib/sound'
+import { оповестить } from './Opoveshchenie'
 import { счётПоУмолчанию } from '../engine/stats'
 import { ждущія, новыеУведомления, отклонить, очиститьИсторію, подтвердитьПлатёж, уведомленія } from '../engine/uvedomleniya'
 import type { Notice, VaultData } from '../lib/types'
@@ -43,16 +43,8 @@ export function UvedomleniyaHost() {
       for (const n of новые) {
         const acc = данные.current.accounts.find((a) => a.id === n.accountId)
         const текстъ = т('Сегодня платёж по кредиту «{0}» — {1}. Прошёл?', acc?.name ?? '', money(n.amount))
-        toast(текстъ)
-        try {
-          if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-            new Notification(т('Платёж по кредиту'), { body: текстъ })
-          }
-        } catch {
-          /* системные уведомления недоступны — хватит всплывающей подсказки */
-        }
+        оповестить({ title: т('Платёж по кредиту'), body: текстъ, icon: 'credit', tone: 'warn', звук: 'notice' })
       }
-      playTone('bell')
     }
     проверить()
     const t = setInterval(проверить, ПЕРИОД_МС)

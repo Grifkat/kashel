@@ -23,6 +23,8 @@ export interface Bridge {
   saveText(name: string, text: string, opts?: SaveTextOpts): Promise<string | null>
   openImage(): Promise<{ name: string; base64: string } | null>
   openSound(): Promise<{ name: string; base64: string } | null>
+  /** Системное уведомление Windows. Нет в браузерном режиме. */
+  notify?(п: { title: string; body?: string }): Promise<boolean>
   /** Настройки оболочки: трей и язык встроенного выбора даты. */
   shellPrefs?(prefs: { tray?: boolean; dateFormat?: 'ru' | 'us'; language?: 'ru' | 'en' }): Promise<boolean>
   /** Оболочка просит дописать правки перед выходом. Только на рабочем столе. */

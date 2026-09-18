@@ -37,6 +37,8 @@ contextBridge.exposeInMainWorld('kashel', {
   saveText: (name, text, opts) => ipcRenderer.invoke('dialog:saveText', name, text, opts),
   openImage: () => ipcRenderer.invoke('dialog:openImage'),
   openSound: () => ipcRenderer.invoke('dialog:openSound'),
+  /** Системное уведомление: {title, body}. */
+  notify: (п) => ipcRenderer.invoke('notify:show', п),
 
   // Архив, с которым программу запустили двойным кликом.
   pendingArchive: () => ipcRenderer.invoke('archive:pending'),

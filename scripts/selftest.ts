@@ -21,7 +21,9 @@ import { вывестиТокены, значеніеДопустимо, кон�
 import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
 import { платежиМесяца } from '../src/engine/platezhi'
-import { lineOf } from '../src/components/canvas/geometry'
+import { elbowOf, lineOf, pathOf, pointAt } from '../src/components/canvas/geometry'
+import { безСвоегоВида, линииПоУмолчанию, свойВид, видСвязи, штрихЛинии } from '../src/components/canvas/linii'
+import { громкость, звукиВключены, звукСобытия } from '../src/lib/zvuki'
 import { связьПодКарточкой, встроитьВСвязь } from '../src/components/canvas/vstavka'
 import { буква } from '../src/lib/klavishi'
 import { платёжАннуитета, подобратьСтавку, прикидкаСтавки } from '../src/engine/stavka'
@@ -37,7 +39,7 @@ import {
   isImportant, isOverdue, isUrgent, plannedByMonth, priorityOf, quadrantOf, sortTasks, вЧетверть, переключитьВажность, daysWithTasks, форматВремени, времяВперёд, plannedTotals,
 } from '../src/engine/tasks'
 import {
-  address, awards, freshAwards, levelOf, RANKS, romanClass, standing, traits, xpBreakdown, XP_STEPS,
+  address, awards, BRANCH_NAMES, freshAwards, levelOf, RANKS, romanClass, standing, traits, xpBreakdown, XP_STEPS,
 } from '../src/engine/honors'
 import { знакъЕсть, ключъЗнака } from '../src/lib/znaki'
 import { всеТеги, переименоватьТег } from '../src/engine/tegi'
@@ -3130,6 +3132,42 @@ function правки103() {
   check('архив хранит «потраченное время» и минуты', ра[0]?.moneyKind === 'time' && ра[0]?.minutes === 75 && ра[1]?.moneyKind === 'time' && ра[1]?.minutes === undefined)
 }
 
+function линииИЗвуки() {
+  console.log('\n— линии канваса и звуки —')
+  // Ломаная: каждый отрезок горизонтален или вертикален, концы — на карточках.
+  const прямоугольна = (c: ReturnType<typeof elbowOf>) =>
+    !!c.poly && c.poly.slice(1).every((q, i) => Math.abs(q.x - c.poly![i].x) < 0.01 || Math.abs(q.y - c.poly![i].y) < 0.01)
+  const вправо = elbowOf({ x: 0, y: 0 }, 'right', { x: 200, y: 120 }, 'left')
+  check('ломаная справа налево — только прямые углы', прямоугольна(вправо), JSON.stringify(вправо.poly))
+  check('ломаная начинается и кончается на краях карточек', вправо.poly![0].x === 0 && вправо.poly!.at(-1)!.x === 200 && вправо.poly!.at(-1)!.y === 120)
+  const вниз = elbowOf({ x: 0, y: 0 }, 'bottom', { x: 150, y: 200 }, 'left')
+  check('ломаная снизу вбок — один поворот посередине', прямоугольна(вниз) && вниз.poly!.length <= 5, JSON.stringify(вниз.poly))
+  const ровно = elbowOf({ x: 0, y: 50 }, 'right', { x: 300, y: 50 }, 'left')
+  check('на одной высоте ломаная — прямая без лишних точек', ровно.poly!.length === 2, JSON.stringify(ровно.poly))
+  check('точка посередине ломаной — на её пути', Math.abs(pointAt(ровно, 0.5).x - 150) < 0.01 && pointAt(ровно, 0.5).y === 50)
+  check('путь ломаной скругляет повороты', /Q/.test(pathOf(вправо)) && pathOf(вправо).startsWith('M0,0'))
+
+  // Вид линии: своё поверх умолчания, умолчание — поверх доски.
+  const s = { ...data.settings, canvasLines: undefined }
+  const доска = { nodes: [], edges: [], edgeShape: 'line' as const }
+  check('без настроек новые линии ломаные', линииПоУмолчанию(s).shape === 'elbow' && линииПоУмолчанию(s).arrow === 'end')
+  check('доска из прежней версии держит свою форму', линииПоУмолчанию(s, доска).shape === 'line')
+  check('выбранная форма по умолчанию главнее формы доски', линииПоУмолчанию({ ...s, canvasLines: { shape: 'curve' } }, доска).shape === 'curve')
+  const умолч = линииПоУмолчанию({ ...s, canvasLines: { dash: 'dash', width: 3 } })
+  const связь = { id: 'e', fromNode: 'a', fromSide: 'right' as const, toNode: 'b', toSide: 'left' as const, width: 5 }
+  const вид = видСвязи(связь, умолч)
+  check('связь берёт своё поле и умолчание для остальных', вид.width === 5 && вид.dash === 'dash' && вид.shape === 'elbow')
+  check('«как по умолчанию» стирает свой вид', !свойВид(безСвоегоВида({ ...связь, dash: 'dot', color: '#fff', label: 'x' })) && безСвоегоВида({ ...связь, label: 'x' }).label === 'x')
+  check('пунктир и точки — разные штрихи, сплошная — без штриха', штрихЛинии('solid', 2) === undefined && штрихЛинии('dot', 2)!.startsWith('0 ') && !штрихЛинии('dash', 2)!.startsWith('0 '))
+
+  // Звуки.
+  check('по умолчанию: запись — «вверх/вниз», помидор на старте щёлкает', звукСобытия(s, 'save') === 'auto' && звукСобытия(s, 'pomodoroStart') === 'click')
+  check('старая галочка «без звука записи» учитывается', звукСобытия({ ...s, saveSound: false }, 'save') === 'none')
+  check('свой звук события главнее умолчания', звукСобытия({ ...s, sounds: { events: { task: 'gong' } } }, 'task') === 'gong')
+  check('громкость по умолчанию — 70%, выключатель по умолчанию включён', громкость(s) === 0.7 && звукиВключены(s) && !звукиВключены({ ...s, sounds: { enabled: false } }))
+  check('чины и ордена — по-русски на любом языке', RANKS.civil[1] === 'Провинціальный секретарь' && BRANCH_NAMES.civil === 'Гражданская лѣстница')
+}
+
 function повторыЗадач() {
   console.log('\n— регулярные задачи —')
   const база: Task = { id: 'tk_run', title: 'Пробежка', done: false, important: false, priority: 1, due: '2026-09-18', tags: ['спорт'], order: 0, createdAt: '2026-09-18' }
@@ -3262,6 +3300,7 @@ async function завершить() {
   ставкаПоПлатежу()
   повторыЗадач()
   акцентИЦвета()
+  линииИЗвуки()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

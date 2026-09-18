@@ -98,6 +98,12 @@ export function КонструкторТемы({ исходная, onClose }: { 
     простыяИзъТокеновъ(исходная?.tokens ?? токеныОсновы(текущаяОснова), исходная?.accent ?? действующийАкцент(data.settings)),
   )
   const [удалить, setУдалить] = useState(false)
+  /*
+   * Основу новой темы выбирают сами, каждый раз. Прежде она молча бралась
+   * из включённого оформления, и человек не понимал, откуда взялось
+   * «Стекло». У правки готовой темы основа уже есть.
+   */
+  const [основаВыбрана, setОсноваВыбрана] = useState(!!исходная)
   const поле = useRef<HTMLInputElement>(null)
 
   // Что уйдёт в тему: в простом режиме — основа плюс выведенное, в полном —
@@ -188,6 +194,34 @@ export function КонструкторТемы({ исходная, onClose }: { 
   }, [итогъ, accent])
 
   const группы = [...new Set(ТОКЕНЫ.map((тм) => тм.group))]
+
+  if (!основаВыбрана) {
+    return (
+      <Modal title={т('Своё оформление')} icon="palette" wide onClose={onClose}>
+        <div className="strong" style={{ marginBottom: 4 }}>{т('С чего начнём?')}</div>
+        <div className="faint small" style={{ marginBottom: 14, lineHeight: 1.5 }}>
+          {т('Выберите основу: от неё тема возьмёт устройство — шапку, кнопки, шрифт, светлая она или тёмная. Цвета потом поменяете как угодно.')}</div>
+        <div className="grid c3 osnova-grid" style={{ gap: 10 }}>
+          {THEMES.map((t) => (
+            <button
+              key={t.id}
+              type="button"
+              className="osnova-btn"
+              title={t.about}
+              onClick={() => {
+                смѣнитьОснову(t.id)
+                setAccent(t.accent)
+                setОсноваВыбрана(true)
+              }}
+            >
+              <ThemeThumb theme={t} size={0.85} />
+              <span className="small strong">{t.name}</span>
+            </button>
+          ))}
+        </div>
+      </Modal>
+    )
+  }
 
   return (
     <Modal

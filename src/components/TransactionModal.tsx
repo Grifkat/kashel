@@ -18,7 +18,7 @@ import { KategoriyaVybor } from './KategoriyaVybor'
 import { useKategoriyaMenyu } from './KategoriyaMenyu'
 import { деревоКатегорий, родитель } from '../engine/podkategorii'
 import { useApp } from '../App'
-import { звукЗаписи } from '../lib/sound'
+import { звукЗаписи } from '../lib/zvuki'
 
 const KIND_LABEL: Record<TxKind, string> = {
   expense: т('Расход'),
@@ -223,7 +223,7 @@ export function TransactionModal({
       if (!кредитъ) { toast(т('Выберите кредит')); return }
       if (!планъ) { toast(т('Выберите карту, с которой платите, — не сам кредит')); return }
       записатьПлатёжъ(планъ)
-      if (!isEdit) звукЗаписи('expense', data.settings.saveSound)
+      if (!isEdit) звукЗаписи(data.settings, 'expense')
       toast(isEdit ? т('Операция обновлена') : т('Платёж {0} по кредиту «{1}» записан', money(amount), кредитъ.name))
       onClose()
       return
@@ -270,7 +270,7 @@ export function TransactionModal({
       toast(т('Операция обновлена'))
     } else {
       addTransaction({ ...payload } as Omit<Transaction, 'id' | 'createdAt'>)
-      звукЗаписи(kind, data.settings.saveSound)
+      звукЗаписи(data.settings, kind)
       toast(т('{0} {1} записан на «{2}»', KIND_LABEL[kind], money(amount), data.accounts.find((a) => a.id === accountId)?.name ?? ''))
     }
     onClose()

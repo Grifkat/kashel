@@ -333,6 +333,29 @@
   backdrop-filter: var(--panel-blur);
 }
 .edge-bar-sep { width: 1px; height: 18px; background: var(--border); margin: 0 3px; }
+.edge-bar .btn.on { color: var(--accent-ink); }
+.edge-style-pop, .canvas-lines-pop {
+  position: absolute; top: calc(100% + 8px); z-index: 41; width: 300px;
+  background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius-lg);
+  box-shadow: var(--shadow); padding: 12px;
+}
+.edge-style-pop { left: 50%; transform: translateX(-50%); }
+.canvas-lines-pop { left: 0; }
+
+/* --------------------------------------------------------- вид линии */
+.liniya-panel { display: flex; flex-direction: column; gap: 8px; }
+.liniya-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
+.liniya-label { width: 64px; flex-shrink: 0; font-size: 12px; color: var(--muted); }
+.liniya-opt {
+  display: grid; place-items: center; width: 44px; height: 30px; padding: 0;
+  border: 1px solid var(--border-soft); border-radius: var(--radius-sm, 8px);
+  background: var(--panel-2); color: var(--muted); cursor: pointer;
+}
+.liniya-opt:hover { color: var(--text); border-color: var(--border); }
+.liniya-opt.on { color: var(--accent-ink); border-color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, var(--panel)); }
+.liniya-row .ctx-swatch.on { outline: 2px solid var(--text); outline-offset: 1px; }
+.liniya-auto { background: conic-gradient(var(--faint) 0 50%, var(--panel-2) 0) !important; border: 1px solid var(--border); }
+.liniya-reset { align-self: flex-start; }
 
 /* --------------------------------------------------------- контекстное меню */
 .ctx-menu {
@@ -346,6 +369,8 @@
   padding: 5px;
   z-index: 500;
   backdrop-filter: var(--panel-blur);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
 }
 
 .ctx-title {
@@ -385,6 +410,9 @@
   padding-left: 8px;
   border-left: 1px solid var(--border-soft);
 }
+/* Подменю, внутри которого раскрыто ещё одно, не прокручивается само —
+   иначе вышли бы две полосы прокрутки одна в другой. */
+.ctx-sub:has(> .ctx-sub) { max-height: none; overflow: visible; }
 
 .ctx-swatches { display: flex; gap: 6px; padding: 6px 10px; flex-wrap: wrap; }
 .ctx-swatch {
@@ -588,3 +616,15 @@
 }
 
 .pal-name { font-size: 12px; color: var(--muted); }
+
+/* Карточка-задача: фон и рамка — цвет карточки, важность — отдельная полоса
+   слева. Прежде у задачи был ещё и фон важности, и выбранный цвет ложился
+   поверх красного: цвета смешивались в бурый. */
+.cnode-task.task-row { background: none; border-left: none; padding-left: 14px; position: relative; }
+.cnode-task.task-row::before {
+  content: ''; position: absolute; left: 4px; top: 8px; bottom: 8px; width: 4px; border-radius: 2px;
+  background: transparent;
+}
+.cnode-task.task-row.p1::before { background: var(--info); }
+.cnode-task.task-row.p2::before { background: var(--warn); }
+.cnode-task.task-row.p3::before { background: var(--alert); }

@@ -53,6 +53,8 @@ export interface Curve {
   p1: Point
   p2: Point
   p3: Point
+  /** Ломаная: точки от начала до конца. Тогда p1 и p2 не используются. */
+  poly?: Point[]
 }
 
 export function curveOf(p0: Point, s0: Side, p3: Point, s3: Side): Curve {
@@ -67,17 +69,89 @@ export function curveOf(p0: Point, s0: Side, p3: Point, s3: Side): Curve {
   }
 }
 
+/**
+ * Ломаная с прямыми углами, как соединитель в Miro. От карточки линия
+ * выходит перпендикулярно её краю, поворачивает посередине и входит в
+ * другую карточку тоже перпендикулярно.
+ */
+export function elbowOf(p0: Point, s0: Side, p3: Point, s3: Side): Curve {
+  const ВЫХОД = 22
+  const o0 = offsetOf(s0, ВЫХОД)
+  const o3 = offsetOf(s3, ВЫХОД)
+  const a = { x: p0.x + o0.x, y: p0.y + o0.y }
+  const b = { x: p3.x + o3.x, y: p3.y + o3.y }
+  const гор = (s: Side) => s === 'left' || s === 'right'
+  let середина: Point[]
+  if (гор(s0) && гор(s3)) {
+    const mx = (a.x + b.x) / 2
+    середина = [{ x: mx, y: a.y }, { x: mx, y: b.y }]
+  } else if (!гор(s0) && !гор(s3)) {
+    const my = (a.y + b.y) / 2
+    середина = [{ x: a.x, y: my }, { x: b.x, y: my }]
+  } else if (гор(s0)) {
+    середина = [{ x: b.x, y: a.y }]
+  } else {
+    середина = [{ x: a.x, y: b.y }]
+  }
+  const все = [p0, a, ...середина, b, p3]
+  // Лишние точки: совпавшие и лежащие на одной прямой с соседями.
+  const poly: Point[] = []
+  for (const p of все) {
+    const last = poly[poly.length - 1]
+    if (last && Math.abs(last.x - p.x) < 0.5 && Math.abs(last.y - p.y) < 0.5) continue
+    const prev = poly[poly.length - 2]
+    if (prev && last && ((Math.abs(prev.x - last.x) < 0.5 && Math.abs(last.x - p.x) < 0.5) || (Math.abs(prev.y - last.y) < 0.5 && Math.abs(last.y - p.y) < 0.5))) {
+      poly[poly.length - 1] = p
+      continue
+    }
+    poly.push(p)
+  }
+  return { p0, p1: a, p2: b, p3, poly }
+}
+
 /** Прямая связь — та же кривая, только с опорными точками на самой прямой. */
 export function lineOf(p0: Point, p3: Point): Curve {
   const at = (k: number): Point => ({ x: p0.x + (p3.x - p0.x) * k, y: p0.y + (p3.y - p0.y) * k })
   return { p0, p1: at(1 / 3), p2: at(2 / 3), p3 }
 }
 
-export const pathOf = (c: Curve): string =>
-  `M${c.p0.x},${c.p0.y} C${c.p1.x},${c.p1.y} ${c.p2.x},${c.p2.y} ${c.p3.x},${c.p3.y}`
+export function pathOf(c: Curve): string {
+  if (!c.poly) return `M${c.p0.x},${c.p0.y} C${c.p1.x},${c.p1.y} ${c.p2.x},${c.p2.y} ${c.p3.x},${c.p3.y}`
+  // Углы ломаной слегка скруглены: острый угол в тонкой линии выглядит
+  // как ошибка отрисовки, а скруглённый — как намеренный поворот.
+  const p = c.poly
+  let d = `M${p[0].x},${p[0].y}`
+  for (let i = 1; i < p.length - 1; i++) {
+    const a = p[i - 1], b = p[i], n = p[i + 1]
+    const r = Math.min(10, Math.hypot(b.x - a.x, b.y - a.y) / 2, Math.hypot(n.x - b.x, n.y - b.y) / 2)
+    const к = (from: Point, to: Point, len: number) => {
+      const l = Math.hypot(to.x - from.x, to.y - from.y) || 1
+      return { x: from.x + ((to.x - from.x) / l) * len, y: from.y + ((to.y - from.y) / l) * len }
+    }
+    const до = к(b, a, r)
+    const после = к(b, n, r)
+    d += ` L${до.x},${до.y} Q${b.x},${b.y} ${после.x},${после.y}`
+  }
+  const last = p[p.length - 1]
+  return d + ` L${last.x},${last.y}`
+}
 
 /** Точка на кубической кривой — нужна для подписи и для попадания мышью. */
 export function pointAt(c: Curve, t: number): Point {
+  if (c.poly) {
+    // Точка на ломаной — по доле общей длины.
+    const p = c.poly
+    const длины = p.slice(1).map((q, i) => Math.hypot(q.x - p[i].x, q.y - p[i].y))
+    let остаток = Math.max(0, Math.min(1, t)) * длины.reduce((a, b) => a + b, 0)
+    for (let i = 0; i < длины.length; i++) {
+      if (остаток <= длины[i] || i === длины.length - 1) {
+        const k = длины[i] ? Math.min(1, остаток / длины[i]) : 0
+        return { x: p[i].x + (p[i + 1].x - p[i].x) * k, y: p[i].y + (p[i + 1].y - p[i].y) * k }
+      }
+      остаток -= длины[i]
+    }
+    return p[p.length - 1]
+  }
   const u = 1 - t
   return {
     x: u * u * u * c.p0.x + 3 * u * u * t * c.p1.x + 3 * u * t * t * c.p2.x + t * t * t * c.p3.x,

@@ -11,16 +11,18 @@ import { CANVAS_COLORS, DEFAULT_QUICK_COLORS, colorName } from '../lib/emoji'
 import { deleteCanvas, listCanvases, listNotes, readCanvas, readNote, renameCanvas, writeCanvas } from '../state/vault'
 import { TaskModal, пустая as пустаяЗадача } from './Tasks'
 import { криваяСвязи, связьПодКарточкой, встроитьВСвязь } from '../components/canvas/vstavka'
-import { sortTasks } from '../engine/tasks'
+import { безСвоегоВида, линииПоУмолчанию, свойВид, видСвязи, штрихЛинии } from '../components/canvas/linii'
+import { НастройкаЛинии } from '../components/canvas/NastroykaLinii'
+import { priorityOf, sortTasks } from '../engine/tasks'
 import { safeFileName } from '../engine/archive'
-import type { EdgeShape, Task } from '../lib/types'
+import type { ВидЛинии, EdgeShape, Task } from '../lib/types'
 import { Confirm, useToast } from '../components/ui'
 import { ContextMenu, type MenuItem } from '../components/canvas/ContextMenu'
 import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData } from '../components/canvas/nodes'
 import { ColorPalette } from '../components/canvas/ColorPalette'
 import { FIT_MODES, TextToolbar, wrapSelection } from '../components/canvas/TextToolbar'
 import {
-  anchor, bestSides, boundsOf, curveOf, inRect, lineOf, midpoint, pathOf, pointAt, rectFrom, rectsOverlap,
+  anchor, bestSides, boundsOf, curveOf, elbowOf, inRect, lineOf, midpoint, pathOf, pointAt, rectFrom, rectsOverlap,
   sideTowards, snapToNeighbours, SIDES, type Guide, type Point, type Rect,
 } from '../components/canvas/geometry'
 import type {
@@ -162,9 +164,12 @@ function ПанельНадъКарточкой({
   )
 }
 
+/** Цвет важности задачи — тот же, что у строк в «Задачах». */
+const ЦВЕТ_ВАЖНОСТИ = ['var(--accent)', 'var(--info)', 'var(--warn)', 'var(--alert)']
+
 export default function CanvasView({ name }: { name?: string }) {
   const app = useApp()
-  const { data, upsertTask, отметитьДействие } = useStore()
+  const { data, upsertTask, отметитьДействие, patchSettings } = useStore()
   const toast = useToast()
   const удаление = useУдаление()
 
@@ -176,6 +181,11 @@ export default function CanvasView({ name }: { name?: string }) {
   const [view, setView] = useState({ x: 420, y: 260, k: ZOOM_DEFAULT })
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [selEdge, setSelEdge] = useState<string | null>(null)
+  /** У какой связи открыта панель «Вид линии». */
+  const [стильСвязи, setСтильСвязи] = useState<string | null>(null)
+  const линииСейчас = useRef<Partial<ВидЛинии> | undefined>(undefined)
+  /** Открыта ли панель «Линии по умолчанию». */
+  const [линииОткрыты, setЛинииОткрыты] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [period, setPeriod] = useState<'1m' | '3m' | '12m'>('3m')
   const [menu, setMenu] = useState<{ x: number; y: number; title?: string; items: MenuItem[] } | null>(null)
@@ -428,7 +438,6 @@ export default function CanvasView({ name }: { name?: string }) {
             fromSide: fs,
             toNode: node.id,
             toSide: ts,
-            arrow: 'end',
             flow: src.type === 'account' || node.type === 'account',
           })
         }
@@ -1004,7 +1013,7 @@ export default function CanvasView({ name }: { name?: string }) {
         if (next) touch(next)
         // Одна карточка без своих связей над линией — подсвечиваем, куда встанет. Alt — не встраивать.
         if (d.mode === 'node' && d.id && d.start?.size === 1) {
-          const под = next && !e.altKey ? связьПодКарточкой(next, d.id) : null
+          const под = next && !e.altKey ? связьПодКарточкой(next, d.id, линииПоУмолчанию(data.settings, next).shape) : null
           setВставкаВ((было) => (было === под ? было : под))
         }
         return
@@ -1046,7 +1055,7 @@ export default function CanvasView({ name }: { name?: string }) {
       if ((d.mode === 'node' || d.mode === 'resize') && d.moved && d.before) {
         let final = dragResult(d, e.clientX, e.clientY) ?? docRef.current
         if (d.mode === 'node' && d.id && d.start?.size === 1 && !e.altKey) {
-          const под = связьПодКарточкой(final, d.id)
+          const под = связьПодКарточкой(final, d.id, линииПоУмолчанию(data.settings, final).shape)
           if (под) {
             final = встроитьВСвязь(final, под, d.id, () => uid('e'))
             toast(т('Карточка встроена в связь'))
@@ -1075,7 +1084,6 @@ export default function CanvasView({ name }: { name?: string }) {
                 fromSide: d.side!,
                 toNode: target.id,
                 toSide: sideTowards(target, w),
-                arrow: 'end',
                 flow: src.type === 'account' || target.type === 'account',
               },
             ],
@@ -1209,12 +1217,23 @@ export default function CanvasView({ name }: { name?: string }) {
   }, [undo, redo, copySelection, paste, duplicate, sel, selEdge, removeEdge, removeNodes, nodeById, editing, patchNode, zoomBy, zoomWith])
 
   // ------------------------------------------------------------- рендер
+  /** Линии по умолчанию: одни на все доски, см. components/canvas/linii. */
+  const линии = линииПоУмолчанию(data.settings, doc)
+  // Последнее записанное: два быстрых щелчка иначе читали бы один и тот же
+  // снимок настроек, и второй затирал первый.
+  линииСейчас.current = data.settings.canvasLines
+  const задатьЛинии = (p: Partial<ВидЛинии>) => {
+    const next: Partial<ВидЛинии> = { ...(линииСейчас.current ?? {}), ...p }
+    if ('color' in p && !p.color) delete next.color
+    линииСейчас.current = next
+    patchSettings({ canvasLines: next })
+  }
   const selectedEdge = selEdge ? doc.edges.find((e) => e.id === selEdge) : null
   const edgeCurve = (e: CanvasEdge) => {
     const a = nodeById.get(e.fromNode)
     const b = nodeById.get(e.toNode)
     if (!a || !b) return null
-    return криваяСвязи(doc, e)
+    return криваяСвязи(doc, e, линии.shape)
   }
 
   if (!current) {
@@ -1260,14 +1279,19 @@ export default function CanvasView({ name }: { name?: string }) {
       {/* ---------------------------------------------------- связи */}
       <svg className="canvas-edges">
         <defs>
-          <marker id="cv-arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <marker id="cv-arrow" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="8" refY="5" orient="auto">
             <path d="M0,1 L9,5 L0,9 z" fill="var(--faint)" />
           </marker>
-          <marker id="cv-arrow-sel" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto">
+          <marker id="cv-arrow-sel" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="8" refY="5" orient="auto">
             <path d="M0,1 L9,5 L0,9 z" fill="var(--accent)" />
           </marker>
-          <marker id="cv-arrow-back" markerWidth="10" markerHeight="10" refX="2" refY="5" orient="auto">
+          <marker id="cv-arrow-back" viewBox="0 0 10 10" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="2" refY="5" orient="auto">
             <path d="M9,1 L0,5 L9,9 z" fill="var(--faint)" />
+          </marker>
+          {/* Наконечники линий со своим видом: цвет — у самой линии, размер —
+              от толщины, но в разумных пределах. */}
+          <marker id="cv-arr" viewBox="0 0 10 10" markerWidth="4.5" markerHeight="4.5" refX="7.5" refY="5" orient="auto-start-reverse">
+            <path d="M0,0.8 L9.5,5 L0,9.2 z" fill="context-stroke" />
           </marker>
         </defs>
         <g transform={`translate(${vx},${vy}) scale(${view.k})`}>
@@ -1275,11 +1299,18 @@ export default function CanvasView({ name }: { name?: string }) {
             const c = edgeCurve(e)
             if (!c) return null
             const amount = e.flow ? flowAmount(e) : 0
-            const w = e.flow ? 1.6 + (amount / maxFlow) * 9 : 2
+            const вид = видСвязи(e, линии)
+            // Денежному потоку толщину задаёт оборот; остальным — вид линии.
+            const w = e.flow ? 1.6 + (amount / maxFlow) * 9 : вид.width
             const mid = midpoint(c)
             const on = selEdge === e.id
-            const arrow = e.arrow ?? 'end'
+            const arrow = вид.arrow
             const from = nodeById.get(e.fromNode)
+            // Наконечник: у потока — прежний, постоянного размера (толщина там
+            // до десяти пикселей, и пропорциональный наконечник вырос бы
+            // непомерно); у прочих — по толщине и цвету линии.
+            const конец = e.flow ? (on ? 'url(#cv-arrow-sel)' : 'url(#cv-arrow)') : 'url(#cv-arr)'
+            const начало = e.flow ? 'url(#cv-arrow-back)' : 'url(#cv-arr)'
             return (
               <g
                 key={e.id}
@@ -1310,11 +1341,14 @@ export default function CanvasView({ name }: { name?: string }) {
                 <path
                   d={pathOf(c)}
                   fill="none"
-                  stroke={on ? 'var(--accent)' : e.color ?? (e.flow ? from?.color ?? 'var(--faint)' : 'var(--faint)')}
+                  stroke={on ? 'var(--accent)' : вид.color ?? (e.flow ? from?.color ?? 'var(--faint)' : 'var(--faint)')}
                   strokeWidth={on ? w + 1 : w}
-                  opacity={on ? 0.95 : e.flow ? 0.5 : 0.75}
-                  markerEnd={arrow === 'none' ? undefined : on ? 'url(#cv-arrow-sel)' : 'url(#cv-arrow)'}
-                  markerStart={arrow === 'both' ? 'url(#cv-arrow-back)' : undefined}
+                  strokeDasharray={штрихЛинии(вид.dash, Math.min(w, 4))}
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  opacity={on ? 0.95 : e.flow ? 0.5 : 0.8}
+                  markerEnd={arrow === 'none' ? undefined : конец}
+                  markerStart={arrow === 'both' ? начало : undefined}
                   pointerEvents="none"
                 />
                 {(e.label || (e.flow && amount > 0)) && view.k > 0.45 && (
@@ -1360,9 +1394,11 @@ export default function CanvasView({ name }: { name?: string }) {
             <path
               // Конец кривой заходит в курсор со стороны, противоположной началу,
               // иначе на коротком расстоянии связь закручивается петлёй.
-              d={pathOf((doc.edgeShape ?? 'curve') === 'line'
+              d={pathOf(линии.shape === 'line'
                 ? lineOf(ghost.from, ghost.to)
-                : curveOf(ghost.from, ghost.side, ghost.to, opposite(ghost.side)))}
+                : линии.shape === 'elbow'
+                  ? elbowOf(ghost.from, ghost.side, ghost.to, opposite(ghost.side))
+                  : curveOf(ghost.from, ghost.side, ghost.to, opposite(ghost.side)))}
               className="cv-ghost"
               markerEnd="url(#cv-arrow-sel)"
             />
@@ -1396,7 +1432,9 @@ export default function CanvasView({ name }: { name?: string }) {
                 top: n.y,
                 width: n.width,
                 height: n.height,
-                '--cnode-color': n.color || 'var(--accent)',
+                // Задача без своего цвета горит цветом важности; со своим — своим,
+                // а важность остаётся полосой слева (см. canvas.css).
+                '--cnode-color': n.color || (n.type === 'task' && info?.task ? ЦВЕТ_ВАЖНОСТИ[priorityOf(info.task)] : 'var(--accent)'),
               } as React.CSSProperties}
               onMouseDown={(e) => {
                 if (e.button === 2) return
@@ -1520,40 +1558,33 @@ export default function CanvasView({ name }: { name?: string }) {
               style={{ width: 120, padding: '3px 8px' }}
             />
             <span className="edge-bar-sep" />
-            {CANVAS_COLORS.map((c2) => (
+            <button
+              className={'btn sm ghost edge-style-btn' + (стильСвязи === selectedEdge.id ? ' on' : '')}
+              title={т('Вид этой линии: форма, толщина, штрих, стрелки, цвет')}
+              onClick={() => setСтильСвязи((v) => (v === selectedEdge.id ? null : selectedEdge.id))}
+            >
+              <Icon name="flow" size={14} /> {т(' Вид линии')}</button>
+            {свойВид(selectedEdge) && (
               <button
-                key={c2.key}
-                className="ctx-swatch sm"
-                style={{ background: c2.hex }}
-                title={c2.key}
-                onClick={() => patchEdge(selectedEdge.id, { color: c2.hex })}
-              />
-            ))}
-            <span className="edge-bar-sep" />
-            {(['end', 'both', 'none'] as EdgeArrow[]).map((a) => (
-              <button
-                key={a}
-                className={'icon-btn' + ((selectedEdge.arrow ?? 'end') === a ? ' active' : '')}
-                title={a === 'end' ? т('Стрелка в конце') : a === 'both' ? т('В обе стороны') : т('Без стрелки')}
-                onClick={() => patchEdge(selectedEdge.id, { arrow: a })}
+                className="icon-btn"
+                title={т('Как по умолчанию')}
+                onClick={() => commit({ ...docRef.current, edges: docRef.current.edges.map((x) => (x.id === selectedEdge.id ? безСвоегоВида(x) : x)) })}
               >
-                <Icon name={a === 'end' ? 'arrowRight' : a === 'both' ? 'repeat' : 'minus'} size={15} />
+                <Icon name="repeat" size={15} />
               </button>
-            ))}
-            <span className="edge-bar-sep" />
-            {(['curve', 'line'] as EdgeShape[]).map((f) => (
-              <button
-                key={f}
-                className={'icon-btn edge-shape-' + f + ((selectedEdge.shape ?? doc.edgeShape ?? 'curve') === f ? ' active' : '')}
-                title={f === 'curve' ? т('Изогнутая связь') : т('Прямая связь')}
-                onClick={() => patchEdge(selectedEdge.id, { shape: f })}
-              >
-                <Icon name={f === 'curve' ? 'flow' : 'minus'} size={15} />
-              </button>
-            ))}
+            )}
             <button className="icon-btn" title={т('Удалить связь (Del)')} onClick={() => removeEdge(selectedEdge.id)}>
               <Icon name="trash" size={15} />
             </button>
+            {стильСвязи === selectedEdge.id && (
+              <div className="edge-style-pop">
+                <НастройкаЛинии
+                  value={видСвязи(selectedEdge, линии)}
+                  onChange={(v) => patchEdge(selectedEdge.id, v)}
+                  onReset={свойВид(selectedEdge) ? () => commit({ ...docRef.current, edges: docRef.current.edges.map((x) => (x.id === selectedEdge.id ? безСвоегоВида(x) : x)) }) : undefined}
+                />
+              </div>
+            )}
           </div>
         )
       })()}
@@ -1627,16 +1658,29 @@ export default function CanvasView({ name }: { name?: string }) {
           ))}
         </div>
         <span className="tool-sep" />
-        <div className="seg" title={т('Форма связей на доске')}>
-          {(['curve', 'line'] as EdgeShape[]).map((f) => (
-            <button
-              key={f}
-              className={(doc.edgeShape ?? 'curve') === f ? 'on' : ''}
-              onClick={() => commit({ ...doc, edgeShape: f })}
-            >
-              {f === 'curve' ? т('Изогнутые') : т('Прямые')}
-            </button>
-          ))}
+        <div style={{ position: 'relative' }}>
+          <button
+            className={'btn sm canvas-lines-btn' + (линииОткрыты ? ' on' : '')}
+            title={т('Линии по умолчанию — для всех досок')}
+            onClick={() => setЛинииОткрыты((v) => !v)}
+          >
+            <Icon name="flow" size={14} /> {т(' Линии')}</button>
+          {линииОткрыты && (
+            <>
+              <div className="period-pick-shade" onMouseDown={() => setЛинииОткрыты(false)} />
+              <div className="card canvas-lines-pop">
+                <div className="strong" style={{ marginBottom: 2 }}>{т('Линии по умолчанию')}</div>
+                <div className="faint small" style={{ marginBottom: 10, lineHeight: 1.45 }}>
+                  {т('Для всех досок. Линии, которые вы не меняли по отдельности, сразу примут этот вид; свой вид связи — щелчок по ней → «Вид линии».')}</div>
+                <НастройкаЛинии
+                  value={линии}
+                  onChange={задатьЛинии}
+                  onReset={data.settings.canvasLines ? () => patchSettings({ canvasLines: undefined }) : undefined}
+                  resetLabel={т('Вернуть исходные')}
+                />
+              </div>
+            </>
+          )}
         </div>
         <span className="tool-sep" />
         <div className="seg">
@@ -1738,10 +1782,23 @@ export default function CanvasView({ name }: { name?: string }) {
         label: т('Форма'),
         icon: 'flow',
         children: [
+          { id: 'elbow', label: т('Ломаная'), onClick: () => patchEdge(e.id, { shape: 'elbow' }) },
           { id: 'curve', label: т('Изогнутая'), onClick: () => patchEdge(e.id, { shape: 'curve' }) },
           { id: 'line', label: т('Прямая'), onClick: () => patchEdge(e.id, { shape: 'line' }) },
         ],
       },
+      {
+        id: 'style',
+        label: т('Вид линии…'),
+        icon: 'flow',
+        onClick: () => {
+          setSelEdge(e.id)
+          setСтильСвязи(e.id)
+        },
+      },
+      ...(свойВид(e)
+        ? [{ id: 'reset', label: т('Как по умолчанию'), icon: 'repeat', onClick: () => commit({ ...docRef.current, edges: docRef.current.edges.map((x) => (x.id === e.id ? безСвоегоВида(x) : x)) }) }]
+        : []),
       { id: 'flow', label: e.flow ? т('Не показывать оборот') : т('Показывать оборот'), icon: 'flow', onClick: () => patchEdge(e.id, { flow: !e.flow }) },
       { id: 'del', label: т('Удалить связь'), icon: 'trash', danger: true, hint: 'Del', onClick: () => removeEdge(e.id) },
     ]

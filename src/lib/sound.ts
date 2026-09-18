@@ -41,6 +41,24 @@ const TONES: Record<string, { hz: number; at: number; len: number; type: Oscilla
     { hz: 740, at: 0, len: 0.14, type: 'sine' },
     { hz: 740, at: 0.19, len: 0.18, type: 'sine' },
   ],
+  chime: [
+    { hz: 784, at: 0, len: 0.3, type: 'sine' },
+    { hz: 988, at: 0.12, len: 0.3, type: 'sine' },
+    { hz: 1175, at: 0.24, len: 0.5, type: 'sine' },
+  ],
+  pop: [{ hz: 1046, at: 0, len: 0.09, type: 'sine' }, { hz: 1568, at: 0.035, len: 0.12, type: 'sine' }],
+  click: [{ hz: 1800, at: 0, len: 0.035, type: 'square' }, { hz: 1200, at: 0.05, len: 0.03, type: 'square' }],
+  gong: [
+    { hz: 110, at: 0, len: 1.6, type: 'sine' },
+    { hz: 220, at: 0, len: 1.1, type: 'sine' },
+    { hz: 331, at: 0, len: 0.8, type: 'triangle' },
+  ],
+  fanfare: [
+    { hz: 523, at: 0, len: 0.16, type: 'triangle' },
+    { hz: 659, at: 0.14, len: 0.16, type: 'triangle' },
+    { hz: 784, at: 0.28, len: 0.16, type: 'triangle' },
+    { hz: 1047, at: 0.42, len: 0.55, type: 'triangle' },
+  ],
 }
 
 // Один контекст на всю программу: браузеры ограничивают их число, а создавать
@@ -64,9 +82,10 @@ function audio(): AudioContext | null {
  * Затухание обязательно: без него осциллятор обрывается на середине волны
  * и вместо мягкого тона слышен щелчок.
  */
-export function playTone(id: ReminderSound): void {
+export function playTone(id: ReminderSound | string, громкость = 1): void {
   const notes = TONES[id]
-  if (notes) сыграть(notes, 0.22)
+  // Щелчок — прямоугольная волна, она громче синусоиды той же силы.
+  if (notes && громкость > 0) сыграть(notes, 0.22 * громкость * (id === 'click' ? 0.35 : 1))
 }
 
 function сыграть(notes: { hz: number; at: number; len: number; type: OscillatorType }[], громкость: number): void {
@@ -106,22 +125,16 @@ const ЗАПИСЬ: Record<'income' | 'expense', { hz: number; at: number; len: 
   ],
 }
 
-/** Звук записи. `включено` — настройка saveSound; пусто значит «включено». */
-export function звукЗаписи(kind: string, включено?: boolean): void {
-  if (включено === false) return
-  if (kind !== 'income' && kind !== 'expense') return
-  try {
-    сыграть(ЗАПИСЬ[kind], 0.12)
-  } catch {
-    /* звука нет — запись от этого не хуже */
-  }
+/** Тон записи: доход — две ноты вверх, расход — вниз. */
+export function тонЗаписи(kind: 'income' | 'expense', громкость = 1): void {
+  if (громкость > 0) сыграть(ЗАПИСЬ[kind], 0.12 * громкость)
 }
 
 /** Проигрывает свой файл человека. Ошибку глотаем: звук — не повод падать. */
-export function playFile(dataUrl: string): void {
+export function playFile(dataUrl: string, громкость = 0.7): void {
   try {
     const el = new Audio(dataUrl)
-    el.volume = 0.7
+    el.volume = Math.max(0, Math.min(1, громкость))
     void el.play().catch(() => {})
   } catch {
     /* нет звуковой карты или формат не поддержан — молчим */

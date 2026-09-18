@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage } = require('electron')
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu, Tray, nativeImage, Notification } = require('electron')
 const path = require('node:path')
 const fs = require('node:fs')
 const fsp = require('node:fs/promises')
@@ -236,6 +236,7 @@ function makeTray() {
 
 function показать() {
   if (!win) return createWindow()
+  win.flashFrame(false)
   if (win.isMinimized()) win.restore()
   win.show()
   win.focus()
@@ -372,6 +373,9 @@ if (!app.requestSingleInstanceLock()) {
   })
 
   app.whenReady().then(() => {
+    // Без этого имени Windows не показывает уведомления программы: оно же
+    // записано в ярлык установщиком (appId в package.json).
+    if (process.platform === 'win32') app.setAppUserModelId('ru.kashel.app')
     buildMenu()
     createWindow()
     // Хранилище готовим ПОСЛЕ окна. Раньше бросок ensureVault (несуществующий
@@ -770,6 +774,39 @@ ipcMain.handle('dialog:openImage', async () => {
   if (res.canceled || !res.filePaths[0]) return null
   const buf = await fsp.readFile(res.filePaths[0])
   return { name: path.basename(res.filePaths[0]), base64: buf.toString('base64') }
+})
+
+/*
+ * Системное уведомление Windows. Окно зовёт его, когда само не на виду —
+ * свёрнуто, спрятано в трей или под другими окнами: тогда плашку внутри
+ * программы никто не увидит. Щелчок по уведомлению возвращает окно.
+ * Звук у уведомления свой, программный, — системный выключаем, чтобы не
+ * звенело дважды.
+ */
+const живыеУведомления = new Set()
+ipcMain.handle('notify:show', (_e, п) => {
+  try {
+    if (!Notification.isSupported()) return false
+    const png = path.join(__dirname, '..', 'build', 'icon.png')
+    const n = new Notification({
+      title: String(п?.title ?? м('Кошель')).slice(0, 120),
+      body: String(п?.body ?? '').slice(0, 400),
+      silent: true,
+      ...(fs.existsSync(png) ? { icon: png } : {}),
+    })
+    // Уведомление держим до закрытия: иначе сборщик мусора уносит его
+    // вместе с обработчиком щелчка.
+    живыеУведомления.add(n)
+    const забыть = () => живыеУведомления.delete(n)
+    n.on('click', () => { забыть(); показать() })
+    n.on('close', забыть)
+    n.show()
+    // Значок на панели задач мигает, пока окно не откроют.
+    if (win && !win.isDestroyed() && !win.isFocused()) win.flashFrame(true)
+    return true
+  } catch {
+    return false
+  }
 })
 
 // Свой звук напоминания. Файл кладётся в хранилище — значит переживёт перенос

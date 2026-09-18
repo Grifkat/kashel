@@ -131,6 +131,15 @@ async function main() {
   )
   // переключатель языка подписан на обоих языках нарочно
   for (const w of ['язык', 'русский', 'схема', 'финансов']) изДанныхъ.add(w)
+  // Чины, обращения, лестницы и ордена — по-русски на любом языке окна нарочно.
+  const { RANKS, BRANCH_NAMES, address, awards } = await import('../src/engine/honors')
+  const имена = [
+    ...Object.values(RANKS).flat(), ...Object.values(BRANCH_NAMES),
+    ...Array.from({ length: 14 }, (_, i) => address(i + 1)),
+    ...awards(data).filter((a) => a.order).flatMap((a) => [a.order!, a.title]),
+    'ст.',
+  ]
+  for (const имя of имена) for (const w of имя.match(СЛОВО) ?? []) изДанныхъ.add(w.toLowerCase())
   seedStorage()
   const [{ createRoot }, { default: App }, { StoreProvider }, { ToastProvider }, { EN }, { MONTHS }] = await Promise.all([
     import('react-dom/client'),

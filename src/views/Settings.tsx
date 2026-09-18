@@ -3,7 +3,8 @@ import { копииДоступны } from '../state/rezerv'
 import { СвоиОформленія } from '../components/Konstruktor'
 import { порядокъДней, WEEKDAYS_FULL } from '../lib/date'
 import type { ДеньНедѣли } from '../lib/types'
-import { useApp } from '../App'
+import { useApp, РАЗДЕЛЫ_ЛЕНТЫ, ЛЕНТА_ИСХОДНАЯ } from '../App'
+import { НастройкаЛенты } from '../components/NastroykaLenty'
 import { isDesktop, useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, pct, plural } from '../lib/format'
@@ -22,7 +23,7 @@ import { ОПрограмме } from '../components/ChtoNovogo'
 import type { AnimLevel, Density, ReadingFont, ЗадачаПоУмолчанию } from '../lib/types'
 import { PRIORITIES } from '../engine/tasks'
 import { т, тр } from '../i18n'
-import { звукЗаписи } from '../lib/sound'
+import { ЗвукиНастройки } from '../components/ZvukiNastroyki'
 
 export default function SettingsView() {
   const app = useApp()
@@ -32,6 +33,7 @@ export default function SettingsView() {
   const archive = useArchive()
   const [wipeOpen, setWipeOpen] = useState(false)
   const [addAll, setAddAll] = useState(false)
+  const [лента, setЛента] = useState(false)
   /** Связано ли расширение .kashel с программой. Спрашиваем систему при входе. */
   const [assoc, setAssoc] = useState<AssocStatus | null>(null)
 
@@ -154,18 +156,13 @@ export default function SettingsView() {
             <ВыборАкцента />
           </div>
           <div className="row" style={{ marginBottom: 12 }}>
-            <span style={{ flex: 1 }}>{т('Скрывать баланс')}</span>
-            <Toggle checked={data.settings.hideBalance} onChange={(v) => patchSettings({ hideBalance: v })} />
+            <span style={{ flex: 1 }} title={т('Или правый щелчок по самой полосе')}>{т('Полоса значков слева')}</span>
+            <button className="btn sm" onClick={() => setЛента(true)}>{т('Настроить')}</button>
+            {лента && <НастройкаЛенты все={РАЗДЕЛЫ_ЛЕНТЫ} исходные={ЛЕНТА_ИСХОДНАЯ} onClose={() => setЛента(false)} />}
           </div>
           <div className="row" style={{ marginBottom: 12 }}>
-            <span style={{ flex: 1 }}>{т('Звук при записи операции')}</span>
-            <Toggle
-              checked={data.settings.saveSound !== false}
-              onChange={(v) => {
-                patchSettings({ saveSound: v })
-                if (v) звукЗаписи('income', true)
-              }}
-            />
+            <span style={{ flex: 1 }}>{т('Скрывать баланс')}</span>
+            <Toggle checked={data.settings.hideBalance} onChange={(v) => patchSettings({ hideBalance: v })} />
           </div>
           {/* Любой день, а не только понедельник или воскресенье: неделю
               удобно начинать и с собственного выходного. Меняет все календари
@@ -263,6 +260,12 @@ export default function SettingsView() {
               onChange={(e) => patchSettings({ monteCarloRuns: Number(e.target.value) })}
             />
           </Field>
+        </div>
+
+        {/* ------------------------------------------------ звуки */}
+        <div className="card nastroyki-zvuki">
+          <div className="card-title"><Icon name="bell" size={14} /> {т(' Звуки и уведомления')}</div>
+          <ЗвукиНастройки />
         </div>
 
         {/* ------------------------------------------------ новая задача */}

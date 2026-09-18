@@ -1,14 +1,14 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { копииДоступны } from '../state/rezerv'
 import { ОТМЕНА_МС } from '../components/Udalenie'
-import { DateField } from '../components/DateField'
+import { сеткаМесяца } from '../components/DateField'
 import { GradientText, Reveal } from '../components/effects'
 import { Amount, Money, useAnimatedList } from '../components/anim'
 import { useApp, useTabId } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
 import { money, moneyShort, pct, plural } from '../lib/format'
-import { addMonths, humanDate, monthKey, MONTHS_SHORT, monthTitle, parseISO, today, вСтрочную } from '../lib/date'
+import { addDays, addMonths, humanDate, monthKey, MONTHS_SHORT, monthTitle, parseISO, startOfWeek, today, WEEKDAYS, вСтрочную, порядокъДней } from '../lib/date'
 import {
   balances, balanceTimeline, categoryTotals, comparablePrev, entryDate, inPeriod, isAsset, makePeriod,
   monthlySeries, shiftPeriod, type Period, type PeriodKind,
@@ -277,7 +277,14 @@ export default function Dashboard() {
             <button
               key={p.k}
               className={period.kind === p.k ? 'on' : ''}
-              onClick={() => setPeriod(makePeriod(p.k, period.anchor, data.settings.firstDayOfWeek))}
+              onClick={() => {
+                // Якорь при смене вида: сегодня, если оно внутри нынешнего
+                // периода, иначе его первый день. Прежде якорь оставался от
+                // давнего выбора, и «День» прыгал на случайную дату.
+                const якорь = period.from <= today() && today() <= period.to ? today() : period.from
+                setPeriod(makePeriod(p.k, якорь, data.settings.firstDayOfWeek, p.k === 'custom' ? { from: period.from, to: period.to } : undefined))
+                if (p.k === 'custom') setВыборПериода(true)
+              }}
             >
               {p.t}
             </button>
@@ -291,17 +298,17 @@ export default function Dashboard() {
             <button
               className="btn ghost strong period-label"
               style={{ minWidth: 170, justifyContent: 'center' }}
-              title={т('Выбрать месяц или год')}
+              title={т('Выбрать период')}
               onClick={() => setВыборПериода((v) => !v)}
             >
               {period.label}
             </button>
             {выборПериода && (
               <ВыборПериода
-                anchor={period.anchor}
-                годом={period.kind === 'year'}
-                onPick={(anchor, kind) => {
-                  setPeriod(makePeriod(kind, anchor, data.settings.firstDayOfWeek))
+                period={period}
+                firstDay={data.settings.firstDayOfWeek ?? 1}
+                onPick={(anchor, kind, custom) => {
+                  setPeriod(makePeriod(kind, anchor, data.settings.firstDayOfWeek, custom))
                   setВыборПериода(false)
                 }}
                 onClose={() => setВыборПериода(false)}
@@ -319,25 +326,6 @@ export default function Dashboard() {
           >
             {т('Сегодня')}</button>
         </div>
-        {period.kind === 'custom' && (
-          <div className="row" style={{ gap: 6 }}>
-            <DateField
-              value={period.from}
-              style={{ width: 150 }}
-              onChange={(v) =>
-                setPeriod((p) => makePeriod('custom', p.anchor, data.settings.firstDayOfWeek, { from: v, to: p.to }))
-              }
-            />
-            <span className="faint">—</span>
-            <DateField
-              value={period.to}
-              style={{ width: 150 }}
-              onChange={(v) =>
-                setPeriod((p) => makePeriod('custom', p.anchor, data.settings.firstDayOfWeek, { from: p.from, to: v }))
-              }
-            />
-          </div>
-        )}
         <span className="spacer" />
         {кнопкаНастроить}
       </div>
@@ -811,14 +799,24 @@ export default function Dashboard() {
  * кнопкой. Для «Года» — выбор года. День и неделя переходят на первое число
  * выбранного месяца, свой период становится месяцем.
  */
-function ВыборПериода({ anchor, годом, onPick, onClose }: {
-  anchor: string
-  годом: boolean
-  onPick: (anchor: string, kind: PeriodKind) => void
+/**
+ * Окно выбора периода — у каждого вида своё: годы, месяцы, календарь по
+ * дням. Для недели щелчок по дню берёт всю его неделю, для «Периода» —
+ * два щелчка: начало и конец. Прежде день и неделю можно было только
+ * листать стрелками, а даты периода вводились полями под строкой.
+ */
+function ВыборПериода({ period, firstDay, onPick, onClose }: {
+  period: Period
+  firstDay: number
+  onPick: (anchor: string, kind: PeriodKind, custom?: { from: string; to: string }) => void
   onClose: () => void
 }) {
-  const [год, setГод] = useState(Number(anchor.slice(0, 4)))
-  const выбранМесяц = anchor.slice(0, 7)
+  const вид = period.kind
+  const [год, setГод] = useState(Number(period.anchor.slice(0, 4)))
+  const [месяц, setМесяц] = useState(monthKey(вид === 'custom' ? period.from : period.anchor))
+  const [начало, setНачало] = useState<string | null>(null)
+  const [над, setНад] = useState<string | null>(null)
+  const выбранМесяц = period.anchor.slice(0, 7)
   useEffect(() => {
     const esc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -829,22 +827,96 @@ function ВыборПериода({ anchor, годом, onPick, onClose }: {
     window.addEventListener('keydown', esc, true)
     return () => window.removeEventListener('keydown', esc, true)
   }, [onClose])
+
+  const поДням = вид === 'day' || вид === 'week' || вид === 'custom'
+  const дни = поДням ? сеткаМесяца(месяц, firstDay) : []
+  const порядок = порядокъДней(firstDay)
+  // Что подсвечено: неделя под мышью, выбранный день или диапазон.
+  const вДиапазоне = (д: string): boolean => {
+    if (вид === 'week') {
+      const н = над ? startOfWeek(над, firstDay) : period.from
+      return д >= н && д <= addDays(н, 6)
+    }
+    if (вид === 'custom') {
+      if (начало) {
+        const конец = над ?? начало
+        const [a, b] = начало <= конец ? [начало, конец] : [конец, начало]
+        return д >= a && д <= b
+      }
+      return д >= period.from && д <= period.to
+    }
+    return д === period.anchor
+  }
+  const щелчок = (д: string) => {
+    if (вид === 'day') onPick(д, 'day')
+    else if (вид === 'week') onPick(д, 'week')
+    else if (!начало) setНачало(д)
+    else {
+      const [from, to] = начало <= д ? [начало, д] : [д, начало]
+      onPick(from, 'custom', { from, to })
+    }
+  }
+
   return (
     <>
       <div className="period-pick-shade" onMouseDown={onClose} />
-      <div className="card period-pick" data-escape-layer="">
-        {годом ? (
+      <div className={'card period-pick' + (поДням ? ' days' : '')} data-escape-layer="">
+        {вид === 'year' ? (
           <div className="period-pick-grid">
             {Array.from({ length: 12 }, (_, i) => год - 8 + i).map((г) => (
               <button
                 key={г}
-                className={'btn sm' + (String(г) === anchor.slice(0, 4) ? ' primary' : '')}
+                className={'btn sm' + (String(г) === period.anchor.slice(0, 4) ? ' primary' : '')}
                 onClick={() => onPick(`${г}-01-01`, 'year')}
               >
                 {г}
               </button>
             ))}
           </div>
+        ) : поДням ? (
+          <>
+            <div className="datepop-head">
+              <button className="icon-btn" title={т('Предыдущий месяц')} onClick={() => setМесяц((м) => monthKey(addMonths(м + '-01', -1)))}>
+                <Icon name="left" size={14} />
+              </button>
+              <span className="datepop-title">{monthTitle(месяц)}</span>
+              <button className="icon-btn" title={т('Следующий месяц')} onClick={() => setМесяц((м) => monthKey(addMonths(м + '-01', 1)))}>
+                <Icon name="right" size={14} />
+              </button>
+            </div>
+            <div className="datepop-grid period-days" onMouseLeave={() => setНад(null)}>
+              {порядок.map((d) => <div key={d} className="datepop-wd">{WEEKDAYS[d]}</div>)}
+              {дни.map((д) => (
+                <button
+                  key={д}
+                  type="button"
+                  className={
+                    'datepop-day' +
+                    (monthKey(д) !== месяц ? ' other' : '') +
+                    (д === today() ? ' today' : '') +
+                    (вДиапазоне(д) ? (вид === 'day' || д === начало ? ' sel' : ' in-range') : '')
+                  }
+                  onMouseEnter={() => setНад(д)}
+                  onClick={() => щелчок(д)}
+                >
+                  {Number(д.slice(8))}
+                </button>
+              ))}
+            </div>
+            <div className="faint small period-pick-hint">
+              {вид === 'week'
+                ? т('Щёлкните любой день — выберется его неделя.')
+                : вид === 'custom'
+                  ? (начало ? т('Теперь — последний день периода.') : т('Щёлкните первый день периода, потом последний.'))
+                  : т('Щёлкните день.')}
+            </div>
+            <div className="datepop-foot">
+              <button className="btn sm ghost" onClick={() => onPick(today(), вид === 'custom' ? 'month' : вид)}>{т('Сегодня')}</button>
+              {вид === 'custom' && (
+                <span className="faint small">{начало ? humanDate(начало) + ' — …' : humanDate(period.from) + ' — ' + humanDate(period.to)}</span>
+              )}
+            </div>
+          </>
         ) : (
           <>
             <div className="row" style={{ marginBottom: 8 }}>

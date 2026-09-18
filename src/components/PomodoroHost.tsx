@@ -1,7 +1,8 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react'
 import { useStore } from '../state/store'
 import { useToast } from './ui'
-import { playTone } from '../lib/sound'
+import { звук } from '../lib/zvuki'
+import { оповестить } from './Opoveshchenie'
 import { т } from '../i18n'
 
 /*
@@ -69,9 +70,11 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   const start = useCallback(
     (id: string | null) => {
       setTaskId(id)
+      // Звук на старте: прежде помидор молчал, пока не кончится отрезок.
+      звук(data.settings, 'pomodoroStart')
       начать('work', Math.max(1, minutes.work) * 60)
     },
-    [начать, minutes.work],
+    [начать, minutes.work, data.settings],
   )
 
   const pause = useCallback(() => {
@@ -102,15 +105,25 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
         const t = data.tasks.find((x) => x.id === id)
         if (t) upsertTask({ ...t, pomodoros: (t.pomodoros ?? 0) + 1 })
       }
-      playTone('bell')
-      toast(т('Отрезок закрыт — перерыв {0} мин', Math.max(1, m.rest)))
+      const задача = id ? data.tasks.find((x) => x.id === id) : undefined
+      оповестить({
+        title: т('Отрезок закрыт — перерыв {0} мин', Math.max(1, m.rest)),
+        body: задача ? т('Засчитано задаче «{0}». Отдохните.', задача.title) : т('Встаньте, пройдитесь, посмотрите вдаль.'),
+        icon: 'clock',
+        tone: 'good',
+        звук: 'pomodoroWorkEnd',
+      })
       начать('rest', Math.max(1, m.rest) * 60)
     } else {
-      playTone('soft')
-      toast(т('Перерыв закончился'))
+      оповестить({
+        title: т('Перерыв закончился'),
+        body: т('Снова за работу — {0} мин.', Math.max(1, m.work)),
+        icon: 'clock',
+        звук: 'pomodoroRestEnd',
+      })
       начать('work', Math.max(1, m.work) * 60)
     }
-  }, [data.tasks, upsertTask, toast, начать])
+  }, [data.tasks, upsertTask, начать])
 
   useEffect(() => {
     if (phase === 'idle' || paused) return

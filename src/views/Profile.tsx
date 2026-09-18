@@ -65,7 +65,7 @@ export default function Profile() {
           style={{ maxWidth: 190 }}
           title={т('По какой лѣстницѣ считать чинъ')}
         >
-          {ВѢТВИ.map((b) => <option key={b} value={b}>{тр('{0} лѣстница', BRANCH_NAMES[b])}</option>)}
+          {ВѢТВИ.map((b) => <option key={b} value={b}>{BRANCH_NAMES[b]}</option>)}
         </select>
       </div>
 
@@ -82,7 +82,7 @@ export default function Profile() {
           <div className="faint small">{st.address}</div>
           <div className="gramota-rank">{st.rank}</div>
           <div className="faint small" style={{ marginTop: 2 }}>
-            {тр('{0} лѣстница · {1}-й уровень изъ 14{2}', BRANCH_NAMES[branch], st.level, данныйТитулъ(званія, data.honors?.pinned) && ` · ${данныйТитулъ(званія, data.honors?.pinned)}`)}</div>
+            {тр('{0} · {1}-й уровень изъ 14{2}', BRANCH_NAMES[branch], st.level, данныйТитулъ(званія, data.honors?.pinned) && ` · ${данныйТитулъ(званія, data.honors?.pinned)}`)}</div>
           <div className="xp-bar" title={т('{0} опыта', st.xp)}>
             <span style={{ width: `${Math.round(st.progress * 100)}%` }} />
           </div>
@@ -208,7 +208,7 @@ export default function Profile() {
                   }
                 >
                   <span className="medal-deg">{'IV III II I'.split(' ')[4 - (a.degree ?? 4)] ?? 'IV'}</span>
-                  {a.earned ? т('ст.') : `${Math.round(a.progress * 100)}%`}
+                  {a.earned ? 'ст.' : `${Math.round(a.progress * 100)}%`}
                 </span>
               ))}
             </div>
