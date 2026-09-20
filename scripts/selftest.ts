@@ -12,7 +12,7 @@ import { DIGIT_SEP, groupDigits, money, toMinor, uid } from '../src/lib/format'
 import { addDays, addMonths, diffDays, monthKey, parseISO, startOfWeek, today, порядокъДней } from '../src/lib/date'
 import { разобратьДату, сеткаМесяца } from '../src/components/DateField'
 import { ICON_GROUPS, isCatalogIcon, сЗначкомъ } from '../src/lib/catalog'
-import { DEFAULT_CATEGORIES } from '../src/state/defaults'
+import { DEFAULT_CATEGORIES, DEFAULT_SETTINGS } from '../src/state/defaults'
 import type { Goal, Recurring, Reminder, Scenario, Task, Transaction } from '../src/lib/types'
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../src/engine/goals'
 import { квадратъ, путьЗначкаДопустимъ, этоСвойЗначокъ } from '../src/lib/svoiznachki'
@@ -3312,6 +3312,9 @@ function акцентИЦвета() {
   check('на своей теме без выбранного акцента — акцент темы', действующийАкцент({ ...s, customThemes: [своя], customTheme: 'my', accent: '#123456' }) === '#aa00aa')
   check('HEX приводится к виду #rrggbb', чистыйЦвет('F0a') === '#ff00aa' && чистыйЦвет('#12AB34') === '#12ab34' && чистыйЦвет('синий') === null)
   check('быстрый выбор без настройки — исходная палитра', быстрыеЦвета(s) === PALETTE)
+  check('новое хранилище открывается «Знаменем дневным», акцент — родной цвет темы',
+    DEFAULT_SETTINGS.theme === 'znamyaden' && DEFAULT_SETTINGS.accent === THEMES.find((t) => t.id === 'znamyaden')!.accent
+    && режимАкцента(DEFAULT_SETTINGS) === 'theme')
   check('новый цвет добавляется в конец и без повторов', сЦветом(['#111111'], '#222222').join() === '#111111,#222222' && сЦветом(['#111111'], '#111111').length === 1)
 }
 

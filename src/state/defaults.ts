@@ -4,12 +4,19 @@ import { т } from '../i18n'
 import type { Category, Settings, ThemeId, VaultData } from '../lib/types'
 
 export const DEFAULT_SETTINGS: VaultData['settings'] = {
-  theme: 'imperial',
+  /*
+   * Новое хранилище открывается «Знаменем дневным»: светлая тема привычнее
+   * тому, кто программу видит впервые. Акцент — родной цвет этой темы, и
+   * потому он считается взятым из оформления: сменят тему — сменится и он.
+   * Отдельной настройки accentMode здесь нет нарочно, она затёрла бы выбор
+   * в хранилищах, заведённых до её появления (см. lib/akcent).
+   */
+  theme: 'znamyaden',
   animations: 'full',
   density: 'normal',
   readingFont: 'ui',
   pinnedCategories: [],
-  accent: '#4cc46a',
+  accent: '#ffd700',
   hideBalance: false,
   forecastHorizon: 12,
   monteCarloRuns: 800,
