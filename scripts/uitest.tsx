@@ -2994,6 +2994,9 @@ async function правки107() {
 
   // ------------------------------------------------ период на «Сводке»
   await open('Дашборд')
+  check('напутствие видно в шапке «Сводки»',
+    (document.querySelector('.view .hero-deviz')?.textContent || '').includes('кирпичи клали каждый час'),
+    document.querySelector('.view .hero-deviz')?.textContent ?? 'нет')
   const ярлык = () => (document.querySelector('.view .period-label')?.textContent || '').trim()
   click(byText('.view .seg button', 'День'))
   await wait(200)

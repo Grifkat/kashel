@@ -1464,6 +1464,7 @@ export const EN: Record<string, string> = {
   'Пикми ночная': 'Pick-me night',
   'Та же розовая с лиловым, но по сливовой темноте. Вечером глазам легче, и розовый на тёмном звучит резче.': 'The same pink and lilac, but on a plum-dark background. Easier on the eyes in the evening, and pink sounds sharper on dark.',
   // lib/versiya.ts
+  'На «Сводке» появилось напутствие: «Москва не была построена за один день, но кирпичи клали каждый час».': 'The Summary now carries a line to keep you going: “Moscow was not built in a day, but bricks were laid every hour.”',
   'Новое хранилище открывается оформлением «Знамя дневное» — светлым. У тех, кто уже пользуется программой, оформление своё и не меняется.': 'A new vault now opens in the light “Banner, day” theme. If you already use the app, your own theme stays as it is.',
   'Обновление на маке: программа берёт образ для своего процессора (Apple Silicon или Intel), скачивает его в «Загрузки» и открывает — остаётся перетащить Кошель в «Программы». Прежде мак принимал себя за Linux.': 'Updates on a Mac: the app picks the disk image for its processor (Apple Silicon or Intel), saves it to Downloads and opens it — just drag Koshel to Applications. Before, a Mac took itself for Linux.',
   'Внизу левой панели и в «Настройках» → «О программе» — подпись создателя.': 'The creator’s signature now sits at the bottom of the left panel and in “Settings” → “About”.',
@@ -2147,6 +2148,7 @@ export const EN: Record<string, string> = {
   'Заморожено {0} — вам должны': 'Frozen {0} — owed to you',
   'чистый капитал {0}{1}': 'net worth {0}{1}',
   ' · обязательства {0}': ' · liabilities {0}',
+  'Москва не была построена за один день, но кирпичи клали каждый час': 'Moscow was not built in a day, but bricks were laid every hour',
   'Хранилище пустое — заполните его своими данными': 'Your vault is empty — fill it with your own data',
   'Программа ничего не придумывает за вас: ни счетов, ни операций. Начать проще всего со счёта — карты или наличных — и указать на нём текущий остаток. Дальше появятся категории, а прогноз и советы включатся сами, как только наберётся история за пару месяцев.': 'Koshel doesn\'t make anything up for you: no accounts, no transactions. The easiest start is an account — a card or cash — with its current balance. Categories come next, and the forecast and insights switch on by themselves once a couple of months of history build up.',
   ' Создать первый счёт': ' Create your first account',

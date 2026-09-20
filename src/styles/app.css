@@ -126,6 +126,17 @@ button, input, select, textarea { font: inherit; color: inherit; }
   overflow: hidden;
 }
 .sidebar.hidden { display: none; }
+.hero-deviz {
+  margin-top: 10px;
+  font-size: 13px;
+  font-style: italic;
+  line-height: 1.45;
+  color: color-mix(in srgb, var(--muted) 60%, var(--text));
+  text-wrap: balance;
+  max-width: 72ch;
+}
+.hero-deviz::before { content: '— '; color: var(--accent-ink); }
+
 .sidebar-foot {
   flex-shrink: 0;
   padding: 10px 14px 12px;
