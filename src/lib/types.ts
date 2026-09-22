@@ -137,6 +137,14 @@ export interface Account {
   }
 }
 
+/** Период лимита категории: см. engine/limity. */
+export interface ПериодЛимита {
+  kind: 'month' | 'quarter' | 'year' | 'all' | 'custom'
+  /** Только у 'custom': первый и последний день. */
+  from?: string
+  to?: string
+}
+
 export interface Category {
   id: string
   name: string
@@ -144,7 +152,10 @@ export interface Category {
   parentId?: string
   icon: string
   color: string
-  plan?: Money // «планирую тратить X в месяц»
+  /** Лимит — сумма на период planPeriod (по умолчанию — на месяц). */
+  plan?: Money
+  /** Период лимита. Пусто — месяц; у подкатегории — как у главной. */
+  planPeriod?: ПериодЛимита
   bucket?: Bucket // для правила 50/30/20
   /**
    * Доход с капитала, а не с труда: дивиденды, купоны, аренда, проценты.

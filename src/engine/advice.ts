@@ -1,4 +1,5 @@
 import type { Account, Category, Money, Transaction, VaultData } from '../lib/types'
+import { заПериод, исполнениеЛимита, периодЛимита } from './limity'
 import { сЗначкомъ } from '../lib/catalog'
 import { addDays, addMonths, daysInMonth, diffDays, diffMonths, humanDate, monthKey, monthTitle, parseISO, today, вСтрочную } from '../lib/date'
 import { money, moneyShort, months as monthsWord, pct, plural, times } from '../lib/format'
@@ -280,15 +281,13 @@ function ruleAnomalies(c: Ctx): Advice[] {
 
 /** Категории с заданным лимитом, который будет превышен. */
 function rulePlanOverrun(c: Ctx): Advice[] {
-  const curTx = c.data.transactions.filter((t) => monthKey(t.date) === c.curKey)
-  const totals = new Map(categoryTotals(curTx, 'expense').map((t) => [t.categoryId, t.amount]))
-  const bad: { cat: Category; spent: Money; projected: Money; plan: Money }[] = []
+  const bad: { cat: Category; spent: Money; projected: Money; plan: Money; за: string }[] = []
   for (const cat of c.data.categories) {
     if (cat.kind !== 'expense' || !cat.plan || cat.archived) continue
-    // Лимит главной — на неё вместе с подкатегориями.
-    const spent = суммаСемьи(cat.id, totals, c.data.categories)
-    const projected = Math.round(spent / c.monthProgress)
-    if (projected > cat.plan * 1.05) bad.push({ cat, spent, projected, plan: cat.plan })
+    // Траты и прогноз — за отрезок периода лимита (engine/limity): месячные
+    // траты с годовым лимитом не сравниваются. Главная — с подкатегориями.
+    const и = исполнениеЛимита(cat, c.data.categories, c.data.transactions)
+    if (и.прогноз > cat.plan * 1.05) bad.push({ cat, spent: и.потрачено, projected: и.прогноз, plan: cat.plan, за: и.п.kind === 'month' ? '' : ' ' + заПериод(и.п) })
   }
   if (!bad.length) return []
   bad.sort((a, b) => b.projected - b.plan - (a.projected - a.plan))
@@ -305,12 +304,12 @@ function rulePlanOverrun(c: Ctx): Advice[] {
     severity: overSum > c.avgExpense * 0.05 ? 'warn' : 'info',
     title: т('Лимиты будут превышены в {0} {1}', bad.length, plural(bad.length, 'категории', 'категориях', 'категориях')),
     body:
-      т('Суммарный перерасход к концу месяца — {0}. ', money(overSum)) +
+      т('Суммарный перерасход к концу периода лимита — {0}. ', money(overSum)) +
       т('Либо лимит нереалистичен и его надо поднять, либо темп трат надо снизить: ') +
-      т('на оставшуюся часть месяца в этих категориях доступно {0}.', money(Math.max(0, bad.reduce((s, b) => s + Math.max(0, b.plan - b.spent), 0)))),
+      т('до конца периода в этих категориях доступно {0}.', money(Math.max(0, bad.reduce((s, b) => s + Math.max(0, b.plan - b.spent), 0)))),
     evidence: bad
       .slice(0, 6)
-      .map((b) => т('{0}: {1} из {2} → прогноз {3}', сЗначкомъ(b.cat.icon, b.cat.name), money(b.spent), money(b.plan), money(b.projected))),
+      .map((b) => т('{0}: {1} из {2}{3} → прогноз {4}', сЗначкомъ(b.cat.icon, b.cat.name), money(b.spent), money(b.plan), b.за, money(b.projected))),
     impactMonthly: overSum,
     effort: 'среднее',
     action: { label: т('Открыть бюджет'), type: 'goto', payload: { view: 'budget' } },
@@ -1244,7 +1243,7 @@ function ruleFadedCategory(c: Ctx): Advice[] {
       evidence: [
         т('Последняя операция: {0}', humanDate(last, true)),
         т('Обычно было: {0}/мес', money(norm)),
-        cat.plan ? т('Лимит: {0}', money(cat.plan)) : т('Операций за всю историю: {0}', own.length),
+        cat.plan ? т('Лимит: {0} {1}', money(cat.plan), заПериод(периодЛимита(cat, c.data.categories))) : т('Операций за всю историю: {0}', own.length),
       ],
       impactMonthly: 0,
       effort: 'низкое',

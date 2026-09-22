@@ -1,4 +1,5 @@
 import type { Money, RankBranch, VaultData } from '../lib/types'
+import { исполнениеЛимита, отрезокЛимита, периодЛимита, потраченоЗа } from './limity'
 import { addMonths, diffDays, endOfMonth, monthKey, monthRange, today } from '../lib/date'
 import { balances, creditRemaining, monthlySeries, yearSummary } from './stats'
 import { streak } from './streak'
@@ -261,13 +262,8 @@ export function traits(data: VaultData, now: string = today()): Trait[] {
   const безъКатегоріи = txs.filter((t) => t.kind !== 'transfer' && !t.categoryId && !t.splits?.length).length
   const разнесено = txs.length ? 1 - безъКатегоріи / txs.length : 1
   const съЛимитомъ = data.categories.filter((c) => !c.archived && c.plan)
-  const въЛимитѣ = съЛимитомъ.filter((c) => {
-    const свои = семья(c.id, data.categories)
-    const потрачено = txs
-      .filter((t) => !!t.categoryId && свои.has(t.categoryId) && monthKey(t.date) === monthKey(now))
-      .reduce((s, t) => s + t.amount, 0)
-    return потрачено <= (c.plan ?? 0)
-  }).length
+  // Въ лимитѣ — за отрѣзокъ его періода (мѣсяцъ, кварталъ, годъ…), см. engine/limity.
+  const въЛимитѣ = съЛимитомъ.filter((c) => исполнениеЛимита(c, data.categories, txs, now, now).потрачено <= (c.plan ?? 0)).length
   const дней = Math.max(1, годъДней.daysLived)
   const сЗаписями = new Set(txs.filter((t) => t.date >= addMonths(now, -3)).map((t) => t.date)).size
 
@@ -946,10 +942,17 @@ const НАБОРЪ: Заданіе[] = [
       const съЛимитомъ = d.categories.filter((c) => !c.archived && c.plan)
       if (!съЛимитомъ.length) return 0
       const свои = мѣсяцаЗаписи(d, мк)
+      // Лимитъ немѣсячный мѣряется своимъ отрѣзкомъ — тѣмъ, куда попадаетъ этотъ мѣсяцъ,
+      // и не дальше его конца: будущее въ зачётъ мѣсяца не идётъ.
+      const конецъ = endOfMonth(мк + '-01')
       const въПредѣлѣ = съЛимитомъ.filter((c) => {
-        const кат = семья(c.id, d.categories)
-        const потрачено = свои.filter((t) => !!t.categoryId && кат.has(t.categoryId)).reduce((s, t) => s + t.amount, 0)
-        return потрачено <= (c.plan ?? 0)
+        const п = периодЛимита(c, d.categories)
+        if (п.kind === 'month') {
+          const кат = семья(c.id, d.categories)
+          return свои.filter((t) => !!t.categoryId && кат.has(t.categoryId)).reduce((s, t) => s + t.amount, 0) <= (c.plan ?? 0)
+        }
+        const { от, до } = отрезокЛимита(п, конецъ, d.transactions.reduce<string | undefined>((м, t) => (!м || t.date < м ? t.date : м), undefined))
+        return потраченоЗа(c, d.categories, d.transactions, от, до < конецъ ? до : конецъ).сумма <= (c.plan ?? 0)
       }).length
       return въПредѣлѣ / съЛимитомъ.length
     },

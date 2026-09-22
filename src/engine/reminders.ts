@@ -1,4 +1,5 @@
 import type { Reminder, ReminderEvent, VaultData } from '../lib/types'
+import { заПериод, исполнениеЛимита } from './limity'
 import { addDays, addMonths, diffDays, humanDate, monthKey, parseISO, today } from '../lib/date'
 import { money } from '../lib/format'
 import { balances, categoryMonthly } from './stats'
@@ -102,16 +103,15 @@ function biggestOutlier(data: VaultData, times: number, now: string): string | n
   return null
 }
 
-/** Категории, вышедшие за свой месячный лимит. */
+/** Категории, вышедшие за свой лимит — за отрезок его периода (engine/limity). */
 function overLimit(data: VaultData, pct: number, now: string, only?: string): string | null {
-  const mk = monthKey(now)
   const out: string[] = []
   for (const c of data.categories) {
     if (c.archived || !c.plan || (only && c.id !== only)) continue
     // Лимит главной — на неё вместе с подкатегориями.
-    let spent = 0
-    for (const id of семья(c.id, data.categories)) spent += categoryMonthly(data.transactions, id, [mk], false, c.kind)[0]
-    if (spent >= (c.plan * pct) / 100) out.push(т('{0} {1} из {2}', c.name, money(spent), money(c.plan)))
+    const и = исполнениеЛимита(c, data.categories, data.transactions, now, now)
+    const за = и.п.kind === 'month' ? '' : ' ' + заПериод(и.п)
+    if (и.потрачено >= (c.plan * pct) / 100) out.push(т('{0} {1} из {2}{3}', c.name, money(и.потрачено), money(c.plan), за))
   }
   return out.length ? out.join(' · ') : null
 }

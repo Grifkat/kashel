@@ -2176,3 +2176,19 @@ input.invalid { border-color: var(--alert) !important; }
   background: transparent; border: 2px solid var(--border-soft); border-radius: var(--radius-lg);
 }
 .osnova-btn:hover { border-color: var(--accent); }
+
+/* ------------------------------------------------------------ период лимита */
+.budget-limits-head { gap: 10px; margin-bottom: 10px; align-items: center; }
+.limit-period-wrap { position: relative; display: flex; justify-content: flex-end; align-items: center; gap: 2px; margin-top: 3px; }
+select.limit-period {
+  width: auto; min-width: 0; height: 22px; padding: 0 18px 0 6px;
+  font-size: 11px; line-height: 20px; color: var(--muted);
+  background-color: transparent; border: 1px solid var(--border-soft); border-radius: 999px;
+  background-position: right 5px center; background-size: 9px;
+}
+select.limit-period:hover, select.limit-period:focus { color: var(--text); border-color: var(--border); }
+.limit-period-all select.limit-period { height: 28px; font-size: 12px; padding-left: 10px; }
+.limit-period-dates { width: 22px; height: 22px; }
+.budget-ostatok { color: var(--muted); }
+.limit-period-wrap .period-pick, .limit-period-all .period-pick { left: auto; right: 0; transform: none; }
+.kat-limit-period { flex-shrink: 0; }

@@ -3162,6 +3162,52 @@ async function цельЗаработатьЭкраны() {
   await wait(900)
 }
 
+/** 1.0.13: период у лимитов категорий. */
+async function периодЛимитаЭкраны() {
+  console.log('\n— период лимита —')
+  const ввести = (поле: Element | null | undefined, значение: string) => {
+    const с = Object.entries(поле ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as { onChange?: (e: unknown) => void } | undefined
+    с?.onChange?.({ target: { value: значение, selectionStart: значение.length } })
+  }
+  await open('Бюджет')
+  await wait(300)
+  const строкаЛимита = () => all('.view tbody tr').find((r) => r.querySelector('.limit-period') && !r.classList.contains('budget-pod'))
+  const строка = строкаЛимита()
+  check('у строки с лимитом под суммой — выбор периода, без новой колонки',
+    !!строка?.querySelector('td.r .limit-period') && all('.view thead th').length <= 6)
+  check('колонка прогноза — «Прогноз» к концу периода', all('.view thead th').some((th) => (th.textContent || '').trim() === 'Прогноз'))
+  ввести(строка?.querySelector('.limit-period'), 'quarter')
+  await wait(1300)
+  let v = await loadVault()
+  const кат = v.categories.find((c) => c.planPeriod?.kind === 'quarter')
+  const имя = кат?.name ?? '—'
+  check('период категории сохраняется', !!кат && (строка?.textContent || '').includes(имя), имя)
+  const стр2 = all('.view tbody tr').find((r) => (r.textContent || '').includes(имя) && !r.classList.contains('budget-pod'))
+  check('исполнение подписано периодом', /лимита за квартал|перерасход .* за квартал/.test(стр2?.textContent || ''), (стр2?.querySelector('td:last-child')?.textContent || '').slice(0, 60))
+
+  // «Применить ко всем» и отмена
+  const сЛимитом = v.categories.filter((c) => c.kind === 'expense' && !c.archived && c.plan).length
+  ввести(document.querySelector('.view .limit-period-all select'), 'year')
+  await wait(150)
+  click(byText('.view .limit-period-all .btn', 'Применить ко всем'))
+  await wait(250)
+  check('перед «Применить ко всем» — сколько категорий изменится', (document.querySelector('.modal')?.textContent || '').includes(String(сЛимитом)))
+  click(byText('.modal-foot .btn', 'Применить'))
+  await wait(1300)
+  v = await loadVault()
+  const всеГод = v.categories.filter((c) => c.kind === 'expense' && !c.archived && c.plan).every((c) => c.planPeriod?.kind === 'year')
+  check('«Применить ко всем» ставит период всем категориям с лимитом', всеГод && сЛимитом > 0, String(сЛимитом))
+  const вернуть = [...document.querySelectorAll('button')].find((b) => (b.textContent || '').trim() === 'Вернуть')
+  click(вернуть)
+  await wait(1300)
+  v = await loadVault()
+  check('«Вернуть» возвращает прежние периоды', v.categories.find((c) => c.id === кат?.id)?.planPeriod?.kind === 'quarter'
+    && v.categories.filter((c) => c.kind === 'expense' && c.plan && c.id !== кат?.id).every((c) => !c.planPeriod))
+  // вернуть месяц, чтобы не мешать другим проверкам
+  ввести(строкаЛимита()?.querySelector('.limit-period'), 'month')
+  await wait(1200)
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -3190,6 +3236,7 @@ async function main() {
   await правки106()
   await правки107()
   await цельЗаработатьЭкраны()
+  await периодЛимитаЭкраны()
   await конструкторъОформленія()
   await themes()
   await cardGlare()

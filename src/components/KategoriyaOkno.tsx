@@ -1,4 +1,6 @@
 import React, { useState } from 'react'
+import { ПЕРИОДЫ_ЛИМИТА, заПериод } from '../engine/limity'
+import { ДиапазонДат } from './DiapazonDat'
 import { useStore } from '../state/store'
 import { Avatar, ColorPicker, Field, IconPicker, Modal, MoneyInput, useToast } from './ui'
 import { KategoriyaVybor } from './KategoriyaVybor'
@@ -32,6 +34,7 @@ export function KategoriyaOkno({
   const toast = useToast()
   const [c, setC] = useState<Category>(value)
   const [pick, setPick] = useState(false)
+  const [свойПериод, setСвойПериод] = useState(false)
   const patch = (p: Partial<Category>) => setC((x) => ({ ...x, ...p }))
 
   // Список «Главная категория»: только главные того же вида, не сама она.
@@ -113,16 +116,44 @@ export function KategoriyaOkno({
         {c.kind === 'expense' && (
           <>
             <Field
-              label={т('Планирую тратить в месяц')}
+              label={т('Лимит трат')}
               hint={дети.length
                 ? т('Лимит общий — на эту категорию вместе с подкатегориями.')
                 : т('Оставьте пустым, если лимит не нужен')}
             >
-              <MoneyInput
-                value={c.plan || undefined}
-                placeholder={т('не задано')}
-                onChange={(v, empty) => patch({ plan: empty ? undefined : v })}
-              />
+              <div className="row" style={{ gap: 8, position: 'relative' }}>
+                <MoneyInput
+                  value={c.plan || undefined}
+                  placeholder={т('не задано')}
+                  onChange={(v, empty) => patch({ plan: empty ? undefined : v })}
+                  style={{ flex: 1 }}
+                />
+                <select
+                  className="kat-limit-period"
+                  value={c.planPeriod?.kind ?? (c.parentId ? 'inherit' : 'month')}
+                  title={т('За какой период лимит')}
+                  onChange={(e) => {
+                    const v = e.target.value
+                    if (v === 'custom') setСвойПериод(true)
+                    else patch({ planPeriod: v === 'inherit' || v === 'month' ? undefined : { kind: v as 'quarter' | 'year' | 'all' } })
+                  }}
+                  style={{ width: 'auto' }}
+                >
+                  {c.parentId && <option value="inherit">{т('как у главной')}</option>}
+                  {ПЕРИОДЫ_ЛИМИТА.map((x) => <option key={x.k} value={x.k}>{x.k === 'custom' && c.planPeriod?.kind === 'custom' ? заПериод(c.planPeriod) : x.t}</option>)}
+                </select>
+                {свойПериод && (
+                  <ДиапазонДат
+                    from={c.planPeriod?.from}
+                    to={c.planPeriod?.to}
+                    onClose={() => setСвойПериод(false)}
+                    onPick={(from, to) => {
+                      patch({ planPeriod: { kind: 'custom', from, to } })
+                      setСвойПериод(false)
+                    }}
+                  />
+                )}
+              </div>
             </Field>
 
             <div className="card-title">{т('Роль в бюджете')}</div>

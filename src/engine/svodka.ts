@@ -1,4 +1,5 @@
 import type { VaultData } from '../lib/types'
+import { заПериод, исполнениеЛимита } from './limity'
 import { прогрессЗаработка, этоЗаработок } from './zarabotok'
 import { money, pct } from '../lib/format'
 import { monthTitle, monthKey, addMonths, today } from '../lib/date'
@@ -108,9 +109,14 @@ export function сводкаДляМодели(данные: VaultData, now: str
     const этотъ = monthKey(now)
     const вМѣсяцѣ = д.transactions.filter((t) => monthKey(t.date) === этотъ)
     const потрачено = new Map(categoryTotals(вМѣсяцѣ, 'expense').map((c) => [c.categoryId, c.amount]))
-    п(т('## Планы на месяц ({0})', monthTitle(этотъ)))
+    п(т('## Лимиты категорий (месяц: {0})', monthTitle(этотъ)))
     for (const c of съПланомъ) {
-      п(т('- {0}: план {1}, потрачено {2}', c.name, рубли(c.plan!), рубли(суммаСемьи(c.id, потрачено, д.categories))))
+      const и = исполнениеЛимита(c, д.categories, д.transactions, now, now)
+      if (и.п.kind === 'month') {
+        п(т('- {0}: план {1}, потрачено {2}', c.name, рубли(c.plan!), рубли(суммаСемьи(c.id, потрачено, д.categories))))
+      } else {
+        п(т('- {0}: план {1} {2} ({3} — {4}), потрачено {5}', c.name, рубли(c.plan!), заПериод(и.п), и.от, и.до, рубли(и.потрачено)))
+      }
     }
     п('')
   }

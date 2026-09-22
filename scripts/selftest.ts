@@ -9,11 +9,11 @@ import { parseQuick, describeDraft } from '../src/engine/parse'
 import { parseCsv, guessColumns, buildPreview, parseAmountCell, parseDateCell } from '../src/engine/csv'
 import { accountBalance, balances, categoryMonthly, creditRemaining, счётПоУмолчанию, categoryTotals, comparablePrev, entryDate, makePeriod, monthlySeries, yearSummary, type PeriodKind } from '../src/engine/stats'
 import { DIGIT_SEP, groupDigits, money, toMinor, uid } from '../src/lib/format'
-import { addDays, addMonths, diffDays, monthKey, parseISO, startOfWeek, today, порядокъДней } from '../src/lib/date'
+import { addDays, addMonths, diffDays, monthKey, parseISO, startOfMonth, startOfWeek, today, порядокъДней } from '../src/lib/date'
 import { разобратьДату, сеткаМесяца } from '../src/components/DateField'
 import { ICON_GROUPS, isCatalogIcon, сЗначкомъ } from '../src/lib/catalog'
 import { DEFAULT_CATEGORIES, DEFAULT_SETTINGS } from '../src/state/defaults'
-import type { Goal, Recurring, Reminder, Scenario, Task, Transaction } from '../src/lib/types'
+import type { Category, Goal, Recurring, Reminder, Scenario, Task, Transaction, ПериодЛимита } from '../src/lib/types'
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../src/engine/goals'
 import { квадратъ, путьЗначкаДопустимъ, этоСвойЗначокъ } from '../src/lib/svoiznachki'
 import { parseArchive } from '../src/engine/archive'
@@ -25,6 +25,7 @@ import { elbowOf, lineOf, pathOf, pointAt } from '../src/components/canvas/geome
 import { безСвоегоВида, линииПоУмолчанию, свойВид, видСвязи, штрихЛинии } from '../src/components/canvas/linii'
 import { громкость, звукиВключены, звукСобытия } from '../src/lib/zvuki'
 import { доходЗа, прогрессЗаработка, прогрессЦели } from '../src/engine/zarabotok'
+import { исполнениеЛимита, лимитВМесяц, отрезокЛимита, периодЛимита, прогнозЗа } from '../src/engine/limity'
 import { связьПодКарточкой, встроитьВСвязь } from '../src/components/canvas/vstavka'
 import { буква } from '../src/lib/klavishi'
 import { платёжАннуитета, подобратьСтавку, прикидкаСтавки } from '../src/engine/stavka'
@@ -3150,6 +3151,86 @@ function правки103() {
   check('архив хранит «потраченное время» и минуты', ра[0]?.moneyKind === 'time' && ра[0]?.minutes === 75 && ра[1]?.moneyKind === 'time' && ра[1]?.minutes === undefined)
 }
 
+function периодЛимитов() {
+  console.log('\n— период лимита —')
+  const еда = { id: 'c_food', name: 'Еда', icon: '🍞', color: '#e8833a', kind: 'expense' as const, archived: false, plan: 30_000_00 }
+  const кафе = { id: 'c_cafe', name: 'Кафе', icon: '☕', color: '#e8833a', kind: 'expense' as const, parentId: 'c_food', archived: false, plan: 5_000_00 }
+  const cats = [еда, кафе] as unknown as Category[]
+  const tx = (id: string, date: string, amount: number, categoryId: string, kind: 'expense' | 'income' = 'expense') =>
+    ({ id, date, amount, categoryId, kind, accountId: 'a1', tags: [], createdAt: date }) as unknown as Transaction
+  const txs = [
+    tx('t1', '2025-12-30', 4_000_00, 'c_food'),
+    tx('t2', '2026-07-02', 3_000_00, 'c_food'),
+    tx('t3', '2026-08-15', 2_000_00, 'c_cafe'),
+    tx('t4', '2026-09-01', 1_000_00, 'c_food'),
+    tx('t5', '2026-09-10', 1_000_00, 'c_food'),
+    tx('t6', '2026-09-12', 1_000_00, 'c_food'),
+    tx('t7', '2026-10-01', 9_000_00, 'c_food'),
+    tx('t8', '2026-09-05', 7_000_00, 'c_food', 'income'),
+  ]
+  const на = '2026-09-18'
+  const с = (п: ПериодЛимита) => исполнениеЛимита({ ...еда, planPeriod: п }, cats, txs, на, на)
+
+  check('старое хранилище без периода — месяц, как было', периодЛимита(еда as unknown as Category, cats).kind === 'month'
+    && исполнениеЛимита(еда as unknown as Category, cats, txs, на, на).потрачено === 3_000_00)
+  const кв = с({ kind: 'quarter' })
+  check('квартал — с 1 июля по 30 сентября, с подкатегорией, без доходов и чужих месяцев',
+    кв.от === '2026-07-01' && кв.до === '2026-09-30' && кв.потрачено === 3_000_00 + 2_000_00 + 3_000_00, `${кв.от}–${кв.до} ${money(кв.потрачено)}`)
+  const гр = отрезокЛимита({ kind: 'quarter' }, '2026-10-01')
+  check('граница квартала: 1 октября — уже следующий квартал', гр.от === '2026-10-01' && гр.до === '2026-12-31')
+  const год = с({ kind: 'year' })
+  check('год — с 1 января, декабрь прошлого года не входит', год.от === '2026-01-01' && год.до === '2026-12-31' && год.потрачено === 17_000_00, money(год.потрачено))
+  const всё = с({ kind: 'all' })
+  check('«за всё время» — с первой записи', всё.от === '2025-12-30' && всё.потрачено === 12_000_00 && всё.прогноз === всё.потрачено, `${всё.от} ${money(всё.потрачено)}`)
+  const свой = с({ kind: 'custom', from: '2025-12-01', to: '2026-07-31' })
+  check('свой период через границу года', свой.потрачено === 7_000_00, money(свой.потрачено))
+  check('прогноз квартала — по темпу до конца квартала',
+    кв.прогноз === Math.round(8_000_00 / ((diffDays('2026-07-01', на) + 1) / (diffDays('2026-07-01', '2026-09-30') + 1))), money(кв.прогноз))
+  check('одна-две операции — разовый платёж, прогноз не раздувается', прогнозЗа(5_000_00, 2, '2026-09-01', '2026-09-30', { kind: 'month' }, на) === 5_000_00)
+  check('прошедший отрезок — прогноз равен потраченному', прогнозЗа(5_000_00, 9, '2026-01-01', '2026-03-31', { kind: 'quarter' }, на) === 5_000_00)
+
+  const главнаяКв = [{ ...еда, planPeriod: { kind: 'quarter' as const } }, кафе] as unknown as Category[]
+  check('подкатегория без своего периода — как у главной', периодЛимита(кафе as unknown as Category, главнаяКв).kind === 'quarter')
+  check('подкатегория со своим периодом — свой', периодЛимита({ ...кафе, planPeriod: { kind: 'year' } } as unknown as Category, главнаяКв).kind === 'year')
+
+  check('в пересчёте на месяц: квартал — треть, год — двенадцатая, «всё время» — не делится',
+    лимитВМесяц({ ...еда, planPeriod: { kind: 'quarter' } } as unknown as Category, cats) === 10_000_00
+    && лимитВМесяц({ ...еда, planPeriod: { kind: 'year' } } as unknown as Category, cats) === 2_500_00
+    && лимитВМесяц({ ...еда, planPeriod: { kind: 'all' } } as unknown as Category, cats) === null)
+
+  // Совет «Лимиты будут превышены» мерит лимит его периодом. Лимит 100 000:
+  // в этом месяце 60 000 (две траты) — по месяцу превышения нет; но полгода
+  // назад было ещё 90 000, и «за всё время» лимит уже превышен.
+  const сегодня = today()
+  const траты = [
+    tx('adv0', addMonths(сегодня, -6), 90_000_00, 'c_adv'),
+    // Две траты — разовые платежи: прогноз месяца не раздувается темпом,
+    // и проверка не зависит от того, какое сегодня число.
+    tx('adv1', startOfMonth(сегодня), 30_000_00, 'c_adv'),
+    tx('adv2', startOfMonth(сегодня), 30_000_00, 'c_adv'),
+  ]
+  const совет = (п?: ПериодЛимита) => {
+    const д = {
+      ...data,
+      categories: [...data.categories, { id: 'c_adv', name: 'Проверка лимита', icon: 'x', color: '#000', kind: 'expense' as const, plan: 100_000_00, ...(п ? { planPeriod: п } : {}) }] as typeof data.categories,
+      transactions: [...data.transactions, ...траты],
+    }
+    return buildAdvice(д, forecast(д, null, 12, 60)).find((a) => a.id === 'plan_overrun')?.evidence?.find((e) => e.includes('Проверка лимита')) ?? null
+  }
+  const помесячно = совет()
+  check('совет о превышении: месячный лимит, траты месяца в пределах — совета нет', помесячно === null, String(помесячно))
+  const всё2 = совет({ kind: 'all' })
+  check('тот же лимит «за всё время» — совет есть, с пометкой периода', !!всё2 && всё2.includes('за всё время'), String(всё2))
+
+  const архив = parseArchive(JSON.stringify({ kashel: 'vault', formatVersion: 1, data: { ...data, categories: [
+    { ...еда, planPeriod: { kind: 'custom', from: '2026-01-01', to: '2026-06-30' } },
+    { ...кафе, planPeriod: { kind: 'непонятно' } },
+  ] } }))
+  check('архив переносит период лимита, неизвестный — месяц',
+    архив.ok && архив.archive.data.categories.find((c) => c.id === 'c_food')?.planPeriod?.to === '2026-06-30'
+    && !архив.archive.data.categories.find((c) => c.id === 'c_cafe')?.planPeriod)
+}
+
 function цельЗаработать() {
   console.log('\n— цель «заработать» —')
   const игры = { id: 'c_games', name: 'Игры', icon: '🎮', color: '#8b5cf6', kind: 'income' as const, archived: false }
@@ -3375,6 +3456,7 @@ async function завершить() {
   акцентИЦвета()
   линииИЗвуки()
   цельЗаработать()
+  периодЛимитов()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)

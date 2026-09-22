@@ -2,7 +2,7 @@ import { путьЗначкаДопустимъ } from '../lib/svoiznachki'
 import type {
   Account, AccountType, Bucket, CanvasDoc, CanvasEdge, CanvasNode, Category, Freq, Goal,
   ImportRule, Money, Notice, Recurring, Reminder, ReminderEvent, ReminderRepeat, ReminderSound,
-  RankBranch, Scenario, Settings, Side, Task, TaskList, TaskRepeat, Transaction, TxKind, VaultData,
+  RankBranch, Scenario, Settings, Side, Task, TaskList, TaskRepeat, ПериодЛимита, Transaction, TxKind, VaultData,
 } from '../lib/types'
 import { migrateSettings } from '../state/defaults'
 import { today } from '../lib/date'
@@ -273,6 +273,7 @@ function normCategory(v: unknown, drop: Drop): Category | null {
     icon: str(r.icon, 'circle-help'),
     color: str(r.color, '#7c8794'),
     ...(plan ? { plan } : {}),
+    ...(периодИзАрхива(r.planPeriod) ? { planPeriod: периодИзАрхива(r.planPeriod)! } : {}),
     ...(typeof r.bucket === 'string' ? { bucket: oneOf<Bucket>(r.bucket, BUCKETS, 'wants') } : {}),
     ...(bool(r.capital) ? { capital: true } : {}),
     ...(bool(r.archived) ? { archived: true } : {}),
@@ -447,6 +448,14 @@ function normTaskRepeat(v: unknown, drop: Drop): TaskRepeat | null {
     ...(isDate(str(r.until)) ? { until: str(r.until) } : {}),
     ...(isDate(str(r.grownTo)) ? { grownTo: str(r.grownTo) } : {}),
   }
+}
+
+/** Период лимита из архива. Неизвестный — месяц, то есть поле не ставится. */
+function периодИзАрхива(v: unknown): ПериодЛимита | undefined {
+  const r = asRaw(v)
+  if (r.kind === 'quarter' || r.kind === 'year' || r.kind === 'all') return { kind: r.kind }
+  if (r.kind === 'custom' && isDate(str(r.from)) && isDate(str(r.to))) return { kind: 'custom', from: str(r.from), to: str(r.to) }
+  return undefined
 }
 
 function normTaskList(v: unknown, drop: Drop): TaskList | null {

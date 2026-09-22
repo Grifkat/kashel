@@ -8,11 +8,14 @@ import { money, moneyShort, pct, plural } from '../lib/format'
 import { addMonths, daysInMonth, monthKey, monthTitle, parseISO, today } from '../lib/date'
 import { categoryTotals, median } from '../engine/stats'
 import { StackBar } from '../components/charts'
-import { Avatar, MoneyInput, Tbl, useToast } from '../components/ui'
-import type { Bucket, Category, Money } from '../lib/types'
+import { Avatar, Confirm, MoneyInput, Tbl, useToast } from '../components/ui'
+import { ДиапазонДат } from '../components/DiapazonDat'
+import { ПЕРИОДЫ_ЛИМИТА, заПериод, исполнениеЛимита, лимитВМесяц, периодЛимита, потраченоЗа, type ВидПериода } from '../engine/limity'
+import { ОТМЕНА_МС } from '../components/Udalenie'
+import type { Bucket, Category, Money, ПериодЛимита } from '../lib/types'
 import { личное } from '../engine/project'
 import { т, тр } from '../i18n'
-import { родитель, подкатегории, суммаСемьи } from '../engine/podkategorii'
+import { родитель, подкатегории } from '../engine/podkategorii'
 
 const BUCKET_TITLE: Record<Bucket, string> = { needs: т('Надо'), wants: т('Хочу'), savings: т('В будущее') }
 const BUCKET_COLOR: Record<Bucket, string> = { needs: '#4aa3e8', wants: '#e8833a', savings: '#4cc46a' }
@@ -33,13 +36,16 @@ export function цветЗаполнения(доля: number): string {
  * только подсказкой: платёж раз в месяц (интернет, аренда) темпом не
  * тратится, и пугать перерасходом, которого нет, нельзя.
  */
-function Исполнение({ spent, projected, plan, isCurrent, money }: {
+function Исполнение({ spent, projected, plan, isCurrent, money, период }: {
   spent: Money
   projected: Money
   plan: Money
   isCurrent: boolean
   money: (v: Money) => string
+  /** Период лимита: у немесячного подпись говорит, за что считается. */
+  период?: ПериодЛимита
 }) {
+  const заЧто = период && период.kind !== 'month' ? ' ' + заПериод(период) : ''
   const доля = plan ? spent / plan : 0
   const сверх = spent > plan
   const темпСверх = isCurrent && !сверх && projected > plan
@@ -52,7 +58,8 @@ function Исполнение({ spent, projected, plan, isCurrent, money }: {
         />
       </div>
       <div className={'small ' + (сверх ? 'neg' : 'faint')} style={{ marginTop: 3 }}>
-        {сверх ? т('перерасход {0}', money(spent - plan)) : т('{0}% лимита', Math.round(доля * 100))}
+        {сверх ? т('перерасход {0}', money(spent - plan)) + заЧто : т('{0}% лимита', Math.round(доля * 100)) + заЧто}
+        {!сверх && заЧто && <div className="budget-ostatok">{т('осталось {0}', money(plan - spent))}</div>}
         {темпСверх && <div className="budget-tempo">{т('по темпу — {0}', money(projected))}</div>}
       </div>
     </>
@@ -81,18 +88,11 @@ export default function Budget() {
     () => new Map(categoryTotals(monthTx, 'expense').map((t) => [t.categoryId, t.amount])),
     [monthTx],
   )
-  const opsByCat = useMemo(
-    () => new Map(categoryTotals(monthTx, 'expense').map((t) => [t.categoryId, t.count])),
-    [monthTx],
-  )
   /*
-   * Прогноз месяца по темпу. Одна-две операции за месяц — это разовый платёж
-   * (интернет, бухгалтер): темпом он не тратится, и прогноз равен
-   * потраченному, иначе программа пугала бы перерасходом, которого не будет.
+   * Траты и прогноз по каждой категории считает engine/limity — за отрезок
+   * периода её лимита (месяц, квартал, год, всё время, свои даты). Прогноз —
+   * по темпу, и одна-две операции темпом не тратятся: это разовый платёж.
    */
-  const РАЗОВЫХ = 2
-  const прогноз = (spent: Money, ops: number) =>
-    ops <= РАЗОВЫХ ? spent : Math.round(spent / Math.max(0.05, progress))
   const income = monthTx.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0)
   const expense = monthTx.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0)
 
@@ -105,10 +105,14 @@ export default function Budget() {
    */
   const главные = cats.filter((c) => !родитель(c, data.categories))
   const детиГлавной = (id: string) => подкатегории(id, data.categories)
+  // Сумма лимитов — в пересчёте на месяц: её сравнивают с месячным доходом.
+  // Лимит «за всё время» на месяц не делится и в сумму не идёт.
+  const вМесяц = (c: Category) => лимитВМесяц(c, data.categories) ?? 0
   const planned = главные.reduce(
-    (s, c) => s + (c.plan ?? детиГлавной(c.id).reduce((x, д) => x + (д.plan ?? 0), 0)),
+    (s, c) => s + (c.plan ? вМесяц(c) : детиГлавной(c.id).reduce((x, д) => x + вМесяц(д), 0)),
     0,
   )
+  const безМесяца = cats.filter((c) => c.plan && лимитВМесяц(c, data.categories) === null).length
 
   const byBucket = useMemo(() => {
     const out: Record<Bucket, Money> = { needs: 0, wants: 0, savings: 0 }
@@ -130,10 +134,13 @@ export default function Budget() {
    */
   const [правимъ, setПравимъ] = useState<string | null>(null)
   const порядокъ = useRef<string[]>([])
+  const исп = (c: Category) => исполнениеЛимита(c, data.categories, личн.transactions, anchor)
+  const своиГлавной = (c: Category, от: string, до: string) =>
+    потраченоЗа(c, data.categories, личн.transactions, от, до).сумма -
+    детиГлавной(c.id).reduce((x, д) => x + потраченоЗа(д, data.categories, личн.transactions, от, до).сумма, 0)
   const посчитанные = главные.map((c) => {
-    const spent = суммаСемьи(c.id, spentByCat, data.categories)
-    const projected = прогноз(spent, суммаСемьи(c.id, opsByCat, data.categories))
-    return { c, spent, projected, plan: c.plan ?? 0 }
+    const и = исп(c)
+    return { c, spent: и.потрачено, projected: и.прогноз, plan: c.plan ?? 0, и }
   })
   if (!правимъ) {
     порядокъ.current = [...посчитанные].sort((a, b) => (b.plan || b.spent) - (a.plan || a.spent)).map((r) => r.c.id)
@@ -245,6 +252,7 @@ export default function Budget() {
             <div className="stat" style={{ flex: 1 }}>
               <span className="l">{т('Сумма лимитов')}</span>
               <span className="v">{money(planned)}</span>
+              <span className="d faint">{безМесяца ? т('в месяц; без {0} «за всё время»', безМесяца) : т('в месяц')}</span>
             </div>
             <div className="stat" style={{ flex: 1 }}>
               <span className="l">{т('Без лимита')}</span>
@@ -273,20 +281,23 @@ export default function Budget() {
 
       {/* ---------------------------------------------------- лимиты */}
       <div className="card">
-        <div className="card-title"><Icon name="list" size={14} /> {т(' Категории и лимиты')}</div>
+        <div className="row wrap budget-limits-head">
+          <div className="card-title" style={{ margin: 0, flex: 1 }}><Icon name="list" size={14} /> {т(' Категории и лимиты')}</div>
+          <ПериодДляВсех />
+        </div>
         <Tbl>
           <thead>
             <tr>
               <th>{т('Категория')}</th>
               <th className="col-opt">{т('Роль')}</th>
               <th className="r">{т('Потрачено')}</th>
-              {isCurrent && <th className="r col-opt">{т('Прогноз месяца')}</th>}
+              {isCurrent && <th className="r col-opt" title={т('К концу периода лимита, по темпу трат')}>{т('Прогноз')}</th>}
               <th className="r">{т('Лимит')}</th>
               <th className="w-impl">{т('Исполнение')}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.flatMap(({ c, spent, projected, plan }) => {
+            {rows.flatMap(({ c, spent, projected, plan, и }) => {
               const over = plan > 0 && spent > plan
               const темп = isCurrent && plan > 0 && projected > plan
               const дети = детиГлавной(c.id)
@@ -321,24 +332,25 @@ export default function Budget() {
                       onBlur={() => setПравимъ(null)}
                       onChange={(v, empty) => upsertCategory({ ...c, plan: empty ? undefined : v })}
                     />
+                    {plan > 0 && <ПериодВСтроке c={c} />}
                   </td>
                   <td>
                     {plan ? (
-                      <Исполнение spent={spent} projected={projected} plan={plan} isCurrent={isCurrent} money={money} />
+                      <Исполнение spent={spent} projected={projected} plan={plan} isCurrent={isCurrent} money={money} период={и.п} />
                     ) : (
                       <span className="faint small">
                         {дети.some((д) => д.plan) ? т('лимиты только у подкатегорий') : т('лимит не задан')}</span>
                     )}
                   </td>
                 </tr>,
-                ...(дети.length && (spentByCat.get(c.id) ?? 0) > 0
+                ...(дети.length && своиГлавной(c, и.от, и.до) > 0
                   ? [
                       <tr key={c.id + ':own'} className="budget-pod">
                         <td>
                           <span className="faint">{т('{0} — без подкатегории', c.name)}</span>
                         </td>
                         <td className="col-opt" />
-                        <td className="r num">{money(spentByCat.get(c.id) ?? 0)}</td>
+                        <td className="r num">{money(своиГлавной(c, и.от, и.до))}</td>
                         {isCurrent && <td className="col-opt" />}
                         <td />
                         <td />
@@ -346,8 +358,9 @@ export default function Budget() {
                     ]
                   : []),
                 ...дети.map((д) => {
-                  const дПотрачено = spentByCat.get(д.id) ?? 0
-                  const дПрогноз = прогноз(дПотрачено, opsByCat.get(д.id) ?? 0)
+                  const ди = исп(д)
+                  const дПотрачено = ди.потрачено
+                  const дПрогноз = ди.прогноз
                   const дПлан = д.plan ?? 0
                   const дСверх = дПлан > 0 && дПотрачено > дПлан
                   const дТемп = isCurrent && дПлан > 0 && дПрогноз > дПлан
@@ -380,10 +393,11 @@ export default function Budget() {
                           onBlur={() => setПравимъ(null)}
                           onChange={(v, empty) => upsertCategory({ ...д, plan: empty ? undefined : v })}
                         />
+                        {дПлан > 0 && <ПериодВСтроке c={д} главная={c} />}
                       </td>
                       <td>
                         {дПлан ? (
-                          <Исполнение spent={дПотрачено} projected={дПрогноз} plan={дПлан} isCurrent={isCurrent} money={money} />
+                          <Исполнение spent={дПотрачено} projected={дПрогноз} plan={дПлан} isCurrent={isCurrent} money={money} период={ди.п} />
                         ) : (
                           <span className="faint small">{т('в общем лимите')}</span>
                         )}
@@ -396,6 +410,135 @@ export default function Budget() {
           </tbody>
         </Tbl>
       </div>
+    </div>
+  )
+}
+
+// ------------------------------------------------------------------ период лимита
+
+const подписьПериода = (п: ПериодЛимита): string =>
+  п.kind === 'custom' && п.from && п.to
+    ? т('свой: {0}–{1}', `${п.from.slice(8, 10)}.${п.from.slice(5, 7)}`, `${п.to.slice(8, 10)}.${п.to.slice(5, 7)}`)
+    : ПЕРИОДЫ_ЛИМИТА.find((x) => x.k === п.kind)?.кратко ?? ''
+
+/**
+ * Период лимита — маленьким списком под суммой: без новой колонки, чтобы
+ * таблица не раздувалась. У подкатегории первый пункт — «как у главной».
+ */
+function ПериодВСтроке({ c, главная }: { c: Category; главная?: Category }) {
+  const { data, upsertCategory } = useStore()
+  const [свой, setСвой] = useState(false)
+  const п = периодЛимита(c, data.categories)
+  const значение = главная && !c.planPeriod ? 'inherit' : п.kind
+  const задать = (v: string) => {
+    if (v === 'custom') {
+      setСвой(true)
+      return
+    }
+    upsertCategory(v === 'inherit' ? { ...c, planPeriod: undefined } : { ...c, planPeriod: { kind: v as ВидПериода } })
+  }
+  return (
+    <div className="limit-period-wrap">
+      <select
+        className="limit-period"
+        value={значение}
+        title={т('За какой период лимит')}
+        onChange={(e) => задать(e.target.value)}
+      >
+        {главная && <option value="inherit">{т('как у главной')}</option>}
+        {ПЕРИОДЫ_ЛИМИТА.map((x) => (
+          <option key={x.k} value={x.k}>{x.k === 'custom' && п.kind === 'custom' && c.planPeriod ? подписьПериода(п) : x.кратко}</option>
+        ))}
+      </select>
+      {п.kind === 'custom' && c.planPeriod && (
+        <button type="button" className="icon-btn limit-period-dates" title={т('Изменить даты')} onClick={() => setСвой(true)}>
+          <Icon name="calendar" size={12} />
+        </button>
+      )}
+      {свой && (
+        <ДиапазонДат
+          from={п.from}
+          to={п.to}
+          onClose={() => setСвой(false)}
+          onPick={(from, to) => {
+            upsertCategory({ ...c, planPeriod: { kind: 'custom', from, to } })
+            setСвой(false)
+          }}
+        />
+      )}
+    </div>
+  )
+}
+
+/**
+ * «Применить ко всем»: один период — всем категориям с лимитом. Сначала
+ * спрашиваем, сколько категорий изменится; после — «Вернуть», как у прочих
+ * массовых действий.
+ */
+function ПериодДляВсех() {
+  const { data, setData } = useStore()
+  const toast = useToast()
+  const [вид, setВид] = useState<ВидПериода>('month')
+  const [даты, setДаты] = useState<{ from: string; to: string } | null>(null)
+  const [выбор, setВыбор] = useState(false)
+  const [спросить, setСпросить] = useState(false)
+  const сЛимитом = data.categories.filter((c) => c.kind === 'expense' && !c.archived && c.plan)
+  const период = (): ПериодЛимита => (вид === 'custom' && даты ? { kind: 'custom', ...даты } : { kind: вид })
+  const применить = () => {
+    const прежние = new Map(сЛимитом.map((c) => [c.id, c.planPeriod]))
+    const п = период()
+    setData((d) => ({ ...d, categories: d.categories.map((c) => (прежние.has(c.id) ? { ...c, planPeriod: п.kind === 'month' ? undefined : п } : c)) }))
+    toast(т('Период «{0}» — у {1} {2}', ПЕРИОДЫ_ЛИМИТА.find((x) => x.k === вид)?.t ?? '', сЛимитом.length, plural(сЛимитом.length, 'категории', 'категорий', 'категорий')), {
+      label: т('Вернуть'),
+      onClick: () => setData((d) => ({ ...d, categories: d.categories.map((c) => (прежние.has(c.id) ? { ...c, planPeriod: прежние.get(c.id) } : c)) })),
+    }, { duration: ОТМЕНА_МС })
+  }
+  return (
+    <div className="row limit-period-all" style={{ gap: 6, position: 'relative' }}>
+      <select
+        className="limit-period"
+        value={вид}
+        title={т('Период для всех лимитов')}
+        onChange={(e) => {
+          const v = e.target.value as ВидПериода
+          setВид(v)
+          if (v === 'custom') setВыбор(true)
+        }}
+      >
+        {ПЕРИОДЫ_ЛИМИТА.map((x) => <option key={x.k} value={x.k}>{x.k === 'custom' && даты ? подписьПериода({ kind: 'custom', ...даты }) : x.t}</option>)}
+      </select>
+      <button
+        type="button"
+        className="btn sm"
+        disabled={!сЛимитом.length || (вид === 'custom' && !даты)}
+        onClick={() => setСпросить(true)}
+      >
+        {т('Применить ко всем')}</button>
+      {выбор && (
+        <ДиапазонДат
+          from={даты?.from}
+          to={даты?.to}
+          onClose={() => setВыбор(false)}
+          onPick={(from, to) => {
+            setДаты({ from, to })
+            setВыбор(false)
+          }}
+        />
+      )}
+      {спросить && (
+        <Confirm
+          title={т('Один период для всех лимитов')}
+          text={т('Период «{0}» получат {1} {2} с лимитом. Суммы лимитов не меняются. Отменить можно сразу после.',
+            вид === 'custom' && даты ? подписьПериода(период()) : ПЕРИОДЫ_ЛИМИТА.find((x) => x.k === вид)?.t ?? '',
+            сЛимитом.length, plural(сЛимитом.length, 'категория', 'категории', 'категорий'))}
+          confirmLabel={т('Применить')}
+          onConfirm={() => {
+            применить()
+            setСпросить(false)
+          }}
+          onClose={() => setСпросить(false)}
+        />
+      )}
     </div>
   )
 }

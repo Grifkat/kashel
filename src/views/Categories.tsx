@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react'
+import { ПЕРИОДЫ_ЛИМИТА, исполнениеЛимита, лимитВМесяц, периодЛимита } from '../engine/limity'
 import { useУдаление } from '../components/Udalenie'
 import { цвѣтъПодсвѣтки } from '../components/effects'
 import { useApp } from '../App'
@@ -101,7 +102,13 @@ export default function Categories() {
             .reduce((a, b) => a.map((v, i) => v + (b[i] ?? 0)))
           const norm = median(hist.filter((v) => v > 0))
           const avg = t ? Math.round(t.amount / 3) : 0
-          const overPlan = c.plan && avg > c.plan
+          // Средний месяц сравниваем с лимитом в пересчёте на месяц; у лимита
+          // «за всё время» месячного пересчёта нет — сравниваем траты за всё время.
+          const лимМес = лимитВМесяц(c, data.categories)
+          const заВсё = c.plan && лимМес === null ? исполнениеЛимита(c, data.categories, личн.transactions).потрачено : null
+          const мера = заВсё ?? avg
+          const предел = заВсё !== null ? c.plan ?? 0 : лимМес ?? 0
+          const overPlan = !!c.plan && мера > предел
           const раскрыта = раскрытые.has(c.id) || (!!поиск.trim() && дети.length > 0)
           return (
             <div key={c.id} className="card tight fx-glare" style={цвѣтъПодсвѣтки(c.color)}>
@@ -115,7 +122,7 @@ export default function Categories() {
                   </div>
                   <div className="faint small">
                     {avg ? т('{0} в месяц в среднем', money(avg)) : т('нет операций за 3 месяца')}
-                    {c.plan ? т(' · лимит {0}', money(c.plan)) : ''}
+                    {c.plan ? т(' · лимит {0} {1}', money(c.plan), ПЕРИОДЫ_ЛИМИТА.find((x) => x.k === периодЛимита(c, data.categories).kind)?.кратко ?? '') : ''}
                   </div>
                 </div>
                 <Spark values={hist} color={c.color} />
@@ -129,15 +136,17 @@ export default function Categories() {
                     <div
                       className="bar-fill"
                       style={{
-                        width: `${Math.min(100, (avg / c.plan) * 100)}%`,
+                        width: `${Math.min(100, предел ? (мера / предел) * 100 : 0)}%`,
                         background: overPlan ? 'var(--alert)' : c.color,
                       }}
                     />
                   </div>
                   <div className={'small ' + (overPlan ? 'neg' : 'faint')} style={{ marginTop: 4 }}>
-                    {overPlan
-                      ? т('в среднем на {0} выше лимита', money(avg - c.plan))
-                      : т('запас {0} к лимиту', money(c.plan - avg))}
+                    {заВсё !== null
+                      ? (overPlan ? т('за всё время на {0} выше лимита', money(мера - предел)) : т('за всё время: осталось {0}', money(предел - мера)))
+                      : overPlan
+                        ? т('в среднем на {0} выше лимита', money(мера - предел))
+                        : т('запас {0} к лимиту', money(предел - мера))}
                   </div>
                 </div>
               ) : (

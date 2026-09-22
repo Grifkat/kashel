@@ -1,4 +1,5 @@
 import React, { useLayoutEffect, useRef } from 'react'
+import { исполнениеЛимита } from '../../engine/limity'
 import { прогрессЦели, этоЗаработок } from '../../engine/zarabotok'
 import { money, moneyShort } from '../../lib/format'
 import { accountBalance, balances, categoryTotals, creditRemaining } from '../../engine/stats'
@@ -248,7 +249,8 @@ export function nodeData(node: CanvasNode, data: VaultData, ctx: CardContext): N
         icon: c.icon,
         value: amount,
         sub: `${c.kind === 'income' ? т('доход') : т('расход')} · ${ctx.periodLabel}`,
-        progress: c.plan ? Math.min(1, amount / c.plan) : undefined,
+        // Полоса лимита — по тратам за отрезок его периода, а не за период доски.
+        progress: c.plan ? Math.min(1, исполнениеЛимита(c, data.categories, data.transactions).потрачено / c.plan) : undefined,
       }
     }
     case 'goal': {
