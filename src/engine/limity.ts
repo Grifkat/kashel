@@ -13,9 +13,10 @@
  * награды, отчёт для собеседника, канвас), берут отрезок и траты отсюда,
  * чтобы нигде не сравнивались траты месяца с годовым лимитом.
  */
-import type { Category, Money, ПериодЛимита, Transaction } from '../lib/types'
+import type { Category, Money, ПериодЛимита, Recurring, Transaction } from '../lib/types'
 import { diffDays, endOfMonth, endOfYear, startOfMonth, startOfYear, today } from '../lib/date'
 import { родитель, семья } from './podkategorii'
+import { поТемпу, прогнозТрат, разовость } from './razovye'
 import { т } from '../i18n'
 
 export type ВидПериода = ПериодЛимита['kind']
@@ -87,14 +88,13 @@ export function потраченоЗа(c: Category, cats: Category[], txs: Trans
 export const РАЗОВЫХ = 2
 
 /**
- * Прогноз трат к концу отрезка по темпу. Отрезок уже кончился или ещё не
- * начался — прогноз равен потраченному. У «всего времени» конца нет.
+ * Прогноз трат к концу отрезка по темпу — без деления на разовые и текущие.
+ * Отрезок уже кончился или ещё не начался — прогноз равен потраченному.
+ * У «всего времени» конца нет.
  */
 export function прогнозЗа(потрачено: Money, операций: number, от: string, до: string, п: ПериодЛимита, now: string = today()): Money {
-  if (п.kind === 'all' || операций <= РАЗОВЫХ || now < от || now > до) return потрачено
-  const всего = diffDays(от, до) + 1
-  const прошло = diffDays(от, now) + 1
-  return Math.round(потрачено / Math.max(0.05, прошло / всего))
+  if (п.kind === 'all' || операций <= РАЗОВЫХ) return потрачено
+  return поТемпу(потрачено, от, до, now)
 }
 
 export interface ИсполнениеЛимита {
@@ -103,17 +103,34 @@ export interface ИсполнениеЛимита {
   до: string
   потрачено: Money
   операций: number
+  /** Из потраченного — разовые траты: в прогноз идут один раз. */
+  разовые: Money
+  /** Регулярные платежи статьи, которые ещё впереди в этом отрезке. */
+  впереди: Money
   прогноз: Money
   лимит: Money
 }
 
-/** Всё о лимите категории на день `на`: отрезок, траты, прогноз. */
-export function исполнениеЛимита(c: Category, cats: Category[], txs: Transaction[], на: string = today(), now: string = today()): ИсполнениеЛимита {
+/**
+ * Всё о лимите категории на день `на`: отрезок, траты, прогноз. Прогноз —
+ * как в engine/razovye: разовые один раз, текущие по темпу, плюс ещё не
+ * внесённые платежи по `правилам` (без них — только записанное).
+ */
+export function исполнениеЛимита(c: Category, cats: Category[], txs: Transaction[], на: string = today(), now: string = today(), правила: Recurring[] = []): ИсполнениеЛимита {
   const п = периодЛимита(c, cats)
   const первая = п.kind === 'all' ? txs.reduce<string | undefined>((м, t) => (!м || t.date < м ? t.date : м), undefined) : undefined
   const { от, до } = отрезокЛимита(п, на, первая)
   const { сумма, операций } = потраченоЗа(c, cats, txs, от, до)
-  return { п, от, до, потрачено: сумма, операций, прогноз: прогнозЗа(сумма, операций, от, до, п, now), лимит: c.plan ?? 0 }
+  const свои = семья(c.id, cats)
+  const пт = прогнозТрат(txs, от, до, разовость(cats, txs, правила, now), now, (id) => свои.has(id), РАЗОВЫХ)
+  return {
+    п, от, до, потрачено: сумма, операций,
+    разовые: пт.разовые,
+    впереди: п.kind === 'all' ? 0 : пт.впереди,
+    // У «всего времени» конца нет — тянуть темпом некуда.
+    прогноз: п.kind === 'all' ? сумма : пт.прогноз,
+    лимит: c.plan ?? 0,
+  }
 }
 
 /** Короткая подпись периода: «за квартал», «на год», «с 01.09 по 30.11». */

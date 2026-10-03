@@ -36,6 +36,7 @@ export function KategoriyaOkno({
   const [pick, setPick] = useState(false)
   const [свойПериод, setСвойПериод] = useState(false)
   const patch = (p: Partial<Category>) => setC((x) => ({ ...x, ...p }))
+  const разоваяУГлавной = !!(c.parentId && data.categories.find((x) => x.id === c.parentId)?.oneOff)
 
   // Список «Главная категория»: только главные того же вида, не сама она.
   const все = data.categories.some((x) => x.id === c.id) ? data.categories.map((x) => (x.id === c.id ? c : x)) : [...data.categories, c]
@@ -172,6 +173,23 @@ export function KategoriyaOkno({
             <div className="faint small" style={{ marginBottom: 14 }}>
               {BUCKETS.find((b) => b.k === c.bucket)?.hint}
             </div>
+
+            {/* Разовые траты темпом не растягиваются (engine/razovye). У
+                подкатегории без своей отметки — как у главной; снятая галочка
+                при отмеченной главной хранится как false — отказ от неё. */}
+            <label className="row kat-oneoff" style={{ gap: 8, alignItems: 'flex-start', marginBottom: 14 }}>
+              <input
+                type="checkbox"
+                checked={c.oneOff ?? разоваяУГлавной}
+                onChange={(e) => patch({ oneOff: e.target.checked ? true : разоваяУГлавной ? false : undefined })}
+                style={{ marginTop: 3 }}
+              />
+              <span>
+                <span>{т('Разовые траты')}{c.oneOff === undefined && разоваяУГлавной ? т(' (как у главной)') : ''}</span>
+                <span className="d faint small" style={{ display: 'block', marginTop: 2 }}>
+                  {т('Подписка, аренда, техника, отпуск. Прогноз по темпу считает такие траты один раз, а не растягивает на весь месяц.')}</span>
+              </span>
+            </label>
           </>
         )}
 
@@ -187,7 +205,7 @@ export function KategoriyaOkno({
               />
               <span>
                 <span>{т('Доход с капитала, а не с труда')}</span>
-                <span className="d faint small">
+                <span className="d faint small" style={{ display: 'block', marginTop: 2 }}>
                   {тр('{0}Дивиденды, купоны, аренда, проценты по вкладу. Отличить это от заработка сама программа не может: в операции видно только сумму, счёт и статью. Отметка ставится один раз и распространяется на всю историю по статье.', ' ')}</span>
               </span>
             </label>

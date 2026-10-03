@@ -134,7 +134,7 @@ export default function Budget() {
    */
   const [правимъ, setПравимъ] = useState<string | null>(null)
   const порядокъ = useRef<string[]>([])
-  const исп = (c: Category) => исполнениеЛимита(c, data.categories, личн.transactions, anchor)
+  const исп = (c: Category) => исполнениеЛимита(c, data.categories, личн.transactions, anchor, today(), личн.recurring)
   const своиГлавной = (c: Category, от: string, до: string) =>
     потраченоЗа(c, data.categories, личн.transactions, от, до).сумма -
     детиГлавной(c.id).reduce((x, д) => x + потраченоЗа(д, data.categories, личн.transactions, от, до).сумма, 0)

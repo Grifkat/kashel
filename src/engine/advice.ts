@@ -1,7 +1,8 @@
 import type { Account, Category, Money, Transaction, VaultData } from '../lib/types'
+import { прогнозТрат, разовость } from './razovye'
 import { заПериод, исполнениеЛимита, периодЛимита } from './limity'
 import { сЗначкомъ } from '../lib/catalog'
-import { addDays, addMonths, daysInMonth, diffDays, diffMonths, humanDate, monthKey, monthTitle, parseISO, today, вСтрочную } from '../lib/date'
+import { addDays, addMonths, daysInMonth, diffDays, diffMonths, endOfMonth, humanDate, monthKey, monthTitle, parseISO, today, вСтрочную } from '../lib/date'
 import { money, moneyShort, months as monthsWord, pct, plural, times } from '../lib/format'
 import { balances, categoryMonthly, categoryTotals, creditRemaining, isAsset, mean, median, stdev, trendSlope, остатокДолга } from './stats'
 import { historyKeys, occurrencesInMonth, type ForecastResult } from './forecast'
@@ -164,6 +165,9 @@ function ruleCategoryDrift(c: Ctx): Advice[] {
   const out: Advice[] = []
   const curTx = c.data.transactions.filter((t) => monthKey(t.date) === c.curKey)
   const totals = categoryTotals(curTx, 'expense')
+  // Разовые траты статьи (подписка, аренда) темпом не растягиваются — см. engine/razovye.
+  const р = разовость(c.data.categories, c.data.transactions, c.data.recurring)
+  const от = c.curKey + '-01'
 
   for (const t of totals.slice(0, 12)) {
     const cat = c.catById.get(t.categoryId)
@@ -172,7 +176,8 @@ function ruleCategoryDrift(c: Ctx): Advice[] {
     if (hist.length < 3) continue
     const norm = median(hist)
     if (!norm) continue
-    const projected = Math.round(t.amount / c.monthProgress)
+    const пт = прогнозТрат(curTx, от, endOfMonth(от), р, today(), (id) => id === cat.id)
+    const projected = пт.разовые + Math.round(пт.текущие / c.monthProgress) + пт.впереди
     const over = projected - norm
     if (over <= 0 || over / norm < 0.25 || over < 150000) continue
 
@@ -286,7 +291,7 @@ function rulePlanOverrun(c: Ctx): Advice[] {
     if (cat.kind !== 'expense' || !cat.plan || cat.archived) continue
     // Траты и прогноз — за отрезок периода лимита (engine/limity): месячные
     // траты с годовым лимитом не сравниваются. Главная — с подкатегориями.
-    const и = исполнениеЛимита(cat, c.data.categories, c.data.transactions)
+    const и = исполнениеЛимита(cat, c.data.categories, c.data.transactions, today(), today(), c.data.recurring)
     if (и.прогноз > cat.plan * 1.05) bad.push({ cat, spent: и.потрачено, projected: и.прогноз, plan: cat.plan, за: и.п.kind === 'month' ? '' : ' ' + заПериод(и.п) })
   }
   if (!bad.length) return []

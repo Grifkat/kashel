@@ -8,9 +8,10 @@ import { useAnalytics } from '../state/analytics'
 import { StandingLine } from '../views/Profile'
 import { Icon } from '../lib/icons'
 import { money, pct } from '../lib/format'
-import { addDays, daysInMonth, monthKey, parseISO, today } from '../lib/date'
+import { addDays, daysInMonth, endOfMonth, monthKey, parseISO, today } from '../lib/date'
 import { balances, creditRemaining } from '../engine/stats'
 import { платежиМесяца } from '../engine/platezhi'
+import { прогнозТрат, разовость } from '../engine/razovye'
 import { Spark } from './charts'
 import { Avatar } from './ui'
 import { личное } from '../engine/project'
@@ -96,7 +97,15 @@ export function RightPanel({ open }: { open: boolean }) {
         const earned = curTx.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0)
         const d = parseISO(today())
         const progress = d.getDate() / daysInMonth(d.getFullYear(), d.getMonth())
-        const projected = Math.round(spent / Math.max(0.05, progress))
+        // Прогноз: разовые траты один раз, текущие по темпу, плюс регулярные
+        // платежи, которые ещё впереди. Делить всё на долю месяца нельзя:
+        // подписка за 30 000 ₽ на третий день давала 300 000 ₽ «по темпу».
+        const пт = прогнозТрат(личн.transactions, cur + '-01', endOfMonth(cur + '-01'), разовость(личн.categories, личн.transactions, личн.recurring), today())
+        const projected = пт.прогноз
+        const пояснение = [
+          пт.разовые > 0 ? т('разовые {0} — один раз', money(пт.разовые)) : '',
+          пт.впереди > 0 ? т('регулярные впереди {0}', money(пт.впереди)) : '',
+        ].filter(Boolean).join(' · ')
         return (
           <div className="card tight">
             <div className="card-title" style={{ marginBottom: 6 }}>{т('Этот месяц')}</div>
@@ -117,8 +126,14 @@ export function RightPanel({ open }: { open: boolean }) {
             <div className="bar-track" style={{ marginTop: 10 }}>
               <div className="bar-fill" style={{ width: `${Math.min(100, progress * 100)}%`, background: 'var(--accent)' }} />
             </div>
-            <div className="faint small" style={{ marginTop: 6 }}>
-              {тр('Прошло {0}% месяца · по темпу выйдет {1}', Math.round(progress * 100), money(projected))}</div>
+            <div
+              className="faint small month-forecast"
+              style={{ marginTop: 6 }}
+              title={т('Подписки, аренда, крупные покупки и статьи с отметкой «Разовые траты» входят в прогноз один раз. Остальные траты растягиваются по темпу, ещё не внесённые регулярные платежи прибавляются.')}
+            >
+              {тр('Прошло {0}% месяца · по темпу выйдет {1}', Math.round(progress * 100), money(projected))}
+              {пояснение && <div>{пояснение}</div>}
+            </div>
           </div>
         )
       }

@@ -276,6 +276,8 @@ function normCategory(v: unknown, drop: Drop): Category | null {
     ...(периодИзАрхива(r.planPeriod) ? { planPeriod: периодИзАрхива(r.planPeriod)! } : {}),
     ...(typeof r.bucket === 'string' ? { bucket: oneOf<Bucket>(r.bucket, BUCKETS, 'wants') } : {}),
     ...(bool(r.capital) ? { capital: true } : {}),
+    // false тоже хранится: так подкатегория отказывается от отметки главной.
+    ...(typeof r.oneOff === 'boolean' ? { oneOff: r.oneOff } : {}),
     ...(bool(r.archived) ? { archived: true } : {}),
   }
 }

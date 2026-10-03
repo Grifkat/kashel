@@ -89,7 +89,7 @@ function кредиты(data: VaultData, mk: string, now: string): Платёж�
 }
 
 /** Операции правила в месяце: помеченные им или той же статьи на ту же сумму. */
-function внесеноПоПравилу(r: Recurring, txs: Transaction[], mk: string): Money {
+export function внесеноПоПравилу(r: Recurring, txs: Transaction[], mk: string): Money {
   let сумма = 0
   for (const t of txs) {
     if (monthKey(t.date) !== mk || t.kind !== 'expense') continue

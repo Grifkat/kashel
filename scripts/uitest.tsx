@@ -1,6 +1,8 @@
 // Проверка интерфейса в jsdom: разделы открываются без ошибок рендера,
 // массовое удаление удаляет ровно то, что обещает, и возвращается назад.
 // Запуск: npm run uitest
+import { прогнозТрат, разовость } from '../src/engine/razovye'
+import { личное } from '../src/engine/project'
 import { JSDOM } from 'jsdom'
 import React from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -3163,6 +3165,67 @@ async function цельЗаработатьЭкраны() {
 }
 
 /** 1.0.13: период у лимитов категорий. */
+/** 1.0.14: отметка «Разовые траты» и прогноз в карточке «Этот месяц». */
+async function разовыеТратыЭкраны() {
+  console.log('\n— разовые траты —')
+  // Карточка месяца считает прогноз движком разовых трат — сверяем с ним же.
+  const ждём = async () => {
+    const v = личное((await loadVault()) as VaultData)
+    const мк = today().slice(0, 7) + '-01'
+    return прогнозТрат(v.transactions, мк, endOfMonth(мк), разовость(v.categories, v.transactions, v.recurring), today()).прогноз
+  }
+  await open('Дашборд')
+  await wait(300)
+  const строка = () => document.querySelector('.rightbar .month-forecast')
+  const до = await ждём()
+  check('карточка месяца: прогноз — разовые один раз, остальное по темпу', (строка()?.textContent || '').includes(money(до)),
+    `${(строка()?.textContent || '').slice(0, 80)} · ждали ${money(до)}`)
+  check('у прогноза есть подсказка, как он считается', (строка()?.getAttribute('title') || '').includes('один раз'))
+
+  await open('Категории')
+  await wait(300)
+  const v0 = (await loadVault()) as VaultData
+  const главная = v0.categories.find((c) => c.kind === 'expense' && !c.parentId && !c.archived)
+  const карточкаГлавной = () => all('.view .card').find((к) => !!главная && (к.textContent || '').includes(главная.name) && к.querySelector('.icon-btn[title="Изменить"]'))
+  click(карточкаГлавной()?.querySelector('.icon-btn[title="Изменить"]'))
+  await wait(300)
+  const галочка = () => document.querySelector('.modal .kat-oneoff input') as HTMLInputElement | null
+  const подпись = () => document.querySelector('.modal .kat-oneoff')?.textContent || ''
+  check('в окне категории расходов есть отметка «Разовые траты»', !!галочка() && !галочка()!.checked && подпись().includes('Разовые траты'), главная?.name)
+  click(галочка())
+  await wait(100)
+  click(byText('.modal .btn', 'Сохранить'))
+  await wait(1300)
+  check('отметка сохраняется в хранилище', ((await loadVault()) as VaultData).categories.find((c) => c.id === главная?.id)?.oneOff === true)
+
+  // Новая подкатегория берёт отметку у главной и может от неё отказаться.
+  click(карточкаГлавной()?.querySelector('.btn[title^="Новая подкатегория"]'))
+  await wait(300)
+  check('у подкатегории без своей отметки — как у главной', !!галочка()?.checked && подпись().includes('как у главной'))
+  click(галочка())
+  await wait(100)
+  check('снятая у подкатегории отметка — отказ от главной', !галочка()?.checked && !подпись().includes('как у главной'))
+  click(byText('.modal .btn', 'Отмена'))
+  await wait(300)
+
+  await open('Дашборд')
+  await wait(300)
+  const после = await ждём()
+  check('после отметки карточка месяца пересчитана тем же движком', (строка()?.textContent || '').includes(money(после)), `ждали ${money(после)}`)
+
+  // Вернуть как было, чтобы не мешать остальным проверкам.
+  await open('Категории')
+  await wait(300)
+  click(карточкаГлавной()?.querySelector('.icon-btn[title="Изменить"]'))
+  await wait(300)
+  click(галочка())
+  await wait(100)
+  click(byText('.modal .btn', 'Сохранить'))
+  await wait(1300)
+  const v2 = (await loadVault()) as VaultData
+  check('снятая у главной отметка не оставляет следа в хранилище', v2.categories.find((c) => c.id === главная?.id)?.oneOff === undefined)
+}
+
 async function периодЛимитаЭкраны() {
   console.log('\n— период лимита —')
   const ввести = (поле: Element | null | undefined, значение: string) => {
@@ -3237,6 +3300,7 @@ async function main() {
   await правки107()
   await цельЗаработатьЭкраны()
   await периодЛимитаЭкраны()
+  await разовыеТратыЭкраны()
   await конструкторъОформленія()
   await themes()
   await cardGlare()
