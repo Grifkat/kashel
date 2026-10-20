@@ -1040,6 +1040,9 @@ kbd {
 .graph-node { cursor: pointer; }
 .graph-node:hover { filter: brightness(1.08); }
 .graph-halo { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.5; }
+/* Главная категория и её подкатегории: орбита вокруг главной, пунктир до подкатегорий. */
+.graph-orbit { fill: none; stroke-width: 1.4; stroke-opacity: 0.55; stroke-dasharray: 2.5 3; }
+.graph-link-family { stroke-dasharray: 2 4.5; }
 .graph-label-bg { fill: color-mix(in srgb, var(--panel) 86%, transparent); stroke: var(--border-soft); stroke-width: 1; }
 .graph-label-bg.strong { fill: var(--panel); stroke: var(--accent); }
 .graph-label { font-size: 11px; fill: var(--muted); font-family: inherit; }
@@ -1084,6 +1087,126 @@ kbd {
   .graph-card { top: auto; bottom: 14px; left: 14px; right: 14px; width: auto; max-height: 45%; }
   .graph-panel { width: 220px; }
 }
+
+.graph-vid { display: flex; }
+.graph-vid button { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* ============================================================ потоки */
+.graph-flows { cursor: default; --flow-alpha: 0.44; }
+/* На тёмном фоне полупрозрачные ленты тускнеют — там они плотнее. */
+[data-theme='imperial'] .graph-flows, [data-theme='obsidian'] .graph-flows, [data-theme='graphite'] .graph-flows,
+[data-theme='glass'] .graph-flows, [data-theme='neon'] .graph-flows, [data-theme='znamya'] .graph-flows,
+[data-theme='trikolornoch'] .graph-flows, [data-theme='pickmenoch'] .graph-flows { --flow-alpha: 0.54; }
+.flows-svg { display: block; }
+.flow-link { cursor: pointer; opacity: var(--flow-alpha); transition: opacity 0.22s ease; }
+.flow-link:hover { opacity: calc(var(--flow-alpha) + 0.16); }
+.flow-link.still, .flow-node.still, .flow-label.still { cursor: default; }
+/* Наведение: всё, что не на пути денег, уходит в тень; на пути — светится доля. */
+.flows-dim .flow-link { opacity: 0.08; }
+.flows-dim .flow-link.in-trace { opacity: 0.2; }
+.flow-trace { opacity: 0.92; }
+.flow-node { cursor: pointer; stroke: var(--bg); stroke-width: 1; transition: opacity 0.22s ease; }
+.flow-node.group { stroke: color-mix(in srgb, var(--text) 30%, var(--bg)); }
+.flows-dim .flow-node { opacity: 0.22; }
+.flows-dim .flow-node.in-trace { opacity: 1; }
+.flow-label { cursor: pointer; }
+.flow-label text {
+  font-size: 11.5px; font-family: inherit;
+  paint-order: stroke; stroke: var(--bg); stroke-width: 3.5px; stroke-linejoin: round;
+}
+.flow-label .flow-name { fill: var(--text-strong); font-weight: 600; }
+.flow-label .flow-sum { fill: var(--muted); font-variant-numeric: tabular-nums; }
+.flow-label .flow-chev { fill: var(--muted); font-size: 10px; }
+.flow-label .flow-name.own { fill: var(--muted); font-weight: 500; font-style: italic; }
+.flow-label:hover .flow-name { fill: var(--accent); }
+
+/* Плавность. Форма лент и места узлов переходят от прежней раскладки к
+   новой; новые ленты проступают слева направо — по столбцу (--i). */
+.flows-anim-full .flow-link {
+  transition: d 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.22s ease;
+  animation: flow-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+.flows-anim-full .flow-node {
+  transition: x 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), y 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
+    height 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.22s ease;
+  animation: flow-node-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+.flows-anim-full .flow-label {
+  transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+  animation: flow-fade 0.5s ease backwards;
+  animation-delay: calc(var(--i, 0) * 120ms + 150ms);
+}
+.flows-anim-subtle .flow-link { transition: d 0.35s ease, opacity 0.18s ease; animation: flow-fade 0.3s ease backwards; }
+.flows-anim-subtle .flow-node { transition: x 0.35s ease, y 0.35s ease, height 0.35s ease, opacity 0.18s ease; animation: flow-fade 0.3s ease backwards; }
+.flows-anim-subtle .flow-label { transition: transform 0.35s ease; animation: flow-fade 0.3s ease backwards; }
+.flows-anim-full .flow-trace, .flows-anim-subtle .flow-trace { animation: flow-fade 0.2s ease backwards; }
+.flows-anim-off .flow-link, .flows-anim-off .flow-node, .flows-anim-off .flow-label { transition: none; animation: none; }
+.flows-fresh .flow-link, .flows-fresh .flow-node, .flows-fresh .flow-label { transition: none; }
+@keyframes flow-in {
+  from { opacity: 0; clip-path: inset(0 100% 0 0); }
+}
+@keyframes flow-node-in {
+  from { opacity: 0; transform: scaleY(0.3); }
+}
+@keyframes flow-fade {
+  from { opacity: 0; }
+}
+.flow-node { transform-box: fill-box; transform-origin: center; }
+
+/* Панель «Потоков» — строкой сверху: схеме нужна вся ширина окна. */
+.graph-flows .graph-panel {
+  left: 14px; right: 14px; top: 14px; width: auto; max-height: none; overflow: visible;
+  flex-direction: row; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 9px 12px;
+}
+.graph-flows .graph-panel > * { flex: 0 0 auto; min-width: 0; }
+.graph-flows .graph-vid button { flex: 0 0 auto; padding-inline: 12px; }
+.graph-flows .flows-transfers { gap: 8px; }
+.graph-flows .graph-panel > .flows-totals { flex: 1 1 330px; }
+.flows-totals { display: flex; gap: 6px; }
+.flows-totals > div {
+  flex: 1; min-width: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1px;
+  padding: 5px 9px; border-radius: var(--radius); background: var(--panel-2);
+}
+.flows-totals > div > * { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.flows-totals .num { font-size: 12.5px; }
+.flows-hint { position: absolute; left: 16px; right: 16px; bottom: 12px; pointer-events: none; text-align: center; }
+.flows-totals .money-in { color: var(--money-in); }
+.flows-totals .money-out { color: var(--money-out); }
+
+.flows-empty {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 10px; padding: 24px; text-align: center; pointer-events: none;
+}
+.flows-empty > * { max-width: 380px; }
+.flows-empty .btn { pointer-events: auto; }
+.flows-empty-icon {
+  width: 52px; height: 52px; border-radius: 16px; display: grid; place-items: center;
+  color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.flows-tip {
+  position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none;
+  min-width: 200px; max-width: 290px; padding: 10px 12px;
+  background: color-mix(in srgb, var(--panel) 96%, transparent);
+  border: 1px solid var(--border-soft); border-radius: var(--radius-lg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); backdrop-filter: blur(8px);
+  display: flex; flex-direction: column; gap: 6px;
+}
+.flows-tip-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--text-strong); }
+.flows-tip-sum { font-size: 17px; font-weight: 600; color: var(--text-strong); }
+.flows-tip-list { display: flex; flex-direction: column; gap: 3px; }
+.flows-tip-sub { text-transform: uppercase; letter-spacing: 0.05em; }
+.flows-tip-row { display: flex; align-items: center; gap: 7px; }
+.flows-tip-hint { border-top: 1px solid var(--border-soft); padding-top: 6px; }
+
+/* Узкое окно: панель в две-три строки, без заголовка и без подсказки внизу. */
+.graph-flows.narrow .graph-panel { left: 10px; right: 10px; top: 10px; gap: 8px; }
+.graph-flows.narrow .graph-panel-head, .graph-flows.narrow .flows-hint { display: none; }
+.graph-flows.narrow .graph-panel > .graph-vid, .graph-flows.narrow .graph-panel > .graph-period { flex: 1 1 200px; }
+.graph-flows.narrow .graph-vid button, .graph-flows.narrow .graph-period button { flex: 1; }
+.graph-flows.narrow .graph-panel > .flows-totals { flex: 1 1 100%; }
 
 /* ============================================================ прочее */
 .advice-card {
