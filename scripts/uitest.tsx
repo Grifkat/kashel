@@ -3482,6 +3482,8 @@ async function периодЛимитаЭкраны() {
  * Граф: главные категории и подкатегории. Оснастка без подкатегорий,
  * поэтому «Такси» на время проверки кладётся в «Транспорт» — прямо в
  * хранилище, с перезапуском, — а в конце всё возвращается как было.
+ * В том же перезапуске «Наличные» становятся проектным счётом: «Потоки»
+ * показывают его вместе с личными, но с пометкой «проект».
  */
 async function графПодкатегории(root: Root): Promise<Root> {
   console.log('\n— граф: подкатегории —')
@@ -3492,7 +3494,11 @@ async function графПодкатегории(root: Root): Promise<Root> {
   const найти = (имя: string) => было.categories.find((c) => c.name === имя)!
   const группа = найти('Транспорт')
   const под = найти('Такси')
-  await saveCore({ ...было, categories: было.categories.map((c) => (c.id === под.id ? { ...c, parentId: группа.id } : c)) } as VaultData)
+  await saveCore({
+    ...было,
+    categories: было.categories.map((c) => (c.id === под.id ? { ...c, parentId: группа.id } : c)),
+    accounts: было.accounts.map((a) => (a.id === 'acc_cash' ? { ...a, project: true } : a)),
+  } as VaultData)
   root = mount()
   await wait(1800)
   await open('Граф')
@@ -3559,10 +3565,31 @@ async function графПодкатегории(root: Root): Promise<Root> {
   await wait(300)
   check('повторный щелчок раскрывает их снова', !!поток('e:' + под.id))
 
+  // Проектный счёт — на той же схеме, но помечен: штриховка, рамка, плашка «проект».
+  const наличные = поток('acc:acc_cash')
+  check('проектный счёт на схеме вместе с личными, в штриховке и рамке', !!наличные?.classList.contains('project')
+    && !!наличные?.getAttribute('mask') && !!document.querySelector('.flow-frame') && !!поток('acc:acc_main')
+    && !поток('acc:acc_main')?.classList.contains('project'))
+  const подписьНаличных = document.querySelector('.flow-label[data-id="acc:acc_cash"]')
+  check('у проектного счёта плашка «проект»', !!подписьНаличных?.querySelector('.flow-tag')
+    && (подписьНаличных?.textContent || '').includes('проект'), подписьНаличных?.textContent || 'нет подписи')
+  const проектныеЛенты = all('.flow-link').filter((л) => (л.getAttribute('data-id') || '').includes('acc:acc_cash'))
+  check('ленты проектного счёта тоже в штриховке, личные — нет', проектныеЛенты.length > 0
+    && проектныеЛенты.every((л) => л.classList.contains('project') && !!л.getAttribute('mask'))
+    && all('.flow-link').some((л) => !л.classList.contains('project')))
+  check('проектные деньги не путаются с личными: свои «прежние остатки» проекта', !!поток('pstock') && !!поток('acc:acc_cash'))
+  check('в итогах видно, сколько из них проект', (document.querySelector('.flows-totals')?.textContent || '').includes('из них проект'))
+  навести(наличные, true)
+  await wait(200)
+  check('подсказка проектного счёта: деньги проектные, не личные',
+    (document.querySelector('.flows-tip')?.textContent || '').includes('проектные, не личные'), (document.querySelector('.flows-tip')?.textContent || '').slice(0, 90))
+  навести(наличные, false)
+  await wait(150)
+
   await wait(1300)
   root.unmount()
   await wait(250)
-  await saveCore({ ...((await loadVault()) as VaultData), categories: было.categories } as VaultData)
+  await saveCore({ ...((await loadVault()) as VaultData), categories: было.categories, accounts: было.accounts } as VaultData)
   root = mount()
   await wait(1800)
   return root
@@ -3605,7 +3632,15 @@ async function потокиЭкраны() {
   }
   const лентаДома = document.querySelector(`.flow-link[data-id="acc:acc_main>e:${дом.id}"]`)
   check('разбитый чек идёт в статью своей долей', Number(лентаДома?.getAttribute('data-sum')) === вДом, `${лентаДома?.getAttribute('data-sum')} · ждали ${вДом}`)
-  check('переводы между счетами — лентами от счёта к счёту', ленты().some((л) => л.classList.contains('k-transfer')))
+  check('переводы между счетами по умолчанию скрыты', !ленты().some((л) => л.classList.contains('k-transfer'))
+    && (document.querySelector('.flows-transfers button span span') as HTMLElement | null)?.style.left === '2px')
+  const шапки = all('.flows-head').map((ш) => (ш.textContent || '').trim())
+  check('над столбцами — «Откуда», «Счета», «Куда»', ['Откуда', 'Счета', 'Куда'].every((т) => шапки.includes(т)), шапки.join(' · '))
+  // Схема кончается выше подсказки внизу: ни один узел не уходит под неё.
+  const низ = Number(document.querySelector('.flows-svg')?.getAttribute('data-niz'))
+  const нижний = Math.max(...узлы().map((у) => Number(у.getAttribute('y')) + Number(у.getAttribute('height'))))
+  check('схема кончается выше подсказки внизу', !!document.querySelector('.flows-hint') && низ > 0 && нижний <= низ + 0.5,
+    `низ узлов ${Math.round(нижний)}, граница ${низ}`)
 
   // Наведение: схема гаснет, цепочка светится своей долей, подсказка — откуда и куда.
   const навести = (el: Element | null | undefined, на: boolean) => {
@@ -3644,12 +3679,14 @@ async function потокиЭкраны() {
   click(byText('.graph-period button', 'Полгода'))
   await wait(300)
 
-  // Без переводов — ни одной ленты между счетами.
+  // Переводы включаются выключателем: ленты от счёта к счёту и шапка «Счета» над всеми счетами.
   click(document.querySelector('.flows-transfers button'))
   await wait(300)
-  check('переводы можно убрать со схемы', !ленты().some((л) => л.classList.contains('k-transfer')) && ленты().length > 5)
+  check('выключатель показывает переводы лентами от счёта к счёту', ленты().some((л) => л.classList.contains('k-transfer'))
+    && all('.flows-head').filter((ш) => (ш.textContent || '').trim() === 'Счета').length === 1)
   click(document.querySelector('.flows-transfers button'))
   await wait(300)
+  check('и убирает их обратно', !ленты().some((л) => л.classList.contains('k-transfer')) && ленты().length > 5)
 }
 
 /* После «Стереть всё»: вместо схемы — понятная заглушка. */

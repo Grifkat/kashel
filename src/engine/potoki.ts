@@ -17,6 +17,11 @@
  * долг» и «Погашено»). Поэтому у каждого счёта вход равен выходу, а слева
  * и справа одна и та же сумма.
  *
+ * Проектные счета (engine/project) — на той же схеме: человек хочет видеть
+ * всё, и кому что уходит. Но их узлы помечены, а остаток проекта течёт в
+ * своё «Осталось в проекте», а не в личное «Осталось»: проектные деньги
+ * лежат у вас, но не ваши.
+ *
  * Здесь только счёт, раскладка и след цепочки — без React и без DOM.
  */
 import type { Account, Category, Money, Transaction } from '../lib/types'
@@ -41,6 +46,8 @@ export interface УзелПотока {
   ref?: string
   /** Узел счёта, а не категории. */
   счёт?: boolean
+  /** Проектный счёт или остаток проекта: деньги не личные. */
+  проект?: boolean
   /** Короткая подпись на схеме, если полное имя длинно: «без подкатегории». */
   подпись?: string
   /** У подкатегории — id узла её главной. */
@@ -69,6 +76,9 @@ export interface Потоки {
   /** Доходы и расходы за период — без переводов и «запасов». */
   пришло: Money
   ушло: Money
+  /** Из них по проектным счетам. */
+  проектПришло: Money
+  проектУшло: Money
   столбцов: number
 }
 
@@ -105,6 +115,9 @@ export function потоки(п: ПараметрыПотоков): Потоки
   const переводы = new Map<string, Money>()
   let пришло = 0
   let ушло = 0
+  let проектПришло = 0
+  let проектУшло = 0
+  const проектный = (accId: string) => !!счётПоId.get(accId)?.project
   for (const t of п.transactions) {
     if (п.с && t.date < п.с) continue
     if (t.kind === 'transfer') {
@@ -117,6 +130,10 @@ export function потоки(п: ПараметрыПотоков): Потоки
     const сторона: Сторона = t.kind === 'income' ? 'i' : 'e'
     if (сторона === 'i') пришло += t.amount
     else ушло += t.amount
+    if (проектный(t.accountId)) {
+      if (сторона === 'i') проектПришло += t.amount
+      else проектУшло += t.amount
+    }
     for (const д of доли(t)) {
       if (д.amount <= 0) continue
       const id = д.categoryId && катПоId.has(д.categoryId) ? д.categoryId : ''
@@ -227,8 +244,10 @@ export function потоки(п: ПараметрыПотоков): Потоки
   for (const id of счетаВСхеме) {
     const разница = (вход.get(id) ?? 0) - (выход.get(id) ?? 0)
     const долг = ['credit', 'debt'].includes(счётПоId.get(id.slice(4))?.type ?? '')
-    if (разница > 0) течь(id, долг ? 'repaid' : 'left', разница, 'stock')
-    else if (разница < 0) течь(долг ? 'loan' : 'stock', id, -разница, 'stock')
+    // Остаток проекта — не личные сбережения: у него свои «Осталось» и «прежние остатки».
+    const проект = проектный(id.slice(4)) && !долг
+    if (разница > 0) течь(id, долг ? 'repaid' : проект ? 'pleft' : 'left', разница, 'stock')
+    else if (разница < 0) течь(долг ? 'loan' : проект ? 'pstock' : 'stock', id, -разница, 'stock')
   }
   счесть()
 
@@ -241,11 +260,20 @@ export function потоки(п: ПараметрыПотоков): Потоки
     const у: УзелПотока = { id, вид: 'stock', имя: '', цвет: СЕРЫЙ, столбец: 0, вход: вход.get(id) ?? 0, выход: выход.get(id) ?? 0 }
     if (id.startsWith('acc:')) {
       const a = счётПоId.get(id.slice(4))
-      Object.assign(у, { вид: 'account', имя: a?.name ?? т('Счёт'), цвет: a?.color || '#4cc46a', значок: a?.icon, ref: id.slice(4), счёт: true, столбец: 2 + (глубина.get(id.slice(4)) ?? 0) })
-    } else if (id === 'stock' || id === 'loan') {
-      Object.assign(у, { имя: id === 'stock' ? т('Из прежних остатков') : т('В долг'), цвет: id === 'stock' ? 'var(--muted)' : 'var(--money-out)', столбец: 1 })
-    } else if (id === 'left' || id === 'repaid') {
-      Object.assign(у, { имя: id === 'left' ? т('Осталось') : т('Погашено'), цвет: id === 'left' ? 'var(--money-in)' : 'var(--muted)', столбец: 3 + сколькоГлубин })
+      Object.assign(у, {
+        вид: 'account', имя: a?.name ?? т('Счёт'), цвет: a?.color || '#4cc46a', значок: a?.icon, ref: id.slice(4), счёт: true,
+        столбец: 2 + (глубина.get(id.slice(4)) ?? 0), ...(a?.project ? { проект: true } : {}),
+      })
+    } else if (id === 'stock' || id === 'loan' || id === 'pstock') {
+      Object.assign(у, {
+        имя: id === 'stock' ? т('Из прежних остатков') : id === 'pstock' ? т('Из прежних остатков проекта') : т('В долг'),
+        цвет: id === 'loan' ? 'var(--money-out)' : 'var(--muted)', столбец: 1, ...(id === 'pstock' ? { проект: true } : {}),
+      })
+    } else if (id === 'left' || id === 'repaid' || id === 'pleft') {
+      Object.assign(у, {
+        имя: id === 'left' ? т('Осталось') : id === 'pleft' ? т('Осталось в проекте') : т('Погашено'),
+        цвет: id === 'repaid' ? 'var(--muted)' : 'var(--money-in)', столбец: 3 + сколькоГлубин, ...(id === 'pleft' ? { проект: true } : {}),
+      })
     } else {
       const сторона = id[0] as Сторона
       const свой = id[1] === 'o'
@@ -300,6 +328,8 @@ export function потоки(п: ПараметрыПотоков): Потоки
     ленты: [...ленты.values()],
     пришло,
     ушло,
+    проектПришло,
+    проектУшло,
     столбцов: занятые.length,
   }
 }
@@ -346,16 +376,37 @@ export function разложитьПотоки(п: Потоки, рамка: Р�
 
   const основа = Math.max(6, Math.min(18, рамка.h * 0.035))
   const зазор = (n: number) => (n > 1 ? Math.min(основа, (рамка.h * 0.35) / (n - 1)) : 0)
+  /*
+   * Масштаб — общий для всех столбцов, по самому тесному. Мелкий узел не
+   * тоньше МИН пикселей, и это место отнимается у крупных: иначе тридцать
+   * мелких статей выталкивали бы столбец за нижний край рамки.
+   */
+  const МИН = 2
   let масштаб = Infinity
   for (const с of столбцы) {
-    const сумма = с.reduce((s, у) => s + черезУзел(у), 0)
-    if (сумма > 0) масштаб = Math.min(масштаб, (рамка.h - зазор(с.length) * (с.length - 1)) / сумма)
+    const значения = с.map(черезУзел).filter((v) => v > 0)
+    const место = рамка.h - зазор(с.length) * (с.length - 1) - МИН * (с.length - значения.length)
+    const сумма = значения.reduce((s, v) => s + v, 0)
+    if (!сумма) continue
+    let k = место / сумма
+    for (let шаг = 0; шаг < 8; шаг++) {
+      let мелких = 0
+      let крупных = 0
+      for (const v of значения) {
+        if (v * k < МИН) мелких++
+        else крупных += v
+      }
+      const новый = крупных ? (место - мелких * МИН) / крупных : k
+      if (Math.abs(новый - k) < 1e-12) break
+      k = новый
+    }
+    масштаб = Math.min(масштаб, k)
   }
   if (!isFinite(масштаб) || масштаб < 0) масштаб = 0
 
   const узлы = new Map<string, МестоУзла>()
   столбцы.forEach((с, i) => {
-    const высоты = с.map((у) => Math.max(2, черезУзел(у) * масштаб))
+    const высоты = с.map((у) => Math.max(МИН, черезУзел(у) * масштаб))
     const з = зазор(с.length)
     const всего = высоты.reduce((s, h) => s + h, 0) + з * Math.max(0, с.length - 1)
     let y = рамка.y + Math.max(0, (рамка.h - всего) / 2)
