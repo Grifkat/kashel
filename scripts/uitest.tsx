@@ -800,7 +800,7 @@ async function canvasOneClick() {
 
   // Полка внизу: семь кнопок, «Карточка» кладёт карточку сразу.
   const полка = all('.canvas-dock .dock-btn')
-  check('на доске есть полка', полка.length === 7, String(полка.length))
+  check('на доске есть полка', полка.length === 8, String(полка.length))
   const карточка = полка.find((b) => (b.textContent || '').includes('Карточка')) as any
   const было2 = textCards().length
   click(карточка)
@@ -957,6 +957,42 @@ async function canvasNavigation() {
   check('и возвращается к масштабу', dom.window.localStorage.getItem('kashel:canvas-wheel') === 'zoom')
   click(document.querySelector('.hud-help'))
   await wait(150)
+}
+
+/**
+ * Виджеты доски: кладутся с полки, сами выбирают вид по размеру, вид
+ * меняется из меню карточки.
+ */
+async function canvasWidgets() {
+  console.log('\n— виджеты на доске —')
+  await open('Канвас')
+  await wait(600)
+  const виджеты = () => all('.cnode-t-widget')
+  const было = виджеты().length
+  click(all('.canvas-dock .dock-btn').find((b) => (b.textContent || '').includes('Виджет')))
+  await wait(250)
+  check('кнопка «Виджет» раскрывает три вида', ['Доход и расход', 'Заработок', 'Остаток на счетах'].every((t) => !!menuItem(t)))
+  click(menuItem('Доход и расход'))
+  await wait(400)
+  check('виджет лёг на доску', виджеты().length === было + 1, `${было} → ${виджеты().length}`)
+  const новый = виджеты()[виджеты().length - 1] as any
+  check('«Доход и расход» — средний вид по размеру по умолчанию', !!новый.querySelector('.cw.cw-M[data-widget="flow"]'))
+  check('в нём доход, расход и итог', новый.querySelectorAll('.cw-row').length === 3)
+  // Вид меняется из меню карточки.
+  новый.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 500, clientY: 400 }))
+  await wait(250)
+  click(menuItem('Вид виджета'))
+  await wait(200)
+  click(all('.ctx-menu .ctx-item').find((b) => (b.textContent || '').includes('Остаток на счетах')))
+  await wait(400)
+  const тот = виджеты()[виджеты().length - 1] as any
+  check('меню меняет вид виджета на «Остаток на счетах»', !!тот.querySelector('.cw[data-widget="balance"]'))
+  key('z', { ctrlKey: true })
+  await wait(300)
+  check('Ctrl+Z возвращает прежний вид', !!виджеты()[виджеты().length - 1]?.querySelector('.cw[data-widget="flow"]'))
+  key('z', { ctrlKey: true })
+  await wait(300)
+  check('и убирает виджет', виджеты().length === было, String(виджеты().length))
 }
 
 async function transactionsBulk() {
@@ -3700,6 +3736,7 @@ async function main() {
   await canvasText()
   await canvasOneClick()
   await canvasNavigation()
+  await canvasWidgets()
   await dashboardWipe()
   await transactionsBulk()
   await entryDateFollowsPeriod()

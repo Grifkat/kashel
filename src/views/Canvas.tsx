@@ -21,6 +21,8 @@ import { ContextMenu, type MenuItem } from '../components/canvas/ContextMenu'
 import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData } from '../components/canvas/nodes'
 import { ColorPalette } from '../components/canvas/ColorPalette'
 import { Полка, type ПунктПолки } from '../components/canvas/Polka'
+import { Виджет, ВИДЖЕТЫ, видВиджета, текстДляСтарых, type ВидВиджета } from '../components/canvas/Vidzhety'
+import { этоЗаработок } from '../engine/zarabotok'
 import { FIT_MODES, TextToolbar, wrapSelection } from '../components/canvas/TextToolbar'
 import {
   anchor, bestSides, boundsOf, curveOf, elbowOf, inRect, lineOf, midpoint, pathOf, pointAt, rectFrom, rectsOverlap,
@@ -132,6 +134,7 @@ const DEFAULT_SIZE: Record<CanvasNodeKind, { w: number; h: number }> = {
   scenario: { w: 260, h: 130 },
   group: { w: 420, h: 300 },
   task: { w: 270, h: 118 },
+  widget: { w: 300, h: 200 },
 }
 
 /**
@@ -709,11 +712,18 @@ export default function CanvasView({ name }: { name?: string }) {
         setView({ x: 420, y: 260, k: ZOOM_DEFAULT })
         return
       }
-      const k = клампМасштаб(Math.min((r.width - 120) / (b.width || 1), (r.height - 120) / (b.height || 1)))
+      // Вписываем между верхней панелью и полкой: они лежат поверх доски, и
+      // «вписанное» по всей высоте пряталось под ними верхним рядом.
+      const сверху = wrapRef.current?.querySelector('.canvas-tools')?.getBoundingClientRect()
+      const снизу = wrapRef.current?.querySelector('.canvas-dock')?.getBoundingClientRect()
+      const верх = сверху ? сверху.bottom - r.top + 24 : 60
+      const низ = снизу ? r.bottom - снизу.top + 24 : 60
+      const высота = Math.max(80, r.height - верх - низ)
+      const k = клампМасштаб(Math.min((r.width - 96) / (b.width || 1), высота / (b.height || 1)))
       if (анимация.current) cancelAnimationFrame(анимация.current.frame)
       анимация.current = null
       отметитьДвижение()
-      setView({ k, x: r.width / 2 - (b.x + b.width / 2) * k, y: r.height / 2 - (b.y + b.height / 2) * k })
+      setView({ k, x: r.width / 2 - (b.x + b.width / 2) * k, y: верх + высота / 2 - (b.y + b.height / 2) * k })
     },
     [doc.nodes, отметитьДвижение],
   )
@@ -808,6 +818,31 @@ export default function CanvasView({ name }: { name?: string }) {
         })),
       },
       {
+        id: 'widget',
+        label: т('Виджет'),
+        icon: 'chart',
+        children: ВИДЖЕТЫ.map((w) =>
+          w.id === 'earn'
+            ? {
+                id: 'w:earn',
+                label: w.name,
+                icon: w.icon,
+                disabled: !data.goals.some(этоЗаработок),
+                children: data.goals.filter(этоЗаработок).map((g) => ({
+                  id: 'w:earn:' + g.id,
+                  label: сЗначкомъ(g.icon, g.name),
+                  onClick: () => insertNode('widget', at, { ref: g.id, color: g.color, options: { widget: 'earn' }, text: текстДляСтарых('earn') }, connectFrom),
+                })),
+              }
+            : {
+                id: 'w:' + w.id,
+                label: w.name,
+                icon: w.icon,
+                hint: undefined,
+                onClick: () => insertNode('widget', at, { options: { widget: w.id }, text: текстДляСтарых(w.id) }, connectFrom),
+              }),
+      },
+      {
         id: 'query',
         label: т('Блок-запрос'),
         icon: 'donut',
@@ -897,6 +932,7 @@ export default function CanvasView({ name }: { name?: string }) {
       { id: 'account', label: т('Счёт'), icon: 'wallet', onPick: список('account') },
       { id: 'category', label: т('Категория'), icon: 'tag', onPick: список('category') },
       { id: 'goal', label: т('Цель'), icon: 'target', onPick: список('goal') },
+      { id: 'widget', label: т('Виджет'), icon: 'chart', hint: т('доход и расход, заработок, остаток'), onPick: список('widget') },
       {
         id: 'query',
         label: т('Запрос'),
@@ -921,6 +957,7 @@ export default function CanvasView({ name }: { name?: string }) {
           ? [{ id: 'to-task', label: т('Сделать задачей'), icon: 'check', onClick: () => вЗадачу(node) }]
           : []),
         ...(node.type === 'task' && !many ? задачныеПункты(node) : []),
+        ...(node.type === 'widget' && !many ? виджетныеПункты(node) : []),
         {
           id: 'color',
           label: т('Цвет'),
@@ -955,7 +992,7 @@ export default function CanvasView({ name }: { name?: string }) {
           : []),
         { id: 'dup', label: т('Дублировать'), icon: 'copy', onClick: () => duplicate(node.id) },
         { id: 'copy', label: т('Копировать'), icon: 'copy', hint: 'Ctrl+C', onClick: copySelection },
-        ...((node.ref || node.file) && node.type !== 'task'
+        ...(((node.ref || node.file) && node.type !== 'task') || node.type === 'widget'
           ? [{ id: 'open', label: т('Открыть раздел'), icon: 'arrowRight', onClick: () => openNodeTarget(node) }]
           : []),
         {
@@ -1033,6 +1070,36 @@ export default function CanvasView({ name }: { name?: string }) {
     ]
   }
 
+  // ---------------------------------------------------- виджеты
+  /** Сменить вид виджета: «Доход и расход», «Заработок» (с выбором цели), «Остаток». */
+  const виджетныеПункты = (n: CanvasNode): MenuItem[] => {
+    const стать = (вид: ВидВиджета, ref?: string): Partial<CanvasNode> =>
+      ({ options: { ...(n.options ?? {}), widget: вид }, ref, text: текстДляСтарых(вид) })
+    const сейчас = видВиджета(n)
+    return [{
+      id: 'w-kind',
+      label: т('Вид виджета'),
+      icon: 'chart',
+      children: ВИДЖЕТЫ.map((w) =>
+        w.id === 'earn'
+          ? {
+              id: 'wk:earn',
+              label: (сейчас === 'earn' ? '● ' : '') + w.name,
+              disabled: !data.goals.some(этоЗаработок),
+              children: data.goals.filter(этоЗаработок).map((g) => ({
+                id: 'wk:earn:' + g.id,
+                label: (сейчас === 'earn' && n.ref === g.id ? '● ' : '') + сЗначкомъ(g.icon, g.name),
+                onClick: () => patchNode(n.id, стать('earn', g.id)),
+              })),
+            }
+          : {
+              id: 'wk:' + w.id,
+              label: (сейчас === w.id ? '● ' : '') + w.name,
+              onClick: () => patchNode(n.id, стать(w.id, undefined)),
+            }),
+    }]
+  }
+
   // ---------------------------------------------------- имя доски
   const переименовать = async () => {
     const было = current
@@ -1072,6 +1139,10 @@ export default function CanvasView({ name }: { name?: string }) {
     else if (n.type === 'account') app.openTab('accounts')
     else if (n.type === 'goal') app.openTab('goals')
     else if (n.type === 'scenario') app.openTab('forecast')
+    else if (n.type === 'widget') {
+      const вид = видВиджета(n)
+      app.openTab(вид === 'flow' ? 'transactions' : вид === 'earn' ? 'goals' : 'accounts')
+    }
   }
 
   // ------------------------------------------------------------- мышь
@@ -1592,7 +1663,9 @@ export default function CanvasView({ name }: { name?: string }) {
           }}
           onAuxClick={(e) => e.preventDefault()}
         >
-          <NodeBody
+          {n.type === 'widget' ? (
+            <Виджет node={n} data={data} from={from} periodLabel={periodLabel} />
+          ) : <NodeBody
             node={n}
             info={info}
             style={cardStyle}
@@ -1606,7 +1679,7 @@ export default function CanvasView({ name }: { name?: string }) {
             onLink={(title) => действия.current.app.openTab('notes', title)}
             onGrow={(height) => действия.current.patchNode(n.id, { height }, false)}
             onToggleTask={() => действия.current.переключитьЗадачу(n)}
-          />
+          />}
 
           {SIDES.map((s) => (
             <div
@@ -1652,7 +1725,7 @@ export default function CanvasView({ name }: { name?: string }) {
       )
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc.nodes, sel, editing, data, cardCtx, cardStyle, nodeById],
+    [doc.nodes, sel, editing, data, cardCtx, cardStyle, nodeById, from, periodLabel],
   )
 
   if (!current) {

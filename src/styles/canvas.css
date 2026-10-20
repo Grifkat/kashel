@@ -724,3 +724,77 @@
 .cnode-task.task-row.p1::before { background: var(--info); }
 .cnode-task.task-row.p2::before { background: var(--warn); }
 .cnode-task.task-row.p3::before { background: var(--alert); }
+
+/* ---------------------------------------------------------------- виджеты */
+/* Виджет сам выбирает вид по размеру карточки: cw-S — одно число, cw-M —
+   разбивка или тренд, cw-L — график или список. См. canvas/Vidzhety.tsx. */
+.cw { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.cw-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border-soft);
+}
+.cw-icon { display: inline-grid; place-items: center; flex: none; }
+.cw-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+.cw-period { font-size: 11.5px; color: var(--faint); white-space: nowrap; }
+.cw-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px 12px;
+  overflow: hidden;
+}
+.cw-S .cw-body { justify-content: center; }
+.cw-big {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 650;
+  letter-spacing: -0.015em;
+  color: var(--text-strong);
+  line-height: 1.1;
+}
+.cw-L .cw-big { font-size: 28px; }
+.cw-big.pos, .cw-row-v.pos, .cw-sub.pos { color: var(--money-in); }
+.cw-big.neg, .cw-row-v.neg, .cw-sub.neg, .cw-acc-v.neg { color: var(--alert); }
+.cw-sub { font-size: 12px; color: var(--muted); }
+.cw-line { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.cw-rows { display: grid; gap: 7px; }
+.cw-row { display: grid; grid-template-columns: 54px 1fr auto; align-items: center; gap: 8px; font-size: 12.5px; }
+.cw-row-name { color: var(--muted); }
+.cw-row-bar { height: 8px; border-radius: 4px; background: var(--hover); overflow: hidden; }
+.cw-row-bar i { display: block; height: 100%; border-radius: 4px; }
+.cw-row-v { color: var(--text-strong); font-weight: 600; text-align: right; }
+.cw-total { border-top: 1px solid var(--border-soft); padding-top: 6px; }
+.cw-chart { flex: 1; min-height: 0; margin: 2px -4px 0; }
+.cw-progress { margin: 0; }
+.cw-chip {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--hover);
+  color: var(--muted);
+  white-space: nowrap;
+}
+.cw-chip.pos { background: color-mix(in srgb, var(--money-in) 16%, transparent); color: var(--money-in); }
+.cw-chip.neg { background: color-mix(in srgb, var(--alert) 16%, transparent); color: var(--alert); }
+.cw-dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 10px; margin: 0; font-size: 12.5px; }
+.cw-dl dt { color: var(--muted); }
+.cw-dl dd { margin: 0; color: var(--text-strong); text-align: right; }
+.cw-accounts { display: grid; gap: 5px; overflow: auto; min-height: 0; border-top: 1px solid var(--border-soft); padding-top: 8px; }
+.cw-acc { display: flex; align-items: center; gap: 8px; font-size: 12.5px; }
+.cw-acc-dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.cw-acc-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+.cw-acc-v { color: var(--text-strong); font-weight: 600; }
+.cw-empty { font-size: 12.5px; color: var(--faint); }

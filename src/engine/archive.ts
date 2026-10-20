@@ -155,7 +155,7 @@ const REMINDER_REPEATS = ['once', 'weekly', 'monthly', 'yearly'] as const
 const REMINDER_EVENTS: readonly ReminderEvent[] =
   ['recurring-due', 'task-due', 'no-entries', 'limit-exceeded', 'big-expense', 'low-balance']
 const SIDES = ['top', 'right', 'bottom', 'left'] as const
-const NODE_KINDS = ['text', 'note', 'account', 'category', 'goal', 'flow', 'query', 'scenario', 'group', 'task'] as const
+const NODE_KINDS = ['text', 'note', 'account', 'category', 'goal', 'flow', 'query', 'scenario', 'group', 'task', 'widget'] as const
 
 /** Счётчик отброшенного: показываем итог, а не молчим о потере. */
 interface Drop {

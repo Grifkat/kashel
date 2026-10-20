@@ -578,6 +578,8 @@ export type CanvasNodeKind =
   | 'group'
   /** Задача из раздела «Задачи»: ref — её id. */
   | 'task'
+  /** Виджет: вид — options.widget, цель заработка — ref. См. components/canvas/Vidzhety. */
+  | 'widget'
 
 /**
  * Как текст ведёт себя при изменении размера карточки.
