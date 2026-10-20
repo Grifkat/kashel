@@ -119,11 +119,21 @@ function useПодгонка(
   node: CanvasNode,
   fit: TextFit,
   fontSize: number,
-  onGrow?: (height: number) => void,
+  onGrowProp?: (height: number) => void,
 ) {
+  /*
+   * onGrow доска создаёт заново на каждой своей перерисовке. Стоял бы он в
+   * зависимостях — подгонка всех текстовых карточек перезапускалась бы на
+   * каждом кадре сдвига и масштаба: на доске в 250 карточек кадр шёл около
+   * секунды. Поэтому берём свежий через ref, а перезапускаемся только когда
+   * меняется то, от чего зависит размер текста.
+   */
+  const growRef = useRef(onGrowProp)
+  growRef.current = onGrowProp
   useLayoutEffect(() => {
     const el = ref.current
     if (!el) return
+    const onGrow = growRef.current
 
     if (fit === 'auto') {
       // Пустая карточка: подбирать нечего, а подсказку поля Chromium считает
@@ -175,7 +185,7 @@ function useПодгонка(
     if (fit === 'grow' && onGrow) подогнатьВысоту(el, node, onGrow, false)
     // ref в зависимостях не нужен: объект стабилен, меняется только .current.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fit, fontSize, node.width, node.height, node.text, onGrow])
+  }, [fit, fontSize, node.width, node.height, node.text, !!onGrowProp])
 }
 
 /** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */

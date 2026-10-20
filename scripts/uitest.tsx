@@ -852,6 +852,113 @@ async function canvasOneClick() {
   await wait(200)
 }
 
+/**
+ * Управление доской (1.0.17): колесо мыши — масштаб у курсора или прокрутка,
+ * тачпад двигает и масштабирует щипком, правая кнопка с протяжкой двигает
+ * доску и не открывает меню, без протяжки — меню.
+ */
+async function canvasNavigation() {
+  console.log('\n— управление доской —')
+  await open('Канвас')
+  await wait(600)
+  const wrap = () => document.querySelector('.canvas-wrap') as any
+  const layer = () => (document.querySelector('.canvas-layer') as any).style.transform as string
+  const вид = () => {
+    const m = /translate\((-?[\d.]+)px, (-?[\d.]+)px\) scale\(([\d.]+)\)/.exec(layer())
+    return m ? { x: +m[1], y: +m[2], k: +m[3] } : { x: NaN, y: NaN, k: NaN }
+  }
+  const колесо = (o: Record<string, unknown>) => {
+    const e = new dom.window.WheelEvent('wheel', { bubbles: true, cancelable: true, clientX: 500, clientY: 400, ...o })
+    wrap().dispatchEvent(e)
+    return e
+  }
+
+  // Мышь: щёлка колеса — масштаб, а не прокрутка; окно его не перехватывает.
+  const k0 = вид().k
+  const щёлка = колесо({ deltaY: -100 })
+  check('колесо доски гасит прокрутку окна', щёлка.defaultPrevented)
+  await wait(400)
+  check('щёлка колеса мыши приближает', вид().k > k0 * 1.15, `${k0} → ${вид().k}`)
+  check('и масштаб не ступенчатый: ровно ×1,2', Math.abs(вид().k / k0 - 1.2) < 0.01, String(вид().k / k0))
+
+  // Тачпад: мелкие дробные сдвиги по двум осям — двигают доску.
+  await wait(500)
+  const до = вид()
+  колесо({ deltaX: 12.5, deltaY: 30.25 })
+  await wait(150)
+  check('тачпад двумя пальцами двигает доску', Math.abs(вид().x - (до.x - 12.5)) < 1 && Math.abs(вид().y - (до.y - 30.25)) < 1 && вид().k === до.k,
+    `${до.x},${до.y} → ${вид().x},${вид().y}`)
+  // Щипок — Ctrl+колесо мелкими шагами.
+  const k1 = вид().k
+  колесо({ deltaY: -5, ctrlKey: true })
+  await wait(150)
+  check('щипок тачпада меняет масштаб плавно', вид().k > k1 && вид().k < k1 * 1.1, `${k1} → ${вид().k}`)
+  // За кадр приходит по нескольку событий щипка — все они должны сложиться.
+  const k2 = вид().k
+  колесо({ deltaY: -5, ctrlKey: true })
+  колесо({ deltaY: -5, ctrlKey: true })
+  колесо({ deltaY: -5, ctrlKey: true })
+  await wait(150)
+  check('несколько событий щипка за кадр складываются', Math.abs(вид().k / k2 - Math.exp(0.15)) < 0.005, String(вид().k / k2))
+
+  // Правая кнопка с протяжкой — сдвиг без меню; щелчок — меню.
+  key('Escape')
+  await wait(100)
+  const п0 = вид()
+  mouse(wrap(), 'mousedown', 600, 500, { button: 2 })
+  mouse(dom.window, 'mousemove', 640, 520, { button: 2 })
+  mouse(dom.window, 'mousemove', 700, 560, { button: 2 })
+  mouse(dom.window, 'mouseup', 700, 560, { button: 2 })
+  wrap().dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 700, clientY: 560, button: 2 }))
+  await wait(250)
+  check('правая кнопка с протяжкой двигает доску', Math.abs(вид().x - (п0.x + 100)) < 1 && Math.abs(вид().y - (п0.y + 60)) < 1,
+    `${п0.x},${п0.y} → ${вид().x},${вид().y}`)
+  check('и меню после протяжки не открылось', !document.querySelector('.ctx-menu'))
+  mouse(wrap(), 'mousedown', 600, 500, { button: 2 })
+  mouse(dom.window, 'mouseup', 601, 501, { button: 2 })
+  wrap().dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 601, clientY: 501, button: 2 }))
+  await wait(250)
+  check('правый щелчок без протяжки — меню', !!document.querySelector('.ctx-menu'))
+  key('Escape')
+  await wait(150)
+
+  // Правой кнопкой по карточке — тоже сдвиг доски, карточка на месте.
+  const карточка = document.querySelector('.cnode') as any
+  const место = карточка.style.left + ',' + карточка.style.top
+  const п1 = вид()
+  mouse(карточка, 'mousedown', 400, 400, { button: 2 })
+  mouse(dom.window, 'mousemove', 450, 430, { button: 2 })
+  mouse(dom.window, 'mouseup', 450, 430, { button: 2 })
+  карточка.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 450, clientY: 430, button: 2 }))
+  await wait(250)
+  check('правой кнопкой по карточке двигается доска, а не карточка',
+    карточка.style.left + ',' + карточка.style.top === место && Math.abs(вид().x - (п1.x + 50)) < 1)
+  check('и меню карточки не открылось', !document.querySelector('.ctx-menu'))
+
+  // Справка «?» и выбор колеса: «Прокрутка» — колесо мыши двигает доску.
+  click(document.querySelector('.hud-help'))
+  await wait(200)
+  check('«?» открывает справку по управлению', !!document.querySelector('.cv-help-pop'))
+  const прокрутка = all('.cv-help-pop .seg button').find((b) => (b.textContent || '').includes('Прокрутка')) as any
+  click(прокрутка)
+  await wait(200)
+  check('выбор колеса запоминается в окне', dom.window.localStorage.getItem('kashel:canvas-wheel') === 'scroll')
+  await wait(500)
+  const с0 = вид()
+  колесо({ deltaY: 100 })
+  await wait(150)
+  check('в режиме «Прокрутка» колесо мыши двигает доску', вид().k === с0.k && Math.abs(вид().y - (с0.y - 100)) < 1, `${с0.y} → ${вид().y}`)
+  колесо({ deltaY: -100, ctrlKey: true })
+  await wait(400)
+  check('а Ctrl+колесо масштабирует всегда', вид().k > с0.k, `${с0.k} → ${вид().k}`)
+  // Возвращаем масштаб — прогон повторяемый.
+  click(all('.cv-help-pop .seg button').find((b) => (b.textContent || '').includes('Масштаб')))
+  await wait(150)
+  check('и возвращается к масштабу', dom.window.localStorage.getItem('kashel:canvas-wheel') === 'zoom')
+  click(document.querySelector('.hud-help'))
+  await wait(150)
+}
+
 async function transactionsBulk() {
   console.log('\n— массовое выделение в операциях —')
   await open('Операции')
@@ -3406,6 +3513,7 @@ async function main() {
   await canvasBoard()
   await canvasText()
   await canvasOneClick()
+  await canvasNavigation()
   await dashboardWipe()
   await transactionsBulk()
   await entryDateFollowsPeriod()
