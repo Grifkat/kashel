@@ -1,7 +1,11 @@
 /*
- * Граф связей: объёмная схема денег и заметок.
+ * Граф: два вида одних и тех же денег.
  *
- * Вид собран из двух образцов. От sigma.js — чистая схема: плоские цветные
+ * «Потоки» (главный, components/Potoki) — схема Санкея: откуда деньги пришли,
+ * через какие счета прошли и на что ушли. «Связи» — объёмный граф денег и
+ * заметок, о нём ниже. Период и выбор вида у них общие.
+ *
+ * Граф связей собран из двух образцов. От sigma.js — чистая схема: плоские цветные
  * узлы со значками, подписи на подложке и без наложений, панель поиска и
  * фильтров, карточка выбранного узла. От 3d-force-graph — объём: граф
  * раскладывается в пространстве, его можно вращать, дальние узлы мельче и
@@ -30,6 +34,7 @@ import { iconInk, Toggle } from '../components/ui'
 import { useSize } from '../components/charts'
 import { useAnimLevel } from '../components/anim'
 import { т, тр } from '../i18n'
+import ПотокиДенег from '../components/Potoki'
 
 type Kind = 'note' | 'category' | 'account' | 'goal' | 'tag'
 
@@ -105,8 +110,38 @@ type Режим = '3d' | 'flat'
  * Вид переживает переключение вкладок: уйти в заметку и вернуться — не повод
  * терять выбранный режим и поворот.
  */
-const запомнено: { режим: Режим; вращать: boolean; период: number; yaw: number; pitch: number } = {
-  режим: '3d', вращать: true, период: 6, yaw: 0.5, pitch: -0.35,
+const запомнено: { вид: Вид; режим: Режим; вращать: boolean; период: number; yaw: number; pitch: number } = {
+  вид: 'flows', режим: '3d', вращать: true, период: 6, yaw: 0.5, pitch: -0.35,
+}
+
+/** «Потоки» — главный вид, «Связи» — граф связей. */
+type Вид = 'flows' | 'links'
+
+export default function GraphView() {
+  const [вид, setВид] = useState<Вид>(запомнено.вид)
+  const [период, setПериод] = useState(запомнено.период)
+  useEffect(() => {
+    запомнено.вид = вид
+    запомнено.период = период
+  }, [вид, период])
+  const выборВида = (
+    <div className="seg graph-vid">
+      <button type="button" className={вид === 'flows' ? 'on' : ''} onClick={() => setВид('flows')}>
+        <Icon name="flow" size={13} /> {т('Потоки')}</button>
+      <button type="button" className={вид === 'links' ? 'on' : ''} onClick={() => setВид('links')}>
+        <Icon name="graph" size={13} /> {т('Связи')}</button>
+    </div>
+  )
+  const выборПериода = (
+    <div className="seg graph-period">
+      {ПЕРИОДЫ.map((x) => (
+        <button key={x.k} type="button" className={период === x.k ? 'on' : ''} onClick={() => setПериод(x.k)}>{x.t}</button>
+      ))}
+    </div>
+  )
+  return вид === 'flows'
+    ? <ПотокиДенег период={период} setПериод={setПериод} выборВида={выборВида} выборПериода={выборПериода} />
+    : <СхемаСвязей период={период} выборВида={выборВида} выборПериода={выборПериода} />
 }
 
 interface Проекция { sx: number; sy: number; s: number; z: number; fog: number }
@@ -232,7 +267,7 @@ function подписьУзла(n: GNode) {
   return { текст, w: текст.length * 6.3 + 14 }
 }
 
-export default function GraphView() {
+function СхемаСвязей({ период, выборВида, выборПериода }: { период: number; выборВида: React.ReactNode; выборПериода: React.ReactNode }) {
   const app = useApp()
   const { data } = useStore()
   const animLevel = useAnimLevel()
@@ -242,7 +277,6 @@ export default function GraphView() {
   const [show, setShow] = useState<Record<Kind, boolean>>({ note: true, category: true, account: true, goal: true, tag: false })
   const [режим, setРежим] = useState<Режим>(запомнено.режим)
   const [вращать, setВращать] = useState(запомнено.вращать && animLevel !== 'off')
-  const [период, setПериод] = useState(запомнено.период)
   const [hover, setHover] = useState<string | null>(null)
   const [выбран, setВыбран] = useState<string | null>(null)
   const [поиск, setПоиск] = useState('')
@@ -269,8 +303,7 @@ export default function GraphView() {
   useEffect(() => {
     запомнено.режим = режим
     запомнено.вращать = вращать
-    запомнено.период = период
-  }, [режим, вращать, период])
+  }, [режим, вращать])
 
   useEffect(() => {
     void (async () => {
@@ -834,6 +867,7 @@ export default function GraphView() {
           <Icon name="graph" size={15} />
           <span className="strong">{т('Граф связей')}</span>
         </div>
+        {выборВида}
         <div className="graph-search">
           <Icon name="search" size={13} />
           <input
@@ -877,11 +911,7 @@ export default function GraphView() {
           <button type="button" className={режим === '3d' ? 'on' : ''} onClick={() => setРежим('3d')}>{т('3D')}</button>
           <button type="button" className={режим === 'flat' ? 'on' : ''} onClick={() => setРежим('flat')}>{т('Схема')}</button>
         </div>
-        <div className="seg graph-period">
-          {ПЕРИОДЫ.map((x) => (
-            <button key={x.k} type="button" className={период === x.k ? 'on' : ''} onClick={() => setПериод(x.k)}>{x.t}</button>
-          ))}
-        </div>
+        {выборПериода}
 
         <div className="graph-kinds">
           {(Object.keys(KIND_LABEL) as Kind[]).map((k) => (

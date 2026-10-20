@@ -13,7 +13,7 @@ import { addDays, addMonths, diffDays, monthKey, parseISO, startOfMonth, startOf
 import { разобратьДату, сеткаМесяца } from '../src/components/DateField'
 import { ICON_GROUPS, isCatalogIcon, сЗначкомъ } from '../src/lib/catalog'
 import { DEFAULT_CATEGORIES, DEFAULT_SETTINGS } from '../src/state/defaults'
-import type { Category, Goal, Recurring, Reminder, Scenario, Task, Transaction, ПериодЛимита } from '../src/lib/types'
+import type { Account, Category, Goal, Recurring, Reminder, Scenario, Task, Transaction, ПериодЛимита } from '../src/lib/types'
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../src/engine/goals'
 import { квадратъ, путьЗначкаДопустимъ, этоСвойЗначокъ } from '../src/lib/svoiznachki'
 import { parseArchive } from '../src/engine/archive'
@@ -70,6 +70,7 @@ import { новѣе, подписьВѣрна, разобрать, родъ } fr
 import * as крипто from 'node:crypto'
 import { createRequire } from 'node:module'
 import { сторожъ } from './i18n-storozh'
+import { потоки, проследить, путьЛенты, разложитьПотоки } from '../src/engine/potoki'
 import { EN } from '../src/i18n/en'
 import { ICON_GROUPS } from '../src/lib/catalog'
 import { т, тр, поставитьЯзык } from '../src/i18n'
@@ -3548,8 +3549,91 @@ async function завершить() {
   цельЗаработать()
   периодЛимитов()
   разовыеТраты()
+  потокиПроверка()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)
   process.exit(fail.length ? 1 : 0)
+}
+
+function потокиПроверка() {
+  console.log('\n— потоки денег —')
+  const кат = (id: string, kind: 'income' | 'expense', extra: Record<string, unknown> = {}) =>
+    ({ id, name: id, icon: 'circle-help', color: '#888', kind, archived: false, ...extra }) as unknown as Category
+  const cats = [
+    кат('c_sal', 'income'), кат('c_side', 'income'), кат('c_side_a', 'income', { parentId: 'c_side' }),
+    кат('c_food', 'expense'), кат('c_work', 'expense'), кат('c_net', 'expense', { parentId: 'c_work' }),
+    кат('c_site', 'expense', { parentId: 'c_work' }), кат('c_cafe', 'expense'),
+  ]
+  const счёт = (id: string, type: string) => ({ id, name: id, type, icon: 'wallet', color: '#4cc46a', initialBalance: 0 }) as unknown as Account
+  const accounts = [счёт('a_card', 'card'), счёт('a_cash', 'cash'), счёт('a_cc', 'credit')]
+  let n = 0
+  const tx = (kind: string, amount: number, accountId: string, extra: Record<string, unknown> = {}, date = '2026-09-15') =>
+    ({ id: 'p' + ++n, date, amount, kind, accountId, tags: [], createdAt: date, ...extra }) as unknown as Transaction
+  const transactions = [
+    tx('income', 50_000_00, 'a_card', { categoryId: 'c_sal' }, '2026-07-10'), // до периода
+    tx('income', 100_000_00, 'a_card', { categoryId: 'c_sal' }),
+    tx('income', 20_000_00, 'a_card', { categoryId: 'c_side' }),
+    tx('income', 5_000_00, 'a_card', { categoryId: 'c_side_a' }),
+    tx('transfer', 10_000_00, 'a_card', { toAccountId: 'a_cash' }),
+    tx('transfer', 2_000_00, 'a_cash', { toAccountId: 'a_card' }),
+    tx('expense', 30_000_00, 'a_card', { categoryId: 'c_food' }),
+    tx('expense', 10_000_00, 'a_card', { categoryId: 'c_food', splits: [{ categoryId: 'c_food', amount: 4_000_00 }, { categoryId: 'c_net', amount: 6_000_00 }] }),
+    tx('expense', 5_000_00, 'a_cash', { categoryId: 'c_cafe' }),
+    tx('expense', 7_000_00, 'a_card', { categoryId: 'c_work' }),
+    tx('expense', 3_000_00, 'a_card', { categoryId: 'c_site' }),
+    tx('expense', 4_000_00, 'a_cc', { categoryId: 'c_cafe' }),
+  ]
+  const база = { transactions, categories: cats, accounts, с: '2026-09-01', переводы: true, свёрнуты: new Set<string>() }
+  const п = потоки(база)
+  const лента = (из: string, в: string) => п.ленты.find((л) => л.из === из && л.в === в)?.сумма ?? 0
+  const у = (id: string) => п.узлы.find((x) => x.id === id)
+  check('потоки: доходы и расходы за период, без переводов', п.пришло === 125_000_00 && п.ушло === 59_000_00, `${money(п.пришло)} / ${money(п.ушло)}`)
+  check('доход идёт со статьи на счёт', лента('i:c_sal', 'acc:a_card') === 100_000_00)
+  check('разбитый чек — по долям', лента('acc:a_card', 'e:c_food') === 34_000_00 && лента('e:c_work', 'e:c_net') === 6_000_00)
+  check('главная несёт и свои траты, и подкатегории', у('e:c_work')?.вход === 16_000_00 && у('e:c_work')?.подкатегорий === 2 && у('e:c_work')?.раскрыта === true
+    && лента('e:c_work', 'eo:c_work') === 7_000_00 && у('eo:c_work')?.главная === 'e:c_work')
+  check('подкатегории дохода текут в главную', лента('i:c_side_a', 'i:c_side') === 5_000_00 && лента('io:c_side', 'i:c_side') === 20_000_00
+    && лента('i:c_side', 'acc:a_card') === 25_000_00)
+  check('встречные переводы сводятся в один', лента('acc:a_card', 'acc:a_cash') === 8_000_00 && !лента('acc:a_cash', 'acc:a_card'))
+  check('счёт, пополненный переводом, стоит правее', (у('acc:a_cash')?.столбец ?? 0) > (у('acc:a_card')?.столбец ?? 0))
+  check('остаток счёта течёт в «Осталось», трата в кредит — из «В долг»',
+    лента('acc:a_cash', 'left') === 3_000_00 && лента('acc:a_card', 'left') === 67_000_00 && лента('loan', 'acc:a_cc') === 4_000_00)
+  check('у каждого счёта вход равен выходу', п.узлы.filter((x) => x.счёт).every((x) => x.вход === x.выход))
+  const слева = п.узлы.filter((x) => !x.вход).reduce((s, x) => s + x.выход, 0)
+  const справа = п.узлы.filter((x) => !x.выход).reduce((s, x) => s + x.вход, 0)
+  check('схема сведена: слева и справа одна сумма', слева === справа && справа === 129_000_00, `${money(слева)} / ${money(справа)}`)
+  check('ленты идут только слева направо', п.ленты.every((л) => (у(л.из)?.столбец ?? 0) < (у(л.в)?.столбец ?? 0)))
+
+  const свёрнуто = потоки({ ...база, свёрнуты: new Set(['c_work']) })
+  check('свёрнутая главная — без подкатегорий, но с их суммой', !свёрнуто.узлы.some((x) => x.id === 'e:c_net')
+    && свёрнуто.узлы.find((x) => x.id === 'e:c_work')?.вход === 16_000_00 && свёрнуто.узлы.find((x) => x.id === 'e:c_work')?.раскрыта === false)
+  const безПереводов = потоки({ ...база, переводы: false })
+  check('без переводов трата наличных — из прежних остатков', !безПереводов.ленты.some((л) => л.вид === 'transfer')
+    && безПереводов.ленты.find((л) => л.из === 'stock' && л.в === 'acc:a_cash')?.сумма === 5_000_00)
+  const пусто = потоки({ ...база, с: '2027-01-01' })
+  check('за пустой период схема пуста', !пусто.узлы.length && !пусто.ленты.length && !пусто.столбцов)
+
+  // След: кафе оплачено наличными (с карты, куда пришли зарплата и навар) и кредиткой.
+  const с = проследить(п, { вид: 'node', id: 'e:c_cafe' })
+  const около = (a: number | undefined, b: number) => Math.abs((a ?? 0) - b) < 1
+  check('след кафе: доля зарплаты и навара — по долям карты', около(с.узлы.get('i:c_sal'), 4_000_00) && около(с.узлы.get('i:c_side'), 1_000_00)
+    && около(с.ленты.get('acc:a_card>acc:a_cash'), 5_000_00) && около(с.узлы.get('loan'), 4_000_00), JSON.stringify([...с.узлы]))
+  check('след не задевает чужие траты', !с.ленты.has('acc:a_card>e:c_food') && !с.узлы.has('e:c_food'))
+  const вниз = проследить(п, { вид: 'node', id: 'i:c_side' })
+  check('след навара вниз: на кафе — его доля', около(вниз.узлы.get('e:c_cafe'), (25_000_00 * 8_000_00 / 125_000_00) * 5_000_00 / 8_000_00))
+  const поЛенте = проследить(п, { вид: 'link', id: 'acc:a_card>e:c_food' })
+  check('след ленты: откуда её деньги', около(поЛенте.узлы.get('i:c_sal'), 34_000_00 * 100 / 125) && поЛенте.ленты.get('acc:a_card>e:c_food') === 34_000_00)
+
+  // Раскладка: всё в рамке, высоты по суммам, подкатегории напротив главной.
+  const р = разложитьПотоки(п, { x: 0, y: 0, w: 800, h: 500 })
+  const места = [...р.узлы.values()]
+  check('раскладка: узлы в рамке', места.every((м) => м.y >= -0.01 && м.y + м.h <= 500.01 && м.x >= 0 && м.x <= 800))
+  const h = (id: string) => р.узлы.get(id)?.h ?? 0
+  check('высота узла — по сумме', Math.abs(h('e:c_food') / h('e:c_work') - 34 / 16) < 0.01)
+  const ys = п.узлы.filter((x) => x.столбец === у('e:c_net')!.столбец).map((x) => р.узлы.get(x.id)!)
+  check('узлы в столбце не налезают', ys.every((м, i) => !i || м.y >= ys[i - 1].y + ys[i - 1].h - 0.01))
+  check('подкатегории — напротив главной', Math.abs((р.узлы.get('e:c_net')?.y ?? 0) - (р.узлы.get('e:c_work')?.y ?? 99)) < 1)
+  const путь = путьЛенты(р.ленты.get('i:c_sal>acc:a_card')!)
+  check('лента — замкнутая полоса из двух кривых', /^M[\d.,-]+C.+L.+C.+Z$/.test(путь), путь.slice(0, 40))
 }

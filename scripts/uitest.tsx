@@ -2963,6 +2963,7 @@ async function правки106() {
 
   // ------------------------------------------------ граф
   await open('Граф')
+  click(byText('.graph-vid button', 'Связи'))
   await wait(1200)
   const узлы = all('.graph-node')
   check('граф рисует узлы разных видов со значками', узлы.length > 10 && !!document.querySelector('.graph-node.k-account rect') && !!document.querySelector('.graph-node.k-category circle'),
@@ -3289,6 +3290,7 @@ async function графПодкатегории(root: Root): Promise<Root> {
   root = mount()
   await wait(1800)
   await open('Граф')
+  click(byText('.graph-vid button', 'Связи'))
   await wait(800)
 
   const узел = (id: string) => document.querySelector(`.graph-node[data-id="${id}"]`)
@@ -3338,6 +3340,19 @@ async function графПодкатегории(root: Root): Promise<Root> {
   навести(узел(п), false)
   await wait(150)
 
+  // «Потоки»: главная раскрыта на подкатегории, щелчок сворачивает и раскрывает.
+  click(byText('.graph-vid button', 'Потоки'))
+  await wait(400)
+  const поток = (id: string) => document.querySelector(`.flow-node[data-id="${id}"]`)
+  check('в «Потоках» подкатегория идёт от своей главной, а траты самой главной — строкой «без подкатегории»',
+    !!поток('e:' + под.id) && !!document.querySelector(`.flow-link[data-id="e:${группа.id}>e:${под.id}"]`) && !!поток('eo:' + группа.id))
+  click(поток('e:' + группа.id))
+  await wait(300)
+  check('щелчок по главной сворачивает подкатегории', !поток('e:' + под.id) && !!поток('e:' + группа.id))
+  click(поток('e:' + группа.id))
+  await wait(300)
+  check('повторный щелчок раскрывает их снова', !!поток('e:' + под.id))
+
   await wait(1300)
   root.unmount()
   await wait(250)
@@ -3345,6 +3360,100 @@ async function графПодкатегории(root: Root): Promise<Root> {
   root = mount()
   await wait(1800)
   return root
+}
+
+/*
+ * «Потоки» — главный вид графа: схема денег за период. Суммы сверяются с
+ * хранилищем, разбитый чек — по долям, наведение ведёт след, щелчок
+ * открывает операции.
+ */
+async function потокиЭкраны() {
+  console.log('\n— граф: потоки —')
+  await open('Граф')
+  click(byText('.graph-vid button', 'Потоки'))
+  await wait(500)
+  check('«Потоки» открываются с переключателем «Потоки | Связи»', !!document.querySelector('.graph-wrap.graph-flows')
+    && !!byText('.graph-vid button.on', 'Потоки') && !!byText('.graph-vid button', 'Связи'))
+  const ленты = () => all('.flow-link')
+  const узлы = () => all('.flow-node')
+  check('схема рисует ленты, узлы и подписи с суммами', ленты().length > 10 && узлы().length > 8
+    && all('.flow-label').some((л) => /тыс|млн/.test(л.textContent || '')), `${ленты().length} лент, ${узлы().length} узлов`)
+
+  // Пришло и ушло за полгода — доходы и расходы без переводов.
+  const v = (await loadVault()) as VaultData
+  const с = addMonths(today(), -6)
+  const заПериод = v.transactions.filter((t) => t.date >= с)
+  const пришло = заПериод.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0)
+  const ушло = заПериод.filter((t) => t.kind === 'expense').reduce((s, t) => s + t.amount, 0)
+  const итоги = () => document.querySelector('.flows-totals')?.textContent || ''
+  check('«Пришло» и «Ушло» — доходы и расходы за период', итоги().includes(money(пришло)) && итоги().includes(money(ушло)),
+    `${итоги().slice(0, 80)} · ждали ${money(пришло)} / ${money(ушло)}`)
+
+  // Разбитый чек «Большая закупка» идёт в «Дом» своей долей.
+  const дом = v.categories.find((c) => c.name === 'Дом')!
+  let вДом = 0
+  for (const t of заПериод) {
+    if (t.kind !== 'expense' || t.accountId !== 'acc_main') continue
+    if (t.splits?.length) for (const д of t.splits) вДом += д.categoryId === дом.id ? д.amount : 0
+    else if (t.categoryId === дом.id) вДом += t.amount
+  }
+  const лентаДома = document.querySelector(`.flow-link[data-id="acc:acc_main>e:${дом.id}"]`)
+  check('разбитый чек идёт в статью своей долей', Number(лентаДома?.getAttribute('data-sum')) === вДом, `${лентаДома?.getAttribute('data-sum')} · ждали ${вДом}`)
+  check('переводы между счетами — лентами от счёта к счёту', ленты().some((л) => л.classList.contains('k-transfer')))
+
+  // Наведение: схема гаснет, цепочка светится своей долей, подсказка — откуда и куда.
+  const навести = (el: Element | null | undefined, на: boolean) => {
+    const р = Object.entries(el ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as
+      { onMouseEnter?: (e: unknown) => void; onMouseLeave?: (e: unknown) => void } | undefined
+    if (на) р?.onMouseEnter?.({})
+    else р?.onMouseLeave?.({})
+  }
+  const кафе = v.categories.find((c) => c.name === 'Кафе')!
+  const узелКафе = () => document.querySelector(`.flow-node[data-id="e:${кафе.id}"]`)
+  навести(узелКафе(), true)
+  await wait(200)
+  const подсказка = () => document.querySelector('.flows-tip')?.textContent || ''
+  check('наведение подсвечивает цепочку: откуда пришли деньги кафе', !!document.querySelector('.graph-flows.flows-dim')
+    && all('.flow-trace').length > 1 && узелКафе()?.classList.contains('in-trace') === true
+    && подсказка().includes('Кафе') && подсказка().includes('Откуда'), подсказка().slice(0, 80))
+  check('и не задевает чужие траты', !document.querySelector(`.flow-node[data-id="e:${дом.id}"]`)?.classList.contains('in-trace'))
+  навести(узелКафе(), false)
+  await wait(150)
+  check('мышь ушла — схема снова целиком', !document.querySelector('.flows-dim') && !document.querySelector('.flows-tip'))
+
+  // Щелчок по статье открывает её операции.
+  click(узелКафе())
+  await wait(500)
+  check('щелчок по статье открывает её операции', (document.querySelector('.tab.active .tab-title')?.textContent || '') === 'Кафе'
+    && !!document.querySelector('.view .tx-row'))
+  click(document.querySelector('.tab.active .close'))
+  await wait(300)
+
+  // Период: за всё время пришло больше.
+  await open('Граф')
+  click(byText('.graph-period button', 'Всё'))
+  await wait(400)
+  const всё = v.transactions.filter((t) => t.kind === 'income').reduce((s, t) => s + t.amount, 0)
+  check('смена периода пересчитывает схему', итоги().includes(money(всё)), итоги().slice(0, 60))
+  click(byText('.graph-period button', 'Полгода'))
+  await wait(300)
+
+  // Без переводов — ни одной ленты между счетами.
+  click(document.querySelector('.flows-transfers button'))
+  await wait(300)
+  check('переводы можно убрать со схемы', !ленты().some((л) => л.classList.contains('k-transfer')) && ленты().length > 5)
+  click(document.querySelector('.flows-transfers button'))
+  await wait(300)
+}
+
+/* После «Стереть всё»: вместо схемы — понятная заглушка. */
+async function потокиПусто() {
+  console.log('\n— граф: потоки в пустом хранилище —')
+  await open('Граф')
+  click(byText('.graph-vid button', 'Потоки'))
+  await wait(400)
+  check('пустое хранилище: вместо схемы — заглушка', !document.querySelector('.flow-link')
+    && (document.querySelector('.flows-empty')?.textContent || '').includes('Здесь появятся потоки денег'))
 }
 
 async function main() {
@@ -3373,6 +3482,7 @@ async function main() {
   await настройкаСводки()
   await ставкаКредита()
   await правки106()
+  await потокиЭкраны()
   await правки107()
   await цельЗаработатьЭкраны()
   await периодЛимитаЭкраны()
@@ -3391,6 +3501,7 @@ async function main() {
   await saveButton()
   root = await archiveRoundTrip(root)
   root = await wipeEverything(root)
+  await потокиПусто()
   root = await boundaries(root)
   root = await vaultFailure(root)
 
