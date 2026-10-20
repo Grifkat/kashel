@@ -14,7 +14,7 @@
  * каталога как есть, выделение текста и проверку в jsdom.
  */
 import { прогрессЗаработка, этоЗаработок } from '../engine/zarabotok'
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { CatalogGlyph, Icon } from '../lib/icons'
@@ -106,10 +106,133 @@ const запомнено: { режим: Режим; вращать: boolean; п�
 
 interface Проекция { sx: number; sy: number; s: number; z: number; fog: number }
 
+/** Положение камеры на один кадр: синусы считаются раз на кадр, а не на каждый узел. */
+interface Взгляд { cosY: number; sinY: number; cosP: number; sinP: number; cx: number; cy: number; плоско: boolean }
+
+function взгляд(c: { yaw: number; pitch: number }, w: number, h: number, плоско: boolean): Взгляд {
+  return {
+    cosY: Math.cos(c.yaw), sinY: Math.sin(c.yaw), cosP: Math.cos(c.pitch), sinP: Math.sin(c.pitch),
+    cx: (w || 800) / 2, cy: (h || 600) / 2, плоско,
+  }
+}
+
+function проецировать(n: { x: number; y: number; z: number }, в: Взгляд, k: number, px: number, py: number): Проекция {
+  const x1 = n.x * в.cosY - n.z * в.sinY
+  const z1 = n.x * в.sinY + n.z * в.cosY
+  const y2 = n.y * в.cosP - z1 * в.sinP
+  const z2 = n.y * в.sinP + z1 * в.cosP
+  const f = ГЛУБИНА / (ГЛУБИНА + Math.max(-ГЛУБИНА * 0.7, z2))
+  // Туман: дальнее бледнее — главный признак глубины на плоском экране.
+  const fog = в.плоско ? 1 : Math.max(0.28, Math.min(1, 0.35 + (f - 0.72) * 1.6))
+  return { sx: в.cx + px + x1 * f * k, sy: в.cy + py + y2 * f * k, s: f * k, z: z2, fog }
+}
+
+/** Сдвиг на экране → сдвиг в мире (обратный поворот камеры). */
+function вМир(dx: number, dy: number, в: Взгляд) {
+  const y = dy * в.cosP
+  const z1 = -dy * в.sinP
+  return { x: dx * в.cosY + z1 * в.sinY, y, z: -dx * в.sinY + z1 * в.cosY }
+}
+
+/**
+ * Шаг силовой раскладки: узлы отталкиваются, связи стягивают, всё тянется к
+ * центру. a — «температура»: чем она ниже, тем меньше узлы двигаются.
+ */
+function раскладка(ns: GNode[], links: GLink[], byId: Map<string, GNode>, a: number, плоско: boolean) {
+  // отталкивание
+  for (let i = 0; i < ns.length; i++) {
+    for (let j = i + 1; j < ns.length; j++) {
+      const p = ns[i]
+      const q = ns[j]
+      let dx = q.x - p.x
+      let dy = q.y - p.y
+      let dz = плоско ? 0 : q.z - p.z
+      let d2 = dx * dx + dy * dy + dz * dz
+      if (d2 < 1) {
+        dx = Math.random() - 0.5
+        dy = Math.random() - 0.5
+        dz = плоско ? 0 : Math.random() - 0.5
+        d2 = 1
+      }
+      const мин = (p.r + q.r) * 2.2
+      const f = ((9000 * a) / d2) * (d2 < мин * мин ? 3 : 1)
+      const d = Math.sqrt(d2)
+      p.vx -= (dx / d) * f; p.vy -= (dy / d) * f; p.vz -= (dz / d) * f
+      q.vx += (dx / d) * f; q.vy += (dy / d) * f; q.vz += (dz / d) * f
+    }
+  }
+  // притяжение по связям
+  for (const l of links) {
+    const p = byId.get(l.a)
+    const q = byId.get(l.b)
+    if (!p || !q) continue
+    const dx = q.x - p.x
+    const dy = q.y - p.y
+    const dz = q.z - p.z
+    const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1
+    const target = 110 + (p.r + q.r) * 1.5
+    const f = ((d - target) / d) * 0.0085 * Math.min(2.2, l.w) * a * 60 * 0.01
+    p.vx += dx * f; p.vy += dy * f; p.vz += dz * f
+    q.vx -= dx * f; q.vy -= dy * f; q.vz -= dz * f
+  }
+  // к центру + затухание
+  for (const n of ns) {
+    if (n.fixed) {
+      n.vx = n.vy = n.vz = 0
+      continue
+    }
+    n.vx -= n.x * 0.05 * a
+    n.vy -= n.y * 0.05 * a
+    n.vz -= n.z * 0.05 * a
+    n.vx *= 0.8; n.vy *= 0.8; n.vz *= 0.8
+    n.x += Math.max(-30, Math.min(30, n.vx))
+    n.y += Math.max(-30, Math.min(30, n.vy))
+    n.z = плоско ? n.z * 0.82 : n.z + Math.max(-30, Math.min(30, n.vz))
+  }
+}
+
+/*
+ * Кадр пишет в DOM напрямую, мимо React. Атрибут, у которого значение не
+ * сменилось, не трогается: неподвижные узлы и подписи браузеру не о чем
+ * пересчитывать.
+ */
+const записано = new WeakMap<Element, Record<string, string>>()
+function атр(el: Element | null | undefined, имя: string, значение: string) {
+  if (!el) return
+  let было = записано.get(el)
+  if (!было) записано.set(el, (было = {}))
+  if (было[имя] === значение) return
+  было[имя] = значение
+  el.setAttribute(имя, значение)
+}
+const д1 = (v: number) => String(Math.round(v * 10) / 10)
+const д3 = (v: number) => String(Math.round(v * 1000) / 1000)
+
+/** Расставить детей по порядку, переставляя только тех, кто стоит не на месте. */
+function упорядочить(родитель: Element, дети: (Element | undefined)[]) {
+  let курсор = родитель.firstElementChild
+  for (const ребёнок of дети) {
+    if (!ребёнок) continue
+    if (ребёнок === курсор) {
+      курсор = курсор.nextElementSibling
+      continue
+    }
+    родитель.insertBefore(ребёнок, курсор)
+  }
+}
+
+/** Подпись узла: длинное имя укорачивается, ширина подложки — по числу букв. */
+function подписьУзла(n: GNode) {
+  const текст = n.label.length > 24 ? n.label.slice(0, 23) + '…' : n.label
+  return { текст, w: текст.length * 6.3 + 14 }
+}
+
 export default function GraphView() {
   const app = useApp()
   const { data } = useStore()
   const animLevel = useAnimLevel()
+  /** Анимации выключены: раскладка досчитывается сразу, камера не плывёт. */
+  const безДвижения = animLevel === 'off'
   const [notes, setNotes] = useState<{ name: string; body: string }[]>([])
   const [show, setShow] = useState<Record<Kind, boolean>>({ note: true, category: true, account: true, goal: true, tag: false })
   const [режим, setРежим] = useState<Режим>(запомнено.режим)
@@ -128,7 +251,15 @@ export default function GraphView() {
   const занят = useRef(false)
   /** Последний жест был перетаскиванием, а не щелчком: щелчок после него не считается. */
   const тащили = useRef(false)
-  const [, force] = useState(0)
+  /*
+   * Элементы схемы. React создаёт их, только когда меняются данные, фильтры
+   * или выделение; координаты, прозрачность и порядок по глубине кадр
+   * выставляет сам — иначе React пересобирал бы весь рисунок 60 раз в секунду.
+   */
+  const слойУзлов = useRef<SVGGElement>(null)
+  const элУзлов = useRef(new Map<string, SVGGElement>())
+  const элСвязей = useRef<(SVGLineElement | null)[]>([])
+  const элПодписей = useRef(new Map<string, SVGGElement>())
 
   useEffect(() => {
     запомнено.режим = режим
@@ -254,242 +385,6 @@ export default function GraphView() {
 
   const byId = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes])
 
-  // -------------------------------------------------------- симуляция и кадр
-  useEffect(() => {
-    nodesRef.current = nodes
-    alpha.current = Math.max(alpha.current, 0.8)
-  }, [nodes])
-
-  useEffect(() => {
-    // Смена режима — повод раскладке снова ожить: в плоскость узлы сходятся,
-    // из плоскости — расходятся в объём.
-    alpha.current = Math.max(alpha.current, 0.6)
-    if (режим === '3d') for (const n of nodesRef.current) if (Math.abs(n.z) < 1) n.z = (Math.random() - 0.5) * 160
-  }, [режим])
-
-  const fitRef = useRef<() => void>(() => {})
-
-  useEffect(() => {
-    let frame = 0
-    let последний = performance.now()
-    const tick = (сейчас: number) => {
-      const dt = Math.min(3, (сейчас - последний) / 16.7)
-      последний = сейчас
-      const ns = nodesRef.current
-      const a = alpha.current
-      const c = cam.current
-      let двигались = false
-
-      if (a > 0.015) {
-        двигались = true
-        alpha.current = a * 0.985
-        const плоско = режим === 'flat'
-        // отталкивание
-        for (let i = 0; i < ns.length; i++) {
-          for (let j = i + 1; j < ns.length; j++) {
-            const p = ns[i]
-            const q = ns[j]
-            let dx = q.x - p.x
-            let dy = q.y - p.y
-            let dz = плоско ? 0 : q.z - p.z
-            let d2 = dx * dx + dy * dy + dz * dz
-            if (d2 < 1) {
-              dx = Math.random() - 0.5
-              dy = Math.random() - 0.5
-              dz = плоско ? 0 : Math.random() - 0.5
-              d2 = 1
-            }
-            const мин = (p.r + q.r) * 2.2
-            const f = ((9000 * a) / d2) * (d2 < мин * мин ? 3 : 1)
-            const d = Math.sqrt(d2)
-            p.vx -= (dx / d) * f; p.vy -= (dy / d) * f; p.vz -= (dz / d) * f
-            q.vx += (dx / d) * f; q.vy += (dy / d) * f; q.vz += (dz / d) * f
-          }
-        }
-        // притяжение по связям
-        for (const l of links) {
-          const p = byId.get(l.a)
-          const q = byId.get(l.b)
-          if (!p || !q) continue
-          const dx = q.x - p.x
-          const dy = q.y - p.y
-          const dz = q.z - p.z
-          const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1
-          const target = 110 + (p.r + q.r) * 1.5
-          const f = ((d - target) / d) * 0.0085 * Math.min(2.2, l.w) * a * 60 * 0.01
-          p.vx += dx * f; p.vy += dy * f; p.vz += dz * f
-          q.vx -= dx * f; q.vy -= dy * f; q.vz -= dz * f
-        }
-        // к центру + затухание
-        for (const n of ns) {
-          if (n.fixed) {
-            n.vx = n.vy = n.vz = 0
-            continue
-          }
-          n.vx -= n.x * 0.05 * a
-          n.vy -= n.y * 0.05 * a
-          n.vz -= n.z * 0.05 * a
-          n.vx *= 0.8; n.vy *= 0.8; n.vz *= 0.8
-          n.x += Math.max(-30, Math.min(30, n.vx))
-          n.y += Math.max(-30, Math.min(30, n.vy))
-          n.z = плоско ? n.z * 0.82 : n.z + Math.max(-30, Math.min(30, n.vz))
-        }
-      }
-
-      // Камера: в схеме плавно встаёт анфас, в объёме — медленно кружит.
-      if (режим === 'flat') {
-        if (Math.abs(c.yaw) > 0.001 || Math.abs(c.pitch) > 0.001) {
-          c.yaw *= 0.85
-          c.pitch *= 0.85
-          двигались = true
-        } else {
-          c.yaw = 0
-          c.pitch = 0
-        }
-      } else if (вращать && !занят.current) {
-        c.yaw += 0.0022 * dt
-        двигались = true
-      }
-      if (двигались) force((v) => v + 1)
-      if (a > 0.015 && alpha.current <= 0.015 && !touched.current) fitRef.current()
-      frame = requestAnimationFrame(tick)
-    }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [links, byId, режим, вращать])
-
-  // -------------------------------------------------------- проекция
-  const cx = (gw || 800) / 2
-  const cy = (gh || 600) / 2
-  const c = cam.current
-  const cosY = Math.cos(c.yaw), sinY = Math.sin(c.yaw), cosP = Math.cos(c.pitch), sinP = Math.sin(c.pitch)
-
-  const проекция = (n: { x: number; y: number; z: number }, k = c.k, px = c.px, py = c.py): Проекция => {
-    const x1 = n.x * cosY - n.z * sinY
-    const z1 = n.x * sinY + n.z * cosY
-    const y2 = n.y * cosP - z1 * sinP
-    const z2 = n.y * sinP + z1 * cosP
-    const f = ГЛУБИНА / (ГЛУБИНА + Math.max(-ГЛУБИНА * 0.7, z2))
-    // Туман: дальнее бледнее — главный признак глубины на плоском экране.
-    const fog = режим === 'flat' ? 1 : Math.max(0.28, Math.min(1, 0.35 + (f - 0.72) * 1.6))
-    return { sx: cx + px + x1 * f * k, sy: cy + py + y2 * f * k, s: f * k, z: z2, fog }
-  }
-
-  /** Сдвиг на экране → сдвиг в мире (обратный поворот камеры). */
-  const вМир = (dx: number, dy: number) => {
-    const y = dy * cosP
-    const z1 = -dy * sinP
-    return { x: dx * cosY + z1 * sinY, y, z: -dx * sinY + z1 * cosY }
-  }
-
-  /** Вписать граф в холст. */
-  const fit = useCallback(() => {
-    const ns = nodesRef.current
-    if (!ns.length || !gw || !gh) {
-      Object.assign(cam.current, { k: 1, px: 0, py: 0 })
-      force((v) => v + 1)
-      return
-    }
-    const ps = ns.map((n) => ({ n, p: проекция(n, 1, 0, 0) }))
-    const pad = 50
-    // Слева лежит панель управления — граф вписывается в то, что справа от неё.
-    const слева = gw > 760 ? 270 : 0
-    const minX = Math.min(...ps.map(({ n, p }) => p.sx - n.r * p.s)) - cx
-    const maxX = Math.max(...ps.map(({ n, p }) => p.sx + n.r * p.s)) - cx
-    const minY = Math.min(...ps.map(({ n, p }) => p.sy - n.r * p.s)) - cy
-    const maxY = Math.max(...ps.map(({ n, p }) => p.sy + n.r * p.s)) - cy
-    // Подписи не масштабируются вместе с графом — на них справа оставляем
-    // постоянный запас, а не долю.
-    const подпись = 120
-    const k = Math.min(2, Math.max(0.25, Math.min((gw - слева - pad * 2 - подпись) / Math.max(1, maxX - minX), (gh - pad * 2) / Math.max(1, maxY - minY))))
-    Object.assign(cam.current, { k, px: (слева - подпись) / 2 - ((minX + maxX) / 2) * k, py: -((minY + maxY) / 2) * k })
-    force((v) => v + 1)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gw, gh, режим])
-  fitRef.current = fit
-
-  /** Навести камеру на узел. */
-  const навести = (id: string) => {
-    const n = nodesRef.current.find((x) => x.id === id)
-    if (!n) return
-    const p = проекция(n)
-    cam.current.px += cx - p.sx
-    cam.current.py += cy - p.sy
-    touched.current = true
-    force((v) => v + 1)
-  }
-
-  // -------------------------------------------------------- мышь
-  const жест = useRef<
-    | { вид: 'rotate' | 'pan'; sx: number; sy: number; yaw: number; pitch: number; px: number; py: number; ушёл: boolean }
-    | { вид: 'node'; id: string; sx: number; sy: number; ушёл: boolean }
-    | null
-  >(null)
-
-  useEffect(() => {
-    const move = (e: MouseEvent) => {
-      const g = жест.current
-      if (!g) return
-      const dx = e.clientX - g.sx
-      const dy = e.clientY - g.sy
-      if (Math.abs(dx) + Math.abs(dy) > 3) g.ушёл = true
-      if (g.вид === 'node') {
-        const n = nodesRef.current.find((x) => x.id === g.id)
-        if (!n) return
-        const p = проекцияRef.current(n)
-        const d = вМирRef.current((e.clientX - g.sx) / p.s, (e.clientY - g.sy) / p.s)
-        n.x += d.x
-        n.y += d.y
-        n.z += режимRef.current === 'flat' ? 0 : d.z
-        g.sx = e.clientX
-        g.sy = e.clientY
-        alpha.current = Math.max(alpha.current, 0.25)
-        force((v) => v + 1)
-        return
-      }
-      if (g.вид === 'rotate') {
-        cam.current.yaw = g.yaw + dx * 0.006
-        cam.current.pitch = Math.max(-1.35, Math.min(1.35, g.pitch + dy * 0.006))
-        запомнено.yaw = cam.current.yaw
-        запомнено.pitch = cam.current.pitch
-      } else {
-        cam.current.px = g.px + dx
-        cam.current.py = g.py + dy
-      }
-      force((v) => v + 1)
-    }
-    const up = () => {
-      const g = жест.current
-      тащили.current = !!g?.ушёл
-      if (g?.вид === 'node') {
-        const n = nodesRef.current.find((x) => x.id === g.id)
-        if (n) n.fixed = false
-      }
-      жест.current = null
-      занят.current = false
-    }
-    window.addEventListener('mousemove', move)
-    window.addEventListener('mouseup', up)
-    return () => {
-      window.removeEventListener('mousemove', move)
-      window.removeEventListener('mouseup', up)
-    }
-  }, [])
-  // Обработчики окна вешаются один раз, а проекция меняется с каждым кадром.
-  const проекцияRef = useRef(проекция)
-  проекцияRef.current = проекция
-  const вМирRef = useRef(вМир)
-  вМирRef.current = вМир
-  const режимRef = useRef(режим)
-  режимRef.current = режим
-
-  const openNode = (n: GNode) => {
-    if (n.kind === 'note') app.openTab('notes', n.label)
-    else if (n.kind === 'category') app.openTab('transactions', 'cat:' + n.ref, { title: n.label })
-    else if (n.kind === 'account') app.openTab('accounts')
-    else if (n.kind === 'goal') app.openTab('goals')
-  }
-
   // -------------------------------------------------------- подсветка
   const фокус = hover ?? выбран
   const соседи = useMemo(() => {
@@ -502,42 +397,301 @@ export default function GraphView() {
     return s
   }, [фокус, links])
 
-  // -------------------------------------------------------- отрисовка
-  const ps = new Map<string, Проекция>()
-  for (const n of nodesRef.current) ps.set(n.id, проекция(n))
-  // Дальние — первыми: ближние узлы перекрывают их, как в жизни.
-  const поГлубине = [...nodesRef.current].sort((a, b) => (ps.get(b.id)!.z - ps.get(a.id)!.z))
+  /** Что кадр знает о последней отрисовке React: он живёт дольше неё. */
+  const живое = useRef({ links, byId, режим, вращать, gw, gh, фокус, соседи })
+  живое.current = { links, byId, режим, вращать, gw, gh, фокус, соседи }
+  const взглядСейчас = () => взгляд(cam.current, живое.current.gw, живое.current.gh, живое.current.режим === 'flat')
 
-  /*
-   * Подписи — как в sigma.js: отдельным слоем поверх узлов и без наложений.
-   * Сначала выделенный и соседи, дальше крупные и ближние; подпись, что
-   * налезла бы на уже поставленную, не ставится.
-   */
-  const подписи: { n: GNode; x: number; y: number; w: number; сильная: boolean }[] = []
-  {
+  // -------------------------------------------------------- симуляция
+  /** Один шаг: раскладка остывает, камера кружит. Возвращает, движется ли ещё что-нибудь. */
+  const шаг = (dt: number): boolean => {
+    const { links, byId, режим, вращать } = живое.current
+    const a = alpha.current
+    const c = cam.current
+    let движется = false
+    if (a > 0.015) {
+      движется = true
+      alpha.current = a * 0.985
+      раскладка(nodesRef.current, links, byId, a, режим === 'flat')
+    }
+    // Камера: в схеме плавно встаёт анфас, в объёме — медленно кружит.
+    if (режим === 'flat') {
+      if (Math.abs(c.yaw) > 0.001 || Math.abs(c.pitch) > 0.001) {
+        c.yaw *= 0.85
+        c.pitch *= 0.85
+        движется = true
+      } else {
+        c.yaw = 0
+        c.pitch = 0
+      }
+    } else if (вращать && !занят.current) {
+      c.yaw += 0.0022 * dt
+      движется = true
+    }
+    if (a > 0.015 && alpha.current <= 0.015 && !touched.current) вписать()
+    return движется
+  }
+
+  /** Без анимаций раскладка досчитывается сразу — узлы не летят по экрану, а встают на место. */
+  const досчитать = () => {
+    const { links, byId, режим } = живое.current
+    for (let i = 0; alpha.current > 0.015 && i < 400; i++) {
+      раскладка(nodesRef.current, links, byId, alpha.current, режим === 'flat')
+      alpha.current *= 0.985
+    }
+    if (режим === 'flat') Object.assign(cam.current, { yaw: 0, pitch: 0 })
+    if (!touched.current) вписать()
+  }
+
+  // -------------------------------------------------------- кадр
+  const рисовать = () => {
+    const { links, byId, фокус, соседи } = живое.current
+    const ns = nodesRef.current
+    const в = взглядСейчас()
+    const { k, px, py } = cam.current
+    const ps = new Map<string, Проекция>()
+    for (const n of ns) ps.set(n.id, проецировать(n, в, k, px, py))
+
+    for (const n of ns) {
+      const p = ps.get(n.id)!
+      const el = элУзлов.current.get(n.id)
+      атр(el, 'transform', `translate(${д1(p.sx)},${д1(p.sy)}) scale(${д3(p.s)})`)
+      атр(el, 'opacity', соседи && !соседи.has(n.id) ? '0.14' : д3(p.fog))
+    }
+    // Дальние — первыми: ближние узлы перекрывают их, как в жизни.
+    if (слойУзлов.current) {
+      const поГлубине = [...ns].sort((a, b) => ps.get(b.id)!.z - ps.get(a.id)!.z)
+      упорядочить(слойУзлов.current, поГлубине.map((n) => элУзлов.current.get(n.id)))
+    }
+
+    links.forEach((l, i) => {
+      const el = элСвязей.current[i]
+      if (!el) return
+      const a = byId.get(l.a)
+      const b = byId.get(l.b)
+      const pa = a && ps.get(a.id)
+      const pb = b && ps.get(b.id)
+      if (!a || !b || !pa || !pb) {
+        атр(el, 'display', 'none')
+        return
+      }
+      const свет = соседи ? соседи.has(a.id) && соседи.has(b.id) && (a.id === фокус || b.id === фокус) : false
+      const тускло = соседи && !свет
+      const s = (pa.s + pb.s) / 2
+      атр(el, 'display', 'inline')
+      атр(el, 'x1', д1(pa.sx))
+      атр(el, 'y1', д1(pa.sy))
+      атр(el, 'x2', д1(pb.sx))
+      атр(el, 'y2', д1(pb.sy))
+      атр(el, 'stroke', свет ? 'var(--accent)' : a.kind === 'account' ? b.color : a.color)
+      атр(el, 'stroke-width', д3(Math.max(0.6, Math.min(4, l.w) * s * (свет ? 1.3 : 1))))
+      атр(el, 'opacity', д3(тускло ? 0.06 : свет ? 0.9 : 0.28 * Math.min(pa.fog, pb.fog)))
+    })
+
+    /*
+     * Подписи — как в sigma.js: отдельным слоем поверх узлов и без наложений.
+     * Сначала выделенный и соседи, дальше крупные и ближние; подпись, что
+     * налезла бы на уже поставленную, не ставится.
+     */
     const занято: { x: number; y: number; w: number; h: number }[] = []
+    const поставлены = new Map<string, { x: number; y: number; сильная: boolean }>()
     const важность = (n: GNode) => {
       const p = ps.get(n.id)!
       if (n.id === фокус) return 1e9
       if (соседи?.has(n.id)) return 1e8 + n.r * p.s
       return n.r * p.s * p.fog
     }
-    const порядок = [...nodesRef.current].sort((a, b) => важность(b) - важность(a))
+    const порядок = [...ns].sort((a, b) => важность(b) - важность(a))
     for (const n of порядок) {
       const p = ps.get(n.id)!
       const сильная = n.id === фокус || !!соседи?.has(n.id)
       if (!сильная && (соседи || p.s * n.r < 7.5 || p.fog < 0.45)) continue
-      const текст = n.label.length > 24 ? n.label.slice(0, 23) + '…' : n.label
-      const w = текст.length * 6.3 + 14
+      const { w } = подписьУзла(n)
       const h = 20
       const x = p.sx + n.r * p.s + 5
       const y = p.sy - h / 2
       if (!сильная && занято.some((b) => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y)) continue
       занято.push({ x, y, w, h })
-      подписи.push({ n, x, y, w, сильная })
+      поставлены.set(n.id, { x, y, сильная })
+    }
+    for (const n of ns) {
+      const el = элПодписей.current.get(n.id)
+      if (!el) continue
+      const м = поставлены.get(n.id)
+      if (!м) {
+        атр(el, 'display', 'none')
+        continue
+      }
+      атр(el, 'display', 'inline')
+      атр(el, 'transform', `translate(${д1(м.x)},${д1(м.y)})`)
+      атр(el, 'opacity', м.сильная ? '1' : д3(Math.max(0.55, ps.get(n.id)!.fog)))
+      атр(el.firstElementChild, 'class', 'graph-label-bg' + (м.сильная ? ' strong' : ''))
+      атр(el.lastElementChild, 'class', 'graph-label' + (м.сильная ? ' strong' : ''))
     }
   }
 
+  /*
+   * Цикл кадров крутится, только пока что-то движется: раскладка не остыла,
+   * граф вращается или его тянут. Застыл — цикл засыпает, а любое действие
+   * будит его снова.
+   */
+  const кадр = useRef(0)
+  const дела = useRef({ шаг, рисовать })
+  дела.current = { шаг, рисовать }
+  const разбудить = useCallback(() => {
+    if (кадр.current) return
+    let последний = performance.now()
+    const тик = (сейчас: number) => {
+      const dt = Math.min(3, Math.max(0, (сейчас - последний) / 16.7))
+      последний = сейчас
+      const ещё = дела.current.шаг(dt)
+      дела.current.рисовать()
+      кадр.current = ещё ? requestAnimationFrame(тик) : 0
+    }
+    кадр.current = requestAnimationFrame(тик)
+  }, [])
+  useEffect(() => () => {
+    cancelAnimationFrame(кадр.current)
+    кадр.current = 0
+  }, [])
+
+  useLayoutEffect(() => {
+    nodesRef.current = nodes
+    alpha.current = Math.max(alpha.current, 0.8)
+    if (безДвижения) досчитать()
+    разбудить()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes])
+
+  useLayoutEffect(() => {
+    // Смена режима — повод раскладке снова ожить: в плоскость узлы сходятся,
+    // из плоскости — расходятся в объём.
+    alpha.current = Math.max(alpha.current, 0.6)
+    if (режим === '3d') for (const n of nodesRef.current) if (Math.abs(n.z) < 1) n.z = (Math.random() - 0.5) * 160
+    if (безДвижения) досчитать()
+    разбудить()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [режим])
+
+  useEffect(() => {
+    if (безДвижения) досчитать()
+    разбудить()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [вращать, безДвижения])
+
+  // Новые элементы получают координаты до того, как браузер их покажет.
+  useLayoutEffect(() => {
+    рисовать()
+  })
+
+  /** Вписать граф в холст. */
+  const вписать = () => {
+    const ns = nodesRef.current
+    const { gw, gh } = живое.current
+    if (!ns.length || !gw || !gh) {
+      Object.assign(cam.current, { k: 1, px: 0, py: 0 })
+      разбудить()
+      return
+    }
+    const в = взглядСейчас()
+    const ps = ns.map((n) => ({ n, p: проецировать(n, в, 1, 0, 0) }))
+    const pad = 50
+    // Слева лежит панель управления — граф вписывается в то, что справа от неё.
+    const слева = gw > 760 ? 270 : 0
+    const minX = Math.min(...ps.map(({ n, p }) => p.sx - n.r * p.s)) - в.cx
+    const maxX = Math.max(...ps.map(({ n, p }) => p.sx + n.r * p.s)) - в.cx
+    const minY = Math.min(...ps.map(({ n, p }) => p.sy - n.r * p.s)) - в.cy
+    const maxY = Math.max(...ps.map(({ n, p }) => p.sy + n.r * p.s)) - в.cy
+    // Подписи не масштабируются вместе с графом — на них справа оставляем
+    // постоянный запас, а не долю.
+    const подпись = 120
+    const k = Math.min(2, Math.max(0.25, Math.min((gw - слева - pad * 2 - подпись) / Math.max(1, maxX - minX), (gh - pad * 2) / Math.max(1, maxY - minY))))
+    Object.assign(cam.current, { k, px: (слева - подпись) / 2 - ((minX + maxX) / 2) * k, py: -((minY + maxY) / 2) * k })
+    разбудить()
+  }
+
+  /** Навести камеру на узел. */
+  const навести = (id: string) => {
+    const n = nodesRef.current.find((x) => x.id === id)
+    if (!n) return
+    const в = взглядСейчас()
+    const p = проецировать(n, в, cam.current.k, cam.current.px, cam.current.py)
+    cam.current.px += в.cx - p.sx
+    cam.current.py += в.cy - p.sy
+    touched.current = true
+    разбудить()
+  }
+
+  // -------------------------------------------------------- мышь
+  const жест = useRef<
+    | { вид: 'rotate' | 'pan'; sx: number; sy: number; yaw: number; pitch: number; px: number; py: number; ушёл: boolean }
+    | { вид: 'node'; id: string; sx: number; sy: number; ушёл: boolean }
+    | null
+  >(null)
+
+  // Обработчики окна вешаются один раз и читают камеру и режим из живых ссылок.
+  useEffect(() => {
+    const move = (e: MouseEvent) => {
+      const g = жест.current
+      if (!g) return
+      const dx = e.clientX - g.sx
+      const dy = e.clientY - g.sy
+      if (Math.abs(dx) + Math.abs(dy) > 3) g.ушёл = true
+      if (g.вид === 'node') {
+        const n = nodesRef.current.find((x) => x.id === g.id)
+        if (!n) return
+        const в = взглядСейчас()
+        const p = проецировать(n, в, cam.current.k, cam.current.px, cam.current.py)
+        const d = вМир((e.clientX - g.sx) / p.s, (e.clientY - g.sy) / p.s, в)
+        n.x += d.x
+        n.y += d.y
+        n.z += в.плоско ? 0 : d.z
+        g.sx = e.clientX
+        g.sy = e.clientY
+        alpha.current = Math.max(alpha.current, 0.25)
+        разбудить()
+        return
+      }
+      if (g.вид === 'rotate') {
+        cam.current.yaw = g.yaw + dx * 0.006
+        cam.current.pitch = Math.max(-1.35, Math.min(1.35, g.pitch + dy * 0.006))
+        запомнено.yaw = cam.current.yaw
+        запомнено.pitch = cam.current.pitch
+      } else {
+        cam.current.px = g.px + dx
+        cam.current.py = g.py + dy
+      }
+      разбудить()
+    }
+    const up = () => {
+      const g = жест.current
+      тащили.current = !!g?.ушёл
+      if (g?.вид === 'node') {
+        const n = nodesRef.current.find((x) => x.id === g.id)
+        if (n) n.fixed = false
+      }
+      жест.current = null
+      занят.current = false
+      // Отпустили — автоповорот продолжается.
+      разбудить()
+    }
+    window.addEventListener('mousemove', move)
+    window.addEventListener('mouseup', up)
+    return () => {
+      window.removeEventListener('mousemove', move)
+      window.removeEventListener('mouseup', up)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const openNode = (n: GNode) => {
+    if (n.kind === 'note') app.openTab('notes', n.label)
+    else if (n.kind === 'category') app.openTab('transactions', 'cat:' + n.ref, { title: n.label })
+    else if (n.kind === 'account') app.openTab('accounts')
+    else if (n.kind === 'goal') app.openTab('goals')
+  }
+
+  // -------------------------------------------------------- отрисовка
   const выбранный = выбран ? byId.get(выбран) : undefined
   const найдено = поиск.trim()
     ? nodes.filter((n) => n.label.toLowerCase().includes(поиск.trim().toLowerCase())).slice(0, 8)
@@ -550,6 +704,7 @@ export default function GraphView() {
       onMouseDown={(e) => {
         touched.current = true
         занят.current = true
+        const c = cam.current
         const pan = режим === 'flat' || e.shiftKey || e.button === 1 || e.button === 2
         жест.current = {
           вид: pan ? 'pan' : 'rotate', sx: e.clientX, sy: e.clientY,
@@ -562,85 +717,75 @@ export default function GraphView() {
       onContextMenu={(e) => e.preventDefault()}
       onWheel={(e) => {
         touched.current = true
+        const c = cam.current
         const rect = e.currentTarget.getBoundingClientRect()
-        const mx = e.clientX - rect.left - cx
-        const my = e.clientY - rect.top - cy
+        const в = взглядСейчас()
+        const mx = e.clientX - rect.left - в.cx
+        const my = e.clientY - rect.top - в.cy
         const k = Math.min(4, Math.max(0.2, c.k * (e.deltaY < 0 ? 1.12 : 1 / 1.12)))
         // Масштаб к курсору: точка под мышью остаётся на месте.
         c.px = mx - (mx - c.px) * (k / c.k)
         c.py = my - (my - c.py) * (k / c.k)
         c.k = k
-        force((v) => v + 1)
+        разбудить()
       }}
     >
       <svg width="100%" height="100%" className="graph-svg">
         <g className="graph-links">
-          {links.map((l, i) => {
-            const a = byId.get(l.a)
-            const b = byId.get(l.b)
-            const pa = a && ps.get(a.id)
-            const pb = b && ps.get(b.id)
-            if (!a || !b || !pa || !pb) return null
-            const свет = соседи ? соседи.has(a.id) && соседи.has(b.id) && (a.id === фокус || b.id === фокус) : false
-            const тускло = соседи && !свет
-            const s = (pa.s + pb.s) / 2
-            return (
-              <line
-                key={i}
-                x1={pa.sx} y1={pa.sy} x2={pb.sx} y2={pb.sy}
-                stroke={свет ? 'var(--accent)' : a.kind === 'account' ? b.color : a.color}
-                strokeWidth={Math.max(0.6, Math.min(4, l.w) * s * (свет ? 1.3 : 1))}
-                strokeLinecap="round"
-                opacity={тускло ? 0.06 : свет ? 0.9 : 0.28 * Math.min(pa.fog, pb.fog)}
-              />
-            )
-          })}
+          {links.map((l, i) => (
+            <line key={i} ref={(el) => { элСвязей.current[i] = el }} strokeLinecap="round" />
+          ))}
         </g>
-        <g className="graph-nodes">
-          {поГлубине.map((n) => {
-            const p = ps.get(n.id)!
-            const тускло = соседи && !соседи.has(n.id)
+        <g className="graph-nodes" ref={слойУзлов}>
+          {nodes.map((n) => (
+            <g
+              key={n.id}
+              ref={(el) => {
+                if (el) элУзлов.current.set(n.id, el)
+                else элУзлов.current.delete(n.id)
+              }}
+              className={'graph-node k-' + n.kind + (n.id === выбран ? ' sel' : '')}
+              data-id={n.id}
+              onMouseEnter={() => setHover(n.id)}
+              onMouseLeave={() => setHover(null)}
+              onMouseDown={(e) => {
+                if (e.button !== 0) return
+                e.stopPropagation()
+                touched.current = true
+                занят.current = true
+                n.fixed = true
+                жест.current = { вид: 'node', id: n.id, sx: e.clientX, sy: e.clientY, ушёл: false }
+              }}
+              onClick={(e) => {
+                e.stopPropagation()
+                if (тащили.current) return
+                setВыбран(n.id === выбран ? null : n.id)
+              }}
+              onDoubleClick={(e) => {
+                e.stopPropagation()
+                openNode(n)
+              }}
+            >
+              <Узел n={n} выделен={n.id === фокус} />
+            </g>
+          ))}
+        </g>
+        <g className="graph-labels" pointerEvents="none">
+          {nodes.map((n) => {
+            const { текст, w } = подписьУзла(n)
             return (
               <g
                 key={n.id}
-                className={'graph-node k-' + n.kind + (n.id === выбран ? ' sel' : '')}
-                data-id={n.id}
-                transform={`translate(${p.sx},${p.sy}) scale(${p.s})`}
-                opacity={тускло ? 0.14 : p.fog}
-                onMouseEnter={() => setHover(n.id)}
-                onMouseLeave={() => setHover(null)}
-                onMouseDown={(e) => {
-                  if (e.button !== 0) return
-                  e.stopPropagation()
-                  touched.current = true
-                  занят.current = true
-                  n.fixed = true
-                  жест.current = { вид: 'node', id: n.id, sx: e.clientX, sy: e.clientY, ушёл: false }
-                }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  if (тащили.current) return
-                  setВыбран(n.id === выбран ? null : n.id)
-                }}
-                onDoubleClick={(e) => {
-                  e.stopPropagation()
-                  openNode(n)
+                ref={(el) => {
+                  if (el) элПодписей.current.set(n.id, el)
+                  else элПодписей.current.delete(n.id)
                 }}
               >
-                <Узел n={n} выделен={n.id === фокус} />
+                <rect width={w} height={20} rx={10} />
+                <text x={7} y={14}>{текст}</text>
               </g>
             )
           })}
-        </g>
-        <g className="graph-labels" pointerEvents="none">
-          {подписи.map(({ n, x, y, w, сильная }) => (
-            <g key={n.id} transform={`translate(${x},${y})`} opacity={сильная ? 1 : Math.max(0.55, ps.get(n.id)!.fog)}>
-              <rect width={w} height={20} rx={10} className={'graph-label-bg' + (сильная ? ' strong' : '')} />
-              <text x={7} y={14} className={'graph-label' + (сильная ? ' strong' : '')}>
-                {n.label.length > 24 ? n.label.slice(0, 23) + '…' : n.label}
-              </text>
-            </g>
-          ))}
         </g>
       </svg>
 
@@ -719,7 +864,7 @@ export default function GraphView() {
             style={{ flex: 1 }}
             onClick={() => {
               touched.current = false
-              fit()
+              вписать()
             }}
           >
             <Icon name="fit" size={13} /> {т(' Вписать')}</button>
