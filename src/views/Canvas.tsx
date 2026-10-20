@@ -5,7 +5,7 @@ import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
-import { moneyShort, plural, uid } from '../lib/format'
+import { moneyShort, uid } from '../lib/format'
 import { addMonths, today } from '../lib/date'
 import { CANVAS_COLORS, DEFAULT_QUICK_COLORS, colorName } from '../lib/emoji'
 import { deleteCanvas, listCanvases, listNotes, readCanvas, readNote, renameCanvas, writeCanvas } from '../state/vault'
@@ -21,6 +21,9 @@ import { ContextMenu, type MenuItem } from '../components/canvas/ContextMenu'
 import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData } from '../components/canvas/nodes'
 import { ColorPalette } from '../components/canvas/ColorPalette'
 import { Полка, type ПунктПолки } from '../components/canvas/Polka'
+import { K_MAX, K_MIN, ZOOM_DEFAULT, useКамера } from '../components/canvas/kamera'
+import { useИстория } from '../components/canvas/istoriya'
+import { Справка } from '../components/canvas/Spravka'
 import { Виджет, ВИДЖЕТЫ, видВиджета, текстДляСтарых, type ВидВиджета } from '../components/canvas/Vidzhety'
 import { этоЗаработок } from '../engine/zarabotok'
 import { FIT_MODES, TextToolbar, wrapSelection } from '../components/canvas/TextToolbar'
@@ -41,72 +44,6 @@ const MIN_W = 150
 const MIN_H = 80
 
 const GRID = 10
-const HISTORY_LIMIT = 60
-
-/*
- * Масштаб — плавный, от 20 до 300 %.
- *
- * Прежде он шёл ступенями (25, 33, 50 … 250 %): при произвольном
- * коэффициенте текст карточек растягивался из готового растра и мылился. Но
- * ступени и давали рывки, на тачпаде особенно. Теперь масштаб любой, а мыло
- * лечится иначе: пока доска движется, слой карточек живёт готовой картинкой
- * (will-change — быстро), а через 160 мс после остановки рисуется заново, и
- * текст чёткий при любом масштабе (.cv-moving в canvas.css).
- */
-const K_MIN = 0.2
-const K_MAX = 3
-const ZOOM_DEFAULT = 1
-const клампМасштаб = (k: number) => Math.min(K_MAX, Math.max(K_MIN, k))
-/** Шаг кнопок «−/+» и клавиш Ctrl+=/−. */
-const ШАГ_КНОПОК = 1.25
-/** Одна щёлка колеса мыши (deltaY ≈ 100). */
-const ШАГ_КОЛЕСА = 1.2
-/** Сколько длится плавный шаг масштаба, мс. */
-const ПЛАВНО_МС = 140
-
-/**
- * Что делает колесо мыши: масштаб (по умолчанию, как в Miro) или прокрутку
- * (как в Figma). Выбор — свойство компьютера, а не хранилища: на ноутбуке с
- * тачпадом и на столе с мышью он может быть разным, поэтому живёт в
- * localStorage окна, рядом со свёрнутыми группами левой панели.
- */
-type Колесо = 'zoom' | 'scroll'
-const ГДЕ_КОЛЕСО = 'kashel:canvas-wheel'
-const прочестьКолесо = (): Колесо => {
-  try {
-    return localStorage.getItem(ГДЕ_КОЛЕСО) === 'scroll' ? 'scroll' : 'zoom'
-  } catch {
-    return 'zoom'
-  }
-}
-
-/**
- * Мышь или тачпад. У мыши щёлка — крупный шаг по одной оси (deltaY ≈ 100,
- * или строки в deltaMode 1); тачпад шлёт мелкие и дробные сдвиги, часто по
- * обеим осям. Начатый тачпадом жест держим за тачпадом ещё 400 мс: в конце
- * взмаха и он может прислать крупный шаг.
- */
-let последнийТачпад = 0
-const этоТачпад = (e: WheelEvent): boolean => {
-  const now = performance.now()
-  const мышиный = e.deltaMode === 1 || (e.deltaX === 0 && Math.abs(e.deltaY) >= 50)
-  if (!мышиный) последнийТачпад = now
-  return !мышиный || now - последнийТачпад < 400
-}
-
-/** Сдвиг колеса в пикселях при любом deltaMode. */
-const вПикселях = (e: WheelEvent, d: number): number => (e.deltaMode === 1 ? d * 33 : e.deltaMode === 2 ? d * 800 : d)
-
-/** Можно ли элементу под курсором прокрутиться самому в эту сторону. */
-const своёКолесо = (target: EventTarget | null, dy: number): boolean => {
-  for (let el = target as HTMLElement | null; el && !el.classList?.contains('canvas-wrap'); el = el.parentElement) {
-    if (el.scrollHeight <= el.clientHeight + 1) continue
-    const oy = getComputedStyle(el).overflowY
-    if (oy !== 'auto' && oy !== 'scroll') continue
-    if (dy < 0 ? el.scrollTop > 0 : el.scrollTop + el.clientHeight < el.scrollHeight - 1) return true
-  }
-  return false
-}
 
 const opposite = (s: Side): Side =>
   s === 'left' ? 'right' : s === 'right' ? 'left' : s === 'top' ? 'bottom' : 'top'
@@ -230,7 +167,6 @@ export default function CanvasView({ name }: { name?: string }) {
   const [doc, setDoc] = useState<CanvasDoc>({ nodes: [], edges: [] })
   const [notes, setNotes] = useState<string[]>([])
   const [noteBodies, setNoteBodies] = useState<Map<string, string>>(new Map())
-  const [view, setView] = useState({ x: 420, y: 260, k: ZOOM_DEFAULT })
   const [sel, setSel] = useState<Set<string>>(new Set())
   const [selEdge, setSelEdge] = useState<string | null>(null)
   /** У какой связи открыта панель «Вид линии». */
@@ -244,8 +180,6 @@ export default function CanvasView({ name }: { name?: string }) {
   const [marquee, setMarquee] = useState<Rect | null>(null)
   const [guides, setGuides] = useState<Guide[]>([])
   const [ghost, setGhost] = useState<{ from: Point; side: Side; to: Point } | null>(null)
-  const [past, setPast] = useState<CanvasDoc[]>([])
-  const [future, setFuture] = useState<CanvasDoc[]>([])
   const [askDelete, setAskDelete] = useState(false)
   /** Имя доски в правке. null — не правим. */
   const [новоеИмя, setНовоеИмя] = useState<string | null>(null)
@@ -259,7 +193,6 @@ export default function CanvasView({ name }: { name?: string }) {
   const areaRef = useRef<HTMLTextAreaElement>(null)
 
   const wrapRef = useRef<HTMLDivElement>(null)
-  const saveTimer = useRef<number | null>(null)
   const drag = useRef<DragState | null>(null)
   const space = useRef(false)
   /** Где мышь над доской (экранные координаты) — туда клавиша T ставит карточку. null — мышь не над доской. */
@@ -269,20 +202,14 @@ export default function CanvasView({ name }: { name?: string }) {
   /** Ширина нижней панели масштаба: полка встаёт в свободное место слева от неё. */
   const [ширинаМасштаба, setШиринаМасштаба] = useState(200)
   const hudRef = useRef<HTMLDivElement>(null)
-  /** Плавный шаг масштаба: куда идём и кадр анимации. */
-  const анимация = useRef<{ to: number; frame: number } | null>(null)
-  /** Доска движется — слой карточек живёт готовой картинкой (см. K_MIN). */
-  const [движется, setДвижется] = useState(false)
-  const стопДвижения = useRef<number | null>(null)
   /** Правую кнопку тянули — следующее меню по правому щелчку не открываем. */
   const гасимМеню = useRef(false)
-  const [колесо, setКолесо] = useState<Колесо>(прочестьКолесо)
   const [справка, setСправка] = useState(false)
   const animLevel = useAnimLevel()
+  /** Сдвиг, масштаб, колесо и тачпад — см. components/canvas/kamera. */
+  const { view, viewRef, движется, масштабК, zoomBy, тянуть, вписать, колесо, выбратьКолесо } = useКамера(wrapRef, current, animLevel)
   const docRef = useRef(doc)
   docRef.current = doc
-  const viewRef = useRef(view)
-  viewRef.current = view
 
   const cardStyle: CardStyle = doc.cardStyle ?? 'rich'
   const quickColors = doc.quickColors?.length ? doc.quickColors : DEFAULT_QUICK_COLORS
@@ -303,54 +230,9 @@ export default function CanvasView({ name }: { name?: string }) {
   }, [current])
 
   // ------------------------------------------------------------- хранилище
-  const persist = useCallback((next: CanvasDoc, file: string) => {
-    if (!file) return
-    if (saveTimer.current) window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(
-      () => void writeCanvas(file, next).catch((e) =>
-        toast(т('Доска не сохранена: ') + (e instanceof Error ? e.message : String(e))),
-      ),
-      300,
-    )
-  }, [toast])
-
-  /** Изменение с записью в историю — всё, что можно отменить. */
-  const commit = useCallback(
-    (next: CanvasDoc, before?: CanvasDoc) => {
-      setPast((p) => [...p, before ?? docRef.current].slice(-HISTORY_LIMIT))
-      setFuture([])
-      setDoc(next)
-      persist(next, current)
-      // Правка доски — действие для серии, как запись или задача.
-      отметитьДействие()
-    },
-    [current, persist, отметитьДействие],
-  )
-
-  /** Изменение без истории — для промежуточных состояний перетаскивания. */
-  const touch = useCallback((next: CanvasDoc) => setDoc(next), [])
-
-  const undo = useCallback(() => {
-    setPast((p) => {
-      if (!p.length) return p
-      const prev = p[p.length - 1]
-      setFuture((f) => [docRef.current, ...f].slice(0, HISTORY_LIMIT))
-      setDoc(prev)
-      persist(prev, current)
-      return p.slice(0, -1)
-    })
-  }, [current, persist])
-
-  const redo = useCallback(() => {
-    setFuture((f) => {
-      if (!f.length) return f
-      const next = f[0]
-      setPast((p) => [...p, docRef.current].slice(-HISTORY_LIMIT))
-      setDoc(next)
-      persist(next, current)
-      return f.slice(1)
-    })
-  }, [current, persist])
+  /** Правки, отмена, повтор и запись на диск — см. components/canvas/istoriya. */
+  const { можноОтменить, можноПовторить, persist, commit, touch, закончитьПеретаскивание, undo, redo, забыть, снятьЗапись } =
+    useИстория({ current, setDoc, docRef, отметитьДействие, toast })
 
   useEffect(() => {
     void (async () => {
@@ -372,8 +254,7 @@ export default function CanvasView({ name }: { name?: string }) {
     setCurrent(n)
     const d = await readCanvas(n)
     setDoc(d ?? { nodes: [], edges: [] })
-    setPast([])
-    setFuture([])
+    забыть()
     setSel(new Set())
     setSelEdge(null)
   }
@@ -393,10 +274,7 @@ export default function CanvasView({ name }: { name?: string }) {
     const имя = current
     const было = docRef.current
     // Отложенная запись иначе воскресила бы только что удалённую доску.
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current)
-      saveTimer.current = null
-    }
+    снятьЗапись()
     await deleteCanvas(имя)
     const list = await listCanvases()
     setFiles(list)
@@ -635,97 +513,9 @@ export default function CanvasView({ name }: { name?: string }) {
     [commit, nodeById],
   )
 
-  /** Доска сдвинулась или поменяла масштаб: слой карточек — картинкой, пока не замрёт. */
-  const отметитьДвижение = useCallback(() => {
-    setДвижется(true)
-    if (стопДвижения.current) window.clearTimeout(стопДвижения.current)
-    стопДвижения.current = window.setTimeout(() => setДвижется(false), 160)
-  }, [])
-
-  /**
-   * Масштаб к значению `target`, оставляя точку (px, py) экрана над той же
-   * точкой доски. Без точки — середина полотна (кнопки и клавиши). Плавно —
-   * за ПЛАВНО_МС; новый шаг посреди анимации продолжает её с текущего места.
-   * Каждый кадр считается внутри setView от текущего вида: точка под
-   * курсором остаётся на месте при любой скорости колеса.
-   */
-  const масштабК = useCallback(
-    (target: number, px?: number, py?: number, плавно = true) => {
-      const r = wrapRef.current?.getBoundingClientRect()
-      const mx = px ?? (r ? r.width / 2 : 0)
-      const my = py ?? (r ? r.height / 2 : 0)
-      const to = клампМасштаб(target)
-      const применить = (k: number) =>
-        setView((v) => (k === v.k ? v : { k, x: mx - ((mx - v.x) / v.k) * k, y: my - ((my - v.y) / v.k) * k }))
-      отметитьДвижение()
-      if (анимация.current) cancelAnimationFrame(анимация.current.frame)
-      анимация.current = null
-      if (!плавно || animLevel === 'off' || typeof requestAnimationFrame !== 'function') {
-        применить(to)
-        return
-      }
-      const from = viewRef.current.k
-      const start = performance.now()
-      const шаг = (now: number) => {
-        // Время кадра бывает чуть раньше старта — назад не шагаем.
-        const t = Math.min(1, Math.max(0, (now - start) / ПЛАВНО_МС))
-        const e = 1 - Math.pow(1 - t, 3)
-        применить(from * Math.pow(to / from, e))
-        анимация.current = t < 1 ? { to, frame: requestAnimationFrame(шаг) } : null
-      }
-      анимация.current = { to, frame: requestAnimationFrame(шаг) }
-    },
-    [отметитьДвижение, animLevel],
-  )
-  /**
-   * Масштаб множителем сразу, без анимации — для щипка тачпада. Считаем от
-   * текущего вида внутри setView: за кадр приходит по два-три события щипка,
-   * и посчитанные от одного и того же масштаба они съедали бы друг друга.
-   */
-  const масштабМножителем = useCallback(
-    (f: number, mx: number, my: number) => {
-      отметитьДвижение()
-      if (анимация.current) cancelAnimationFrame(анимация.current.frame)
-      анимация.current = null
-      setView((v) => {
-        const k = клампМасштаб(v.k * f)
-        return k === v.k ? v : { k, x: mx - ((mx - v.x) / v.k) * k, y: my - ((my - v.y) / v.k) * k }
-      })
-    },
-    [отметитьДвижение],
-  )
-  /** Куда идёт масштаб: шаги колеса копятся от цели, а не от середины анимации. */
-  const цельМасштаба = () => анимация.current?.to ?? viewRef.current.k
-  /** Шаг кнопок и клавиш: крупнее (1) или мельче (−1). */
-  const zoomBy = useCallback(
-    (dir: 1 | -1, px?: number, py?: number) =>
-      масштабК((анимация.current?.to ?? viewRef.current.k) * (dir > 0 ? ШАГ_КНОПОК : 1 / ШАГ_КНОПОК), px, py),
-    [масштабК],
-  )
-
   const zoomToFit = useCallback(
-    (only?: Set<string>) => {
-      const list = only?.size ? doc.nodes.filter((n) => only.has(n.id)) : doc.nodes
-      const b = boundsOf(list)
-      const r = wrapRef.current?.getBoundingClientRect()
-      if (!b || !r) {
-        setView({ x: 420, y: 260, k: ZOOM_DEFAULT })
-        return
-      }
-      // Вписываем между верхней панелью и полкой: они лежат поверх доски, и
-      // «вписанное» по всей высоте пряталось под ними верхним рядом.
-      const сверху = wrapRef.current?.querySelector('.canvas-tools')?.getBoundingClientRect()
-      const снизу = wrapRef.current?.querySelector('.canvas-dock')?.getBoundingClientRect()
-      const верх = сверху ? сверху.bottom - r.top + 24 : 60
-      const низ = снизу ? r.bottom - снизу.top + 24 : 60
-      const высота = Math.max(80, r.height - верх - низ)
-      const k = клампМасштаб(Math.min((r.width - 96) / (b.width || 1), высота / (b.height || 1)))
-      if (анимация.current) cancelAnimationFrame(анимация.current.frame)
-      анимация.current = null
-      отметитьДвижение()
-      setView({ k, x: r.width / 2 - (b.x + b.width / 2) * k, y: верх + высота / 2 - (b.y + b.height / 2) * k })
-    },
-    [doc.nodes, отметитьДвижение],
+    (only?: Set<string>) => вписать(only?.size ? doc.nodes.filter((n) => only.has(n.id)) : doc.nodes),
+    [doc.nodes, вписать],
   )
 
   // ------------------------------------------------------------- меню
@@ -1111,11 +901,7 @@ export default function CanvasView({ name }: { name?: string }) {
       return
     }
     // Несохранённое допишем под старым именем до переименования.
-    if (saveTimer.current) {
-      window.clearTimeout(saveTimer.current)
-      saveTimer.current = null
-      await writeCanvas(было, docRef.current)
-    }
+    if (снятьЗапись()) await writeCanvas(было, docRef.current)
     try {
       await renameCanvas(было, имя)
     } catch (e) {
@@ -1146,65 +932,6 @@ export default function CanvasView({ name }: { name?: string }) {
   }
 
   // ------------------------------------------------------------- мышь
-  /*
-   * Колесо и тачпад.
-   *
-   * Слушатель — свой, не React-овский: React вешает колесо пассивным, и
-   * preventDefault в нём не действует — Ctrl+колесо масштабировало всё окно,
-   * а горизонтальный взмах тачпада мог листать историю. Прежде любое колесо
-   * масштабировало ступенями, горизонтальный взмах не делал ничего, и двигать
-   * доску можно было только средней кнопкой или пробелом.
-   */
-  const наКолесо = (e: WheelEvent) => {
-    // Над панелями и меню колесо — их собственное.
-    if ((e.target as Element | null)?.closest?.('.ctx-menu, .canvas-tools, .canvas-hud, .canvas-dock, .text-toolbar-holder, .edge-bar, .cv-help-pop')) return
-    const dx = вПикселях(e, e.deltaX)
-    const dy = вПикселях(e, e.deltaY)
-    // Длинная заметка или текст в карточке сперва прокручиваются сами.
-    if (!e.ctrlKey && !e.metaKey && своёКолесо(e.target, dy)) return
-    e.preventDefault()
-    const r = wrapRef.current!.getBoundingClientRect()
-    const mx = e.clientX - r.left
-    const my = e.clientY - r.top
-    const тачпад = этоТачпад(e)
-
-    if (e.ctrlKey || e.metaKey) {
-      // Щипок тачпада приходит как Ctrl+колесо мелкими шагами — масштаб
-      // следует за пальцами без анимации. Ctrl+колесо мыши — плавный шаг.
-      if (тачпад) масштабМножителем(Math.exp(-dy * 0.01), mx, my)
-      else масштабК(цельМасштаба() * Math.pow(ШАГ_КОЛЕСА, -dy / 100), mx, my)
-      return
-    }
-    if (тачпад || колесо === 'scroll' || e.shiftKey) {
-      // Тачпад — двумя пальцами в любую сторону; мышь в режиме прокрутки —
-      // вверх-вниз, с Shift — вбок.
-      const сдвигX = тачпад ? dx : e.shiftKey ? dy || dx : dx
-      const сдвигY = тачпад ? dy : e.shiftKey ? 0 : dy
-      отметитьДвижение()
-      setView((v) => ({ ...v, x: v.x - сдвигX, y: v.y - сдвигY }))
-      return
-    }
-    масштабК(цельМасштаба() * Math.pow(ШАГ_КОЛЕСА, -dy / 100), mx, my)
-  }
-  const наКолесоRef = useRef(наКолесо)
-  наКолесоRef.current = наКолесо
-  useEffect(() => {
-    const el = wrapRef.current
-    if (!el) return
-    const h = (e: WheelEvent) => наКолесоRef.current(e)
-    el.addEventListener('wheel', h, { passive: false })
-    return () => el.removeEventListener('wheel', h)
-  }, [current])
-
-  const выбратьКолесо = (к: Колесо) => {
-    setКолесо(к)
-    try {
-      localStorage.setItem(ГДЕ_КОЛЕСО, к)
-    } catch {
-      /* приватное окно */
-    }
-  }
-
   /**
    * Правая кнопка: протянули — сдвиг доски, нет — меню (как в Miro). Общий
    * вход для фона, карточек и их ручек. true — нажатие забрано.
@@ -1335,8 +1062,7 @@ export default function CanvasView({ name }: { name?: string }) {
         }
         d.moved = true
         if (wrapRef.current) wrapRef.current.style.cursor = 'grabbing'
-        отметитьДвижение()
-        setView((v) => ({ ...v, x: d.ox + (e.clientX - d.sx), y: d.oy + (e.clientY - d.sy) }))
+        тянуть(d.ox, d.oy, e.clientX - d.sx, e.clientY - d.sy)
         return
       }
       d.moved = true
@@ -1407,10 +1133,7 @@ export default function CanvasView({ name }: { name?: string }) {
             toast(т('Карточка встроена в связь'))
           }
         }
-        setDoc(final)
-        setPast((p) => [...p, d.before!].slice(-HISTORY_LIMIT))
-        setFuture([])
-        persist(final, current)
+        закончитьПеретаскивание(d.before, final)
         return
       }
 
@@ -1481,7 +1204,7 @@ export default function CanvasView({ name }: { name?: string }) {
       window.removeEventListener('mousemove', move)
       window.removeEventListener('mouseup', up)
     }
-  }, [toWorld, commit, patchEdge, persist, current, nodeMenuItems, touch, dragResult, toast, отметитьДвижение])
+  }, [toWorld, commit, patchEdge, закончитьПеретаскивание, nodeMenuItems, touch, dragResult, toast, тянуть])
 
   // ------------------------------------------------------------ клавиши
   useEffect(() => {
@@ -2022,10 +1745,10 @@ export default function CanvasView({ name }: { name?: string }) {
         >
           <Icon name="plus" size={14} /> {т(' Добавить')}</button>
         <span className="tool-sep" />
-        <button className="icon-btn" title={т('Отменить (Ctrl+Z)')} disabled={!past.length} onClick={undo}>
+        <button className="icon-btn" title={т('Отменить (Ctrl+Z)')} disabled={!можноОтменить} onClick={undo}>
           <Icon name="left" size={15} />
         </button>
-        <button className="icon-btn" title={т('Повторить (Ctrl+Y)')} disabled={!future.length} onClick={redo}>
+        <button className="icon-btn" title={т('Повторить (Ctrl+Y)')} disabled={!можноПовторить} onClick={redo}>
           <Icon name="right" size={15} />
         </button>
         <span className="tool-sep" />
@@ -2108,38 +1831,13 @@ export default function CanvasView({ name }: { name?: string }) {
       </div>
 
       {справка && (
-        <>
-          <div className="period-pick-shade" onMouseDown={() => setСправка(false)} />
-          <div className="card cv-help-pop" onMouseDown={(e) => e.stopPropagation()}>
-            <div className="strong">{т('Управление доской')}</div>
-            <dl className="cv-help-list">
-              <dt>{т('Колесо мыши')}</dt>
-              <dd>{колесо === 'zoom' ? т('масштаб у курсора') : т('прокрутка, с Shift — вбок')}</dd>
-              <dt>{т('Ctrl + колесо')}</dt>
-              <dd>{т('масштаб всегда')}</dd>
-              <dt>{т('Правая кнопка')}</dt>
-              <dd>{т('протянуть — сдвинуть доску, щёлкнуть — меню')}</dd>
-              <dt>{т('Средняя кнопка, пробел')}</dt>
-              <dd>{т('сдвинуть доску')}</dd>
-              <dt>{т('Тачпад')}</dt>
-              <dd>{т('два пальца — сдвиг, щипок — масштаб')}</dd>
-              <dt>{т('Левая кнопка по фону')}</dt>
-              <dd>{т('рамка — выделение, с Shift — добавить')}</dd>
-              <dt>{т('Двойной щелчок или T')}</dt>
-              <dd>{т('новая карточка')}</dd>
-            </dl>
-            <div className="cv-help-wheel">
-              <span>{т('Колесо мыши')}</span>
-              <div className="seg">
-                <button className={колесо === 'zoom' ? 'on' : ''} onClick={() => выбратьКолесо('zoom')}>{т('Масштаб')}</button>
-                <button className={колесо === 'scroll' ? 'on' : ''} onClick={() => выбратьКолесо('scroll')}>{т('Прокрутка')}</button>
-              </div>
-            </div>
-            <div className="faint small">
-              {doc.nodes.length} {plural(doc.nodes.length, 'карточка', 'карточки', 'карточек')} · {doc.edges.length} {plural(doc.edges.length, 'связь', 'связи', 'связей')}
-            </div>
-          </div>
-        </>
+        <Справка
+          колесо={колесо}
+          onКолесо={выбратьКолесо}
+          карточек={doc.nodes.length}
+          связей={doc.edges.length}
+          onClose={() => setСправка(false)}
+        />
       )}
 
       <Полка items={полка} ширинаДоски={ширина} занятоСправа={ширинаМасштаба + 14} />
