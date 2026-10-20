@@ -5,7 +5,7 @@ import { сЗначкомъ } from '../lib/catalog'
 import { useApp } from '../App'
 import { useStore } from '../state/store'
 import { Icon } from '../lib/icons'
-import { moneyShort, uid } from '../lib/format'
+import { moneyShort, plural, uid } from '../lib/format'
 import { addMonths, today } from '../lib/date'
 import { CANVAS_COLORS, DEFAULT_QUICK_COLORS, colorName } from '../lib/emoji'
 import { deleteCanvas, listCanvases, listNotes, readCanvas, readNote, renameCanvas, writeCanvas } from '../state/vault'
@@ -2135,7 +2135,9 @@ export default function CanvasView({ name }: { name?: string }) {
                 <button className={колесо === 'scroll' ? 'on' : ''} onClick={() => выбратьКолесо('scroll')}>{т('Прокрутка')}</button>
               </div>
             </div>
-            <div className="faint small">{т('{0} узлов · {1} связей', doc.nodes.length, doc.edges.length)}</div>
+            <div className="faint small">
+              {doc.nodes.length} {plural(doc.nodes.length, 'карточка', 'карточки', 'карточек')} · {doc.edges.length} {plural(doc.edges.length, 'связь', 'связи', 'связей')}
+            </div>
           </div>
         </>
       )}
