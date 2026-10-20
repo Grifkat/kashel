@@ -16,7 +16,21 @@ import { т } from '../i18n'
  * Считаем не тиками, а по часам: setInterval на неактивной вкладке браузеры
  * придерживают, и таймер, сложенный из тиков, отстал бы на минуты. Поэтому
  * храним момент окончания и каждую секунду смотрим, сколько до него осталось.
+ *
+ * Но окно в фоне спит: Chromium будит его таймеры не чаще раза в минуту, и
+ * звонок опаздывал бы почти на неё. Поэтому на рабочем столе момент конца
+ * ещё и отдаётся главному процессу (pomodoroArm) — его будильник не засыпает
+ * и присылает pomodoro:due вовремя. Ежесекундный тик остаётся для цифр на
+ * экране и для браузерной версии, где главного процесса нет.
  */
+
+/** Будильник оболочки. Есть только на рабочем столе. */
+interface ОболочкаПомидора {
+  pomodoroArm?(endAt: number | null): void
+  onPomodoroDue?(cb: (endAt: number) => void): () => void
+}
+const оболочка = (): ОболочкаПомидора | undefined =>
+  typeof window === 'undefined' ? undefined : (window as unknown as { kashel?: ОболочкаПомидора }).kashel
 
 export type PomodoroPhase = 'idle' | 'work' | 'rest'
 
@@ -54,6 +68,12 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   const [doneToday, setDoneToday] = useState(0)
   const endAt = useRef<number | null>(null)
 
+  /** Новый момент конца — и сразу будильнику главного процесса. */
+  const поставитьКонец = useCallback((ms: number | null) => {
+    endAt.current = ms
+    оболочка()?.pomodoroArm?.(ms)
+  }, [])
+
   const minutes = data.settings.pomodoro
   // Ссылки на свежие значения: обработчик тика создаётся один раз, а решения
   // принимает по тому, что происходит сейчас.
@@ -61,11 +81,11 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
   cur.current = { phase, taskId, minutes }
 
   const начать = useCallback((next: PomodoroPhase, secs: number) => {
-    endAt.current = Date.now() + secs * 1000
+    поставитьКонец(Date.now() + secs * 1000)
     setPhase(next)
     setLeft(secs)
     setPaused(false)
-  }, [])
+  }, [поставитьКонец])
 
   const start = useCallback(
     (id: string | null) => {
@@ -79,22 +99,22 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
 
   const pause = useCallback(() => {
     if (endAt.current) setLeft(Math.max(0, Math.round((endAt.current - Date.now()) / 1000)))
-    endAt.current = null
+    поставитьКонец(null)
     setPaused(true)
-  }, [])
+  }, [поставитьКонец])
 
   const resume = useCallback(() => {
-    endAt.current = Date.now() + left * 1000
+    поставитьКонец(Date.now() + left * 1000)
     setPaused(false)
-  }, [left])
+  }, [left, поставитьКонец])
 
   const stop = useCallback(() => {
-    endAt.current = null
+    поставитьКонец(null)
     setPhase('idle')
     setLeft(0)
     setPaused(false)
     setTaskId(null)
-  }, [])
+  }, [поставитьКонец])
 
   /** Завершает текущий отрезок: рабочий засчитывается задаче, отдых — нет. */
   const завершить = useCallback(() => {
@@ -135,6 +155,19 @@ export function PomodoroProvider({ children }: { children: React.ReactNode }) {
     }, 1000)
     return () => clearInterval(t)
   }, [phase, paused, завершить])
+
+  // Будильник главного процесса. Сверяем момент: если отрезок уже закрыл
+  // ежесекундный тик (он мог успеть на полсекунды раньше), пришедший звонок
+  // относится к прошлому отрезку и второй раз ничего не засчитывает.
+  useEffect(
+    () => оболочка()?.onPomodoroDue?.((due) => {
+      if (endAt.current === due) завершить()
+    }),
+    [завершить],
+  )
+
+  // Провайдер снят — будильник больше не нужен.
+  useEffect(() => () => оболочка()?.pomodoroArm?.(null), [])
 
   const value: Pomodoro = {
     phase, left, paused, taskId, doneToday,

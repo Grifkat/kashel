@@ -25,8 +25,24 @@ export function ShinyText({
   speed?: number
 }) {
   const on = useDecor()
+  const ref = useRef<HTMLSpanElement>(null)
+
+  // Сколько шагов делает блик за проход — по одному на пиксель пути. Путь
+  // полосы — 1,92 ширины надписи (фон в 220 %, позиция от 130 % до −30 %),
+  // см. .fx-shiny в effects.css, там же — зачем шаги вообще.
+  useEffect(() => {
+    const el = ref.current
+    if (!on || !el) return
+    const поставить = () => el.style.setProperty('--fx-shine-steps', String(Math.max(24, Math.ceil(el.offsetWidth * 1.92))))
+    поставить()
+    const ro = new ResizeObserver(поставить)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [on])
+
   return (
     <span
+      ref={ref}
       className={(className ? className + ' ' : '') + (on ? 'fx-shiny' : '')}
       style={on ? ({ '--fx-shine-speed': `${speed}s` } as React.CSSProperties) : undefined}
     >

@@ -64,6 +64,18 @@ contextBridge.exposeInMainWorld('kashel', {
   /** Настройки оболочки: трей и язык встроенного выбора даты. */
   shellPrefs: (prefs) => ipcRenderer.invoke('shell:prefs', prefs),
 
+  /**
+   * Будильник помидора в главном процессе: момент конца отрезка (мс) или null,
+   * чтобы снять. Окно в фоне спит, а главный процесс звонит вовремя.
+   */
+  pomodoroArm: (endAt) => ipcRenderer.send('pomodoro:arm', endAt),
+  /** Отрезок кончился — приходит тот момент, на который ставили. Возвращает отписку. */
+  onPomodoroDue: (cb) => {
+    const пришло = (_e, endAt) => cb(endAt)
+    ipcRenderer.on('pomodoro:due', пришло)
+    return () => ipcRenderer.off('pomodoro:due', пришло)
+  },
+
   /*
    * Обновление. Проверка и установка — два разных действия нарочно:
    * программа никогда не скачивает ничего сама, решение всегда за человѣкомъ.
