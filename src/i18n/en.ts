@@ -2384,6 +2384,8 @@ export const EN: Record<string, string> = {
   'Полгода': '6 mo',
   'Всё': 'All',
   'Граф связей': 'Link graph',
+  'подкатегорий: {0}': 'subcategories: {0}',
+  'вместе с подкатегориями': 'including subcategories',
   'Найти узел': 'Find a node',
   '3D': '3D',
   'Схема': 'Flat',

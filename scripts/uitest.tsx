@@ -3271,6 +3271,82 @@ async function периодЛимитаЭкраны() {
   await wait(1200)
 }
 
+/*
+ * Граф: главные категории и подкатегории. Оснастка без подкатегорий,
+ * поэтому «Такси» на время проверки кладётся в «Транспорт» — прямо в
+ * хранилище, с перезапуском, — а в конце всё возвращается как было.
+ */
+async function графПодкатегории(root: Root): Promise<Root> {
+  console.log('\n— граф: подкатегории —')
+  await wait(1300)
+  root.unmount()
+  await wait(250)
+  const было = (await loadVault()) as VaultData
+  const найти = (имя: string) => было.categories.find((c) => c.name === имя)!
+  const группа = найти('Транспорт')
+  const под = найти('Такси')
+  await saveCore({ ...было, categories: было.categories.map((c) => (c.id === под.id ? { ...c, parentId: группа.id } : c)) } as VaultData)
+  root = mount()
+  await wait(1800)
+  await open('Граф')
+  await wait(800)
+
+  const узел = (id: string) => document.querySelector(`.graph-node[data-id="${id}"]`)
+  const связь = (a: string, b: string) => document.querySelector(`.graph-links line[data-a="${a}"][data-b="${b}"]`)
+  const г = 'cat:' + группа.id
+  const п = 'cat:' + под.id
+  check('граф связывает главную категорию с подкатегорией', !!связь(г, п)?.classList.contains('graph-link-family'))
+  check('у главной категории — орбита, у подкатегории — нет', !!узел(г)?.querySelector('.graph-orbit') && !узел(п)?.querySelector('.graph-orbit'))
+
+  // Сумма главной — её операции и операции подкатегорий за полгода.
+  const с = addMonths(today(), -6)
+  const семья = new Set([группа.id, под.id])
+  let ждём = 0
+  for (const t of было.transactions) {
+    if (t.kind !== 'expense' || t.date < с) continue
+    if (t.splits?.length) for (const д of t.splits) ждём += семья.has(д.categoryId) ? д.amount : 0
+    else if (t.categoryId && семья.has(t.categoryId)) ждём += t.amount
+  }
+  click(узел(г))
+  await wait(300)
+  const карточка = () => document.querySelector('.graph-card')?.textContent || ''
+  check('сумма главной — вместе с подкатегориями', карточка().includes(money(ждём)) && карточка().includes('вместе с подкатегориями'),
+    `${карточка().slice(0, 90)} · ждали ${money(ждём)}`)
+  click(document.querySelector('.graph-card .icon-btn[title="Закрыть"]'))
+  await wait(200)
+
+  // Наведение: на главную — светятся подкатегории и их связи; на подкатегорию — главная.
+  const навести = (el: Element | null, на: boolean) => {
+    const р = Object.entries(el ?? {}).find(([к]) => к.startsWith('__reactProps$'))?.[1] as
+      { onMouseEnter?: (e: unknown) => void; onMouseLeave?: (e: unknown) => void } | undefined
+    if (на) р?.onMouseEnter?.({})
+    else р?.onMouseLeave?.({})
+  }
+  const тускл = (id: string) => узел(id)?.getAttribute('opacity') === '0.14'
+  const светится = (el: Element | null) => el?.getAttribute('stroke') === 'var(--accent)'
+  const связиПодкатегории = () => all(`.graph-links line[data-a="${п}"]`).filter((l) => !l.classList.contains('graph-link-family'))
+  навести(узел(г), true)
+  await wait(200)
+  check('наведение на главную подсвечивает подкатегорию и её связи',
+    !тускл(п) && светится(связь(г, п)) && связиПодкатегории().length > 0 && связиПодкатегории().every(светится)
+    && all('.graph-node').some((n) => n.getAttribute('opacity') === '0.14'))
+  навести(узел(г), false)
+  await wait(150)
+  навести(узел(п), true)
+  await wait(200)
+  check('наведение на подкатегорию подсвечивает главную', !тускл(г) && светится(связь(г, п)))
+  навести(узел(п), false)
+  await wait(150)
+
+  await wait(1300)
+  root.unmount()
+  await wait(250)
+  await saveCore({ ...((await loadVault()) as VaultData), categories: было.categories } as VaultData)
+  root = mount()
+  await wait(1800)
+  return root
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -3309,6 +3385,7 @@ async function main() {
   await dashboardWipe()
   await transactionsBulk()
   await entryDateFollowsPeriod()
+  root = await графПодкатегории(root)
   root = await persistence(root)
   root = await отменаИВерсия(root)
   await saveButton()

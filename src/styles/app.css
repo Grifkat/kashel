@@ -1040,6 +1040,9 @@ kbd {
 .graph-node { cursor: pointer; }
 .graph-node:hover { filter: brightness(1.08); }
 .graph-halo { fill: color-mix(in srgb, var(--accent) 22%, transparent); stroke: var(--accent); stroke-width: 1.5; }
+/* Главная категория и её подкатегории: орбита вокруг главной, пунктир до подкатегорий. */
+.graph-orbit { fill: none; stroke-width: 1.4; stroke-opacity: 0.55; stroke-dasharray: 2.5 3; }
+.graph-link-family { stroke-dasharray: 2 4.5; }
 .graph-label-bg { fill: color-mix(in srgb, var(--panel) 86%, transparent); stroke: var(--border-soft); stroke-width: 1; }
 .graph-label-bg.strong { fill: var(--panel); stroke: var(--accent); }
 .graph-label { font-size: 11px; fill: var(--muted); font-family: inherit; }

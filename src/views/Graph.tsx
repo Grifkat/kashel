@@ -23,6 +23,7 @@ import { extractLinks, extractTags } from '../lib/markdown'
 import { addMonths, today } from '../lib/date'
 import { money, moneyShort, plural } from '../lib/format'
 import { accountBalance, categoryTotals } from '../engine/stats'
+import { поГлавным, родитель } from '../engine/podkategorii'
 import { isCatalogIcon } from '../lib/catalog'
 import { этоСвойЗначокъ, useСвойЗначокъ } from '../lib/svoiznachki'
 import { iconInk, Toggle } from '../components/ui'
@@ -54,12 +55,16 @@ interface GNode {
   sub?: string
   /** Цель «заработать»: сумма — заработанное, а не отложенное. */
   earn?: boolean
+  /** У главной категории — сколько её подкатегорий на графе. */
+  подкатегорий?: number
 }
 interface GLink {
   a: string
   b: string
   w: number
   amount?: number
+  /** Связь главной категории с подкатегорией, а не движение денег. */
+  семья?: boolean
 }
 
 const KIND_COLOR: Record<Kind, string> = {
@@ -304,10 +309,19 @@ export default function GraphView() {
 
     const since = период ? addMonths(today(), -период) : ''
     const scoped = since ? data.transactions.filter((t) => t.date >= since) : data.transactions
-    const totals = new Map(
-      [...categoryTotals(scoped, 'expense'), ...categoryTotals(scoped, 'income')].map((t) => [t.categoryId, t]),
-    )
-    const maxTotal = Math.max(1, ...[...totals.values()].map((t) => t.amount))
+    // Главная категория несёт и свои операции, и операции подкатегорий —
+    // как на «Сводке» и в «Бюджете»; подкатегория — только свои.
+    const прямые = [...categoryTotals(scoped, 'expense'), ...categoryTotals(scoped, 'income')]
+    const своих = new Map(прямые.map((t) => [t.categoryId, t]))
+    const семейных = new Map(поГлавным(прямые, data.categories).map((t) => [t.categoryId, t]))
+    const главная = new Map(data.categories.map((c) => [c.id, родитель(c, data.categories)]))
+    const итог = (id: string) => (главная.get(id) ? своих : семейных).get(id)
+    const maxTotal = Math.max(1, ...data.categories.map((c) => итог(c.id)?.amount ?? 0))
+    const детей = new Map<string, number>()
+    for (const c of data.categories) {
+      const р = главная.get(c.id)
+      if (р && !c.archived && !р.archived) детей.set(р.id, (детей.get(р.id) ?? 0) + 1)
+    }
 
     for (const n of notes) push({ id: 'note:' + n.name, label: n.name, kind: 'note', r: 7 })
     for (const a of data.accounts.filter((x) => !x.archived)) {
@@ -317,12 +331,15 @@ export default function GraphView() {
       })
     }
     for (const c of data.categories.filter((x) => !x.archived)) {
-      const t = totals.get(c.id)
+      const t = итог(c.id)
+      const р = главная.get(c.id)
+      const вид = c.kind === 'income' ? т('доход') : т('расход')
       push({
         id: 'cat:' + c.id, label: c.name, kind: 'category', ref: c.id, color: c.color, icon: c.icon,
         r: 7 + Math.sqrt((t?.amount ?? 0) / maxTotal) * 12,
         amount: t?.amount ?? 0, count: t?.count ?? 0,
-        sub: c.kind === 'income' ? т('доход') : т('расход'),
+        sub: р ? т('Подкатегория «{0}»', р.name) : детей.get(c.id) ? вид + ' · ' + т('подкатегорий: {0}', детей.get(c.id)) : вид,
+        подкатегорий: детей.get(c.id),
       })
     }
     for (const g of data.goals) {
@@ -340,8 +357,14 @@ export default function GraphView() {
     for (const n of notes) for (const x of extractTags(n.body)) tags.add(x)
     for (const t of tags) push({ id: 'tag:' + t, label: '#' + t, kind: 'tag', r: 6 })
 
-    const link = (a: string, b: string, w = 1, amount?: number) => {
-      if (seen.has(a) && seen.has(b) && a !== b) ls.push({ a, b, w, ...(amount ? { amount } : {}) })
+    const link = (a: string, b: string, w = 1, amount?: number, семья?: boolean) => {
+      if (seen.has(a) && seen.has(b) && a !== b) ls.push({ a, b, w, ...(amount ? { amount } : {}), ...(семья ? { семья } : {}) })
+    }
+
+    // главная категория → подкатегория: подкатегории держатся рядом с главной
+    for (const c of data.categories) {
+      const р = главная.get(c.id)
+      if (р) link('cat:' + р.id, 'cat:' + c.id, 1.6, итог(c.id)?.amount, true)
     }
 
     // связи заметок
@@ -353,12 +376,16 @@ export default function GraphView() {
       for (const t of extractTags(n.body)) link('note:' + n.name, 'tag:' + t, 0.7)
     }
 
-    // связи денег: категория ↔ счёт, цель ↔ счёт
+    // связи денег: категория ↔ счёт, цель ↔ счёт. Разбитый чек связывает
+    // счёт с каждой своей статьёй на её долю, а не целиком с первой.
+    const доли = (t: (typeof scoped)[number]) =>
+      t.splits?.length ? t.splits : t.categoryId ? [{ categoryId: t.categoryId, amount: t.amount }] : []
     const pairs = new Map<string, number>()
     for (const t of scoped) {
-      if (!t.categoryId) continue
-      const key = `cat:${t.categoryId}|acc:${t.accountId}`
-      pairs.set(key, (pairs.get(key) ?? 0) + t.amount)
+      for (const д of доли(t)) {
+        const key = `cat:${д.categoryId}|acc:${t.accountId}`
+        pairs.set(key, (pairs.get(key) ?? 0) + д.amount)
+      }
     }
     const maxPair = Math.max(1, ...pairs.values())
     for (const [key, v] of pairs) {
@@ -369,10 +396,7 @@ export default function GraphView() {
     // Цель «заработать» связана с категориями, с которых идёт заработок.
     for (const g of data.goals) for (const id of g.earn?.categoryIds ?? []) if (этоЗаработок(g)) link('goal:' + g.id, 'cat:' + id, 2)
     const tagPairs = new Set<string>()
-    for (const t of scoped) {
-      if (!t.categoryId) continue
-      for (const x of t.tags) tagPairs.add(`tag:${x}|cat:${t.categoryId}`)
-    }
+    for (const t of scoped) for (const д of доли(t)) for (const x of t.tags) tagPairs.add(`tag:${x}|cat:${д.categoryId}`)
     for (const key of tagPairs) {
       const [a, b] = key.split('|')
       link(a, b, 0.5)
@@ -387,19 +411,26 @@ export default function GraphView() {
 
   // -------------------------------------------------------- подсветка
   const фокус = hover ?? выбран
-  const соседи = useMemo(() => {
-    if (!фокус) return null
-    const s = new Set<string>([фокус])
+  /*
+   * Ядро подсветки — сам узел, а у главной категории ещё и её подкатегории:
+   * светятся их связи и всё, с чем они связаны. Подкатегория связана с
+   * главной напрямую, поэтому главная светится и при наведении на неё.
+   */
+  const { ядро, соседи } = useMemo(() => {
+    if (!фокус) return { ядро: null, соседи: null }
+    const ядро = new Set<string>([фокус])
+    for (const l of links) if (l.семья && l.a === фокус) ядро.add(l.b)
+    const s = new Set<string>(ядро)
     for (const l of links) {
-      if (l.a === фокус) s.add(l.b)
-      if (l.b === фокус) s.add(l.a)
+      if (ядро.has(l.a)) s.add(l.b)
+      if (ядро.has(l.b)) s.add(l.a)
     }
-    return s
+    return { ядро, соседи: s }
   }, [фокус, links])
 
   /** Что кадр знает о последней отрисовке React: он живёт дольше неё. */
-  const живое = useRef({ links, byId, режим, вращать, gw, gh, фокус, соседи })
-  живое.current = { links, byId, режим, вращать, gw, gh, фокус, соседи }
+  const живое = useRef({ links, byId, режим, вращать, gw, gh, фокус, ядро, соседи })
+  живое.current = { links, byId, режим, вращать, gw, gh, фокус, ядро, соседи }
   const взглядСейчас = () => взгляд(cam.current, живое.current.gw, живое.current.gh, живое.current.режим === 'flat')
 
   // -------------------------------------------------------- симуляция
@@ -445,7 +476,7 @@ export default function GraphView() {
 
   // -------------------------------------------------------- кадр
   const рисовать = () => {
-    const { links, byId, фокус, соседи } = живое.current
+    const { links, byId, фокус, ядро, соседи } = живое.current
     const ns = nodesRef.current
     const в = взглядСейчас()
     const { k, px, py } = cam.current
@@ -475,7 +506,7 @@ export default function GraphView() {
         атр(el, 'display', 'none')
         return
       }
-      const свет = соседи ? соседи.has(a.id) && соседи.has(b.id) && (a.id === фокус || b.id === фокус) : false
+      const свет = соседи && ядро ? соседи.has(a.id) && соседи.has(b.id) && (ядро.has(a.id) || ядро.has(b.id)) : false
       const тускло = соседи && !свет
       const s = (pa.s + pb.s) / 2
       атр(el, 'display', 'inline')
@@ -498,6 +529,7 @@ export default function GraphView() {
     const важность = (n: GNode) => {
       const p = ps.get(n.id)!
       if (n.id === фокус) return 1e9
+      if (ядро?.has(n.id)) return 5e8 + n.r * p.s
       if (соседи?.has(n.id)) return 1e8 + n.r * p.s
       return n.r * p.s * p.fog
     }
@@ -733,7 +765,14 @@ export default function GraphView() {
       <svg width="100%" height="100%" className="graph-svg">
         <g className="graph-links">
           {links.map((l, i) => (
-            <line key={i} ref={(el) => { элСвязей.current[i] = el }} strokeLinecap="round" />
+            <line
+              key={i}
+              ref={(el) => { элСвязей.current[i] = el }}
+              data-a={l.a}
+              data-b={l.b}
+              className={l.семья ? 'graph-link-family' : undefined}
+              strokeLinecap="round"
+            />
           ))}
         </g>
         <g className="graph-nodes" ref={слойУзлов}>
@@ -929,6 +968,8 @@ const Узел = memo(function Узел({ n, выделен }: { n: GNode; вы�
   return (
     <>
       {выделен && <circle r={r * 1.55} className="graph-halo" />}
+      {/* У главной категории — орбита: вокруг неё держатся подкатегории. */}
+      {n.подкатегорий ? <circle r={r + 4.5} className="graph-orbit" style={{ stroke: n.color }} /> : null}
       {форма}
       <ЗначокУзла n={n} size={r * 1.05} ink={ink} />
     </>
@@ -1002,6 +1043,7 @@ function КарточкаУзла({
           <span className="num strong">{money(n.amount ?? 0)}</span>
           <span className="faint small">
             {заПериод}{n.count ? ' · ' + n.count + ' ' + plural(n.count, 'операция', 'операции', 'операций') : ''}</span>
+          {n.подкатегорий ? <span className="faint small">{т('вместе с подкатегориями')}</span> : null}
         </div>
       )}
       {n.kind === 'account' && (
