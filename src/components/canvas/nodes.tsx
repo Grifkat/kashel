@@ -36,6 +36,8 @@ export const DEFAULT_FONT_SIZE = 13
 
 /**
  * Текст, подстраивающийся под карточку.
+ * auto   — самый крупный кегль, при котором всё влезает (в пределах
+ *          АВТО_МИН…АВТО_МАКС); не влезает и мелко — карточка растёт;
  * scale  — кегль пропорционален ширине карточки;
  * shrink — уменьшается, пока содержимое не поместится по высоте;
  * grow   — кегль постоянный, а нужную высоту сообщаем наружу.
@@ -58,11 +60,50 @@ function FittedText({
   const ref = useRef<HTMLDivElement>(null)
   useПодгонка(ref, node, fit, fontSize, onGrow)
 
+  // cnode-fit: кегль разметки берётся от контейнера, см. canvas.css.
   return (
-    <div ref={ref} className={'cnode-scroll cnode-md' + (fit === 'fixed' ? '' : ' no-scroll')}>
+    <div ref={ref} className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll')}>
       {children}
     </div>
   )
+}
+
+/**
+ * Пределы режима «Авто», px кегля контейнера (разметка при чтении на 7,7 %
+ * крупнее — см. .cnode-fit в canvas.css). Нижний — самый мелкий текст, который
+ * ещё удобно читать на доске в 100 %; дальше карточка не мельчит, а растёт.
+ */
+export const АВТО_МИН = 12
+export const АВТО_МАКС = 36
+
+/**
+ * Высота карточки под содержимое: мерим естественную высоту текста.
+ * onlyUp — только растить (режим «Авто»: карточку, которую человек сам
+ * сделал выше, сжимать обратно нельзя — это его место под крупный текст).
+ */
+function подогнатьВысоту(el: HTMLElement, node: CanvasNode, onGrow: (height: number) => void, onlyUp: boolean) {
+  // Замерять надо текст, а не контейнер: он растянут на всю карточку
+  // (flex: 1), и его scrollHeight никогда не меньше нынешней высоты.
+  // Мерить его напрямую значило бы каждый раз просить чуть больше, чем
+  // есть, — карточка росла бы бесконечно, пока React не снимет всё дерево.
+  // Поэтому на время замера отпускаем растяжку и берём естественную высоту.
+  const flex = el.style.flex
+  const height = el.style.height
+  el.style.flex = '0 0 auto'
+  el.style.height = 'auto'
+  const content = el.scrollHeight
+  const inner = el.clientHeight
+  el.style.flex = flex
+  el.style.height = height
+
+  // Сколько карточки занимает не текст: шапка, рамки, отступы. Считаем
+  // от текущего состояния, чтобы не зависеть от устройства карточки.
+  const chrome = node.height - el.clientHeight
+  // Схлопнутый контейнер мерить нечем — подождём следующей раскладки.
+  if (el.clientHeight > 0 && inner > 0) {
+    const next = Math.max(80, Math.ceil((content + chrome) / 10) * 10)
+    if (onlyUp ? next > node.height + 4 : Math.abs(next - node.height) > 4) onGrow(next)
+  }
 }
 
 /*
@@ -84,6 +125,37 @@ function useПодгонка(
     const el = ref.current
     if (!el) return
 
+    if (fit === 'auto') {
+      // Пустая карточка: подбирать нечего, а подсказку поля Chromium считает
+      // в высоту — шесть её строк раздували бы карточку ещё до первой буквы.
+      if (!node.text?.trim()) {
+        el.style.fontSize = `${DEFAULT_FONT_SIZE + 2}px`
+        return
+      }
+      // Самый крупный кегль, при котором всё влезает и по высоте, и по
+      // ширине (длинное слово не должно вылезать за край). Ищем делением
+      // пополам по полупикселю — семь замеров вместо полусотни.
+      const влезает = (px: number) => {
+        el.style.fontSize = `${px}px`
+        return el.scrollHeight <= el.clientHeight + 1 && el.scrollWidth <= el.clientWidth + 1
+      }
+      if (влезает(АВТО_МАКС)) return
+      if (!влезает(АВТО_МИН)) {
+        // Даже мелко не влезает — дальше растёт карточка, а не мельчает текст.
+        if (onGrow) подогнатьВысоту(el, node, onGrow, true)
+        return
+      }
+      let lo = АВТО_МИН * 2
+      let hi = АВТО_МАКС * 2
+      while (hi - lo > 1) {
+        const mid = (lo + hi) >> 1
+        if (влезает(mid / 2)) lo = mid
+        else hi = mid
+      }
+      el.style.fontSize = `${lo / 2}px`
+      return
+    }
+
     if (fit === 'scale') {
       el.style.fontSize = `${Math.max(8, (fontSize * node.width) / BASE_WIDTH).toFixed(2)}px`
       return
@@ -100,30 +172,7 @@ function useПодгонка(
       return
     }
 
-    if (fit === 'grow' && onGrow) {
-      // Замерять надо текст, а не контейнер: он растянут на всю карточку
-      // (flex: 1), и его scrollHeight никогда не меньше нынешней высоты.
-      // Мерить его напрямую значило бы каждый раз просить чуть больше, чем
-      // есть, — карточка росла бы бесконечно, пока React не снимет всё дерево.
-      // Поэтому на время замера отпускаем растяжку и берём естественную высоту.
-      const flex = el.style.flex
-      const height = el.style.height
-      el.style.flex = '0 0 auto'
-      el.style.height = 'auto'
-      const content = el.scrollHeight
-      const inner = el.clientHeight
-      el.style.flex = flex
-      el.style.height = height
-
-      // Сколько карточки занимает не текст: шапка, рамки, отступы. Считаем
-      // от текущего состояния, чтобы не зависеть от устройства карточки.
-      const chrome = node.height - el.clientHeight
-      // Схлопнутый контейнер мерить нечем — подождём следующей раскладки.
-      if (el.clientHeight > 0 && inner > 0) {
-        const next = Math.max(80, Math.ceil((content + chrome) / 10) * 10)
-        if (Math.abs(next - node.height) > 4) onGrow(next)
-      }
-    }
+    if (fit === 'grow' && onGrow) подогнатьВысоту(el, node, onGrow, false)
     // ref в зависимостях не нужен: объект стабилен, меняется только .current.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fit, fontSize, node.width, node.height, node.text, onGrow])

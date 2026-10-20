@@ -4,6 +4,7 @@ import type { TextFit } from '../../lib/types'
 import { т } from '../../i18n'
 
 export const FIT_MODES: { id: TextFit; name: string; about: string }[] = [
+  { id: 'auto', name: т('Авто'), about: т('Текст сам заполняет карточку: мало текста — крупно, много — мельче, но не мельче удобного; дальше карточка растёт вниз') },
   { id: 'fixed', name: т('Обычный'), about: т('Размер шрифта постоянный, длинный текст прокручивается') },
   { id: 'scale', name: т('Тянуть за карточкой'), about: т('Растянули карточку — текст стал крупнее') },
   { id: 'shrink', name: т('Вписывать'), about: т('Шрифт уменьшается ровно настолько, чтобы всё поместилось') },
@@ -115,14 +116,19 @@ export function TextToolbar({
         </button>
       ))}
 
-      <span className="tool-sep" />
-      <button className="tt-btn" title={т('Мельче')} onClick={() => onFontSize(Math.max(9, fontSize - 1))}>
-        <span style={{ fontSize: 11 }}>{т('А')}</span>
-      </button>
-      <span className="tt-size num">{fontSize}</span>
-      <button className="tt-btn" title={т('Крупнее')} onClick={() => onFontSize(Math.min(48, fontSize + 1))}>
-        <span style={{ fontSize: 15 }}>{т('А')}</span>
-      </button>
+      {/* В «Авто» размер подбирается сам — ручной кегль там ничего бы не значил. */}
+      {fit !== 'auto' && (
+        <>
+          <span className="tool-sep" />
+          <button className="tt-btn" title={т('Мельче')} onClick={() => onFontSize(Math.max(9, fontSize - 1))}>
+            <span style={{ fontSize: 11 }}>{т('А')}</span>
+          </button>
+          <span className="tt-size num">{fontSize}</span>
+          <button className="tt-btn" title={т('Крупнее')} onClick={() => onFontSize(Math.min(48, fontSize + 1))}>
+            <span style={{ fontSize: 15 }}>{т('А')}</span>
+          </button>
+        </>
+      )}
 
       <span className="tool-sep" />
       <div className="tt-fit">

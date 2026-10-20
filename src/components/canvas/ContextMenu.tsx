@@ -28,12 +28,15 @@ export function ContextMenu({
   items,
   onClose,
   title,
+  above,
 }: {
   x: number
   y: number
   items: MenuItem[]
   onClose(): void
   title?: string
+  /** Раскрываться вверх от точки: меню у нижней полки доски. */
+  above?: boolean
 }) {
   /** Раскрытые подменю по уровням: [верхний, внутри него, …]. */
   const [open, setOpen] = useState<string[]>([])
@@ -48,8 +51,9 @@ export function ContextMenu({
     const r = el.getBoundingClientRect()
     const maxX = window.innerWidth - r.width - 8
     const maxY = window.innerHeight - r.height - 8
-    setPos({ x: Math.max(8, Math.min(x, maxX || x)), y: Math.max(8, Math.min(y, maxY || y)) })
-  }, [x, y, open])
+    const желаемый = above ? y - r.height : y
+    setPos({ x: Math.max(8, Math.min(x, maxX || x)), y: Math.max(8, Math.min(желаемый, maxY || желаемый)) })
+  }, [x, y, open, above])
 
   useEffect(() => {
     const away = (e: MouseEvent) => {
@@ -130,7 +134,8 @@ export function ContextMenu({
     <div
       className="ctx-menu"
       ref={ref}
-      style={{ left: pos.x, top: pos.y }}
+      // Вверх — не выше точки: длинный список прокручивается, а не уходит за край.
+      style={{ left: pos.x, top: pos.y, ...(above ? { maxHeight: Math.max(160, y - 16) } : {}) }}
       onMouseDown={(e) => e.stopPropagation()}
       onContextMenu={(e) => e.preventDefault()}
     >

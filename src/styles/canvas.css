@@ -174,6 +174,22 @@
 .cnode-md .md p { margin: 5px 0; }
 .cnode-md .query-block { margin: 8px 0; padding: 8px 10px; }
 
+/*
+ * Текстовая карточка: кегль разметки — от контейнера, а не постоянный.
+ *
+ * Прежде у .md стояли жёсткие 14 px, и подгонка, ставившая кегль контейнеру,
+ * до текста не доходила: «Тянуть», «Вписывать» и кнопки «А−/А+» работали,
+ * только пока карточка в правке (там кегль у самого поля), а после правки
+ * текст возвращался к 14 px. Теперь размеры в em. 1,077 — потому что поле
+ * правки пишет моноширинным, а 13 px моноширинного по виду как 14 px
+ * обычного: при кегле по умолчанию (13) текст остаётся ровно 14 px, как был.
+ */
+.cnode-fit .md { font-size: 1.077em; }
+.cnode-fit .md h1 { font-size: 1.286em; }
+.cnode-fit .md h2 { font-size: 1.107em; }
+.cnode-fit .md h3 { font-size: 1em; }
+.cnode-fit .md code { font-size: 0.93em; }
+
 .cnode-edit {
   flex: 1;
   border: none;
@@ -442,7 +458,55 @@
   backdrop-filter: var(--panel-blur);
 }
 .canvas-tools { left: 14px; top: 14px; flex-wrap: wrap; max-width: calc(100% - 28px); }
-.canvas-hud { left: 14px; bottom: 14px; }
+/* Масштаб — справа внизу, как в Figma и Miro: середину низа занимает полка. */
+.canvas-hud { right: 14px; bottom: 14px; }
+.hud-help {
+  width: 20px;
+  height: 20px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  font-size: 12px;
+  cursor: help;
+}
+
+/* Полка внизу доски: что положить — одним щелчком. */
+.canvas-dock {
+  position: absolute;
+  bottom: 14px;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  backdrop-filter: var(--panel-blur);
+  z-index: 10;
+}
+.dock-btn {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  min-width: 54px;
+  padding: 6px 6px 5px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  cursor: pointer;
+  transition: var(--tr);
+}
+.dock-btn:hover { background: var(--hover); color: var(--text-strong); }
+.dock-btn:first-child { color: var(--text-strong); }
+.dock-label { font-size: 11px; line-height: 1.2; white-space: nowrap; }
+/* Тесно — только значки, подписи остаются в подсказке. Место считает Polka.tsx:
+   контейнерный запрос здесь нельзя — он сделал бы доску рамкой для меню и
+   окон с position: fixed. */
+.canvas-dock.icons .dock-label { display: none; }
+.canvas-dock.icons .dock-btn { min-width: 36px; padding: 8px; }
 .tool-sep { width: 1px; height: 20px; background: var(--border); }
 
 /* Проценты в нижней панели — кнопка возврата к 100 %, а не просто подпись. */

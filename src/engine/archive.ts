@@ -575,7 +575,7 @@ function normNode(v: unknown): CanvasNode | null {
     ...(opt(r.file) ? { file: str(r.file) } : {}),
     ...(opt(r.ref) ? { ref: str(r.ref) } : {}),
     ...(typeof r.label === 'string' ? { label: r.label } : {}),
-    ...(opt(r.fit) ? { fit: oneOf(r.fit, ['fixed', 'scale', 'shrink', 'grow'] as const, 'fixed') } : {}),
+    ...(opt(r.fit) ? { fit: oneOf(r.fit, ['auto', 'fixed', 'scale', 'shrink', 'grow'] as const, 'fixed') } : {}),
     ...(r.fontSize == null ? {} : { fontSize: num(r.fontSize, 16) }),
     ...(r.options && typeof r.options === 'object' ? { options: r.options as Record<string, unknown> } : {}),
   }

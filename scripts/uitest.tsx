@@ -597,7 +597,15 @@ async function canvasText() {
   await wait(250)
   check('кнопка «Заголовок» добавила решётку', /(^|\n)# /.test(area().value))
 
-  // Размер шрифта.
+  // Размер шрифта. Ручной кегль есть только вне «Авто», а карточки, созданные
+  // выше в этом прогоне, — новые, то есть в «Авто»: переключаем на «Обычный».
+  if (!document.querySelector('.tt-size')) {
+    click(document.querySelector('.tt-fit-btn'))
+    await wait(200)
+    click(all('.tt-fit-item').find((b) => (b.textContent || '').includes('Обычный')))
+    await wait(250)
+  }
+  check('вне «Авто» есть ручной кегль', !!document.querySelector('.tt-size'))
   const sizeNow = () => Number((document.querySelector('.tt-size') as any)?.textContent)
   const s0 = sizeNow()
   click(ttBtn('Крупнее'))
@@ -627,7 +635,7 @@ async function canvasText() {
   }
   click(document.querySelector('.tt-fit-btn'))
   await wait(200)
-  check('кнопка режима раскрыла меню', all('.tt-fit-item').length === 4, String(all('.tt-fit-item').length))
+  check('кнопка режима раскрыла меню', all('.tt-fit-item').length === 5, String(all('.tt-fit-item').length))
   check('и правка при этом не оборвалась', !!area())
   click(document.querySelector('.tt-fit-btn'))
   await wait(200)
@@ -751,6 +759,97 @@ async function canvasText() {
   check('палитра закрылась после выбора', !document.querySelector('.pal-grid'))
   const painted = (document.querySelector('.cnode') as any).style.getPropertyValue('--cnode-color')
   check('карточка перекрасилась', !!painted, painted)
+}
+
+/**
+ * Карточка одним действием (1.0.16): первым пунктом меню, с полки, клавишей
+ * T под курсором; новая — в «Авто»; Escape в поле заканчивает правку.
+ */
+async function canvasOneClick() {
+  console.log('\n— карточка одним действием —')
+  await open('Канвас')
+  await wait(600)
+  const wrap = () => document.querySelector('.canvas-wrap') as any
+  const textCards = () => all('.cnode').filter((c) => c.className.includes('cnode-t-text'))
+  const edit = () => document.querySelector('.cnode-edit') as any
+  const escInField = async () => {
+    edit()?.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    await wait(250)
+  }
+
+  // Текст в карточке при чтении берёт кегль от подгонки, а не жёсткие 14 px.
+  check('текст карточки при чтении — в обёртке подгонки', !!document.querySelector('.cnode-t-text .cnode-fit'))
+
+  // Меню по правому щелчку: «Текстовая карточка» — первым пунктом.
+  wrap().dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 900, clientY: 700 }))
+  await wait(250)
+  const первый = document.querySelector('.ctx-menu > .ctx-item') as any
+  check('в меню доски первым — «Текстовая карточка»', (первый?.textContent || '').includes('Текстовая карточка'), первый?.textContent)
+  check('и у него подсказка клавиши T', (первый?.querySelector('.ctx-hint')?.textContent || '') === 'T')
+  check('«Добавить» остаётся для остального', !!menuItem('Добавить'))
+  const было = textCards().length
+  click(первый)
+  await wait(300)
+  check('один щелчок положил карточку', textCards().length === было + 1, `${было} → ${textCards().length}`)
+  check('и сразу открыл правку', !!edit())
+  check('новая карточка — в «Авто»', (document.querySelector('.tt-fit-btn')?.textContent || '').includes('Авто'),
+    document.querySelector('.tt-fit-btn')?.textContent || '')
+  check('в «Авто» нет ручного кегля', !document.querySelector('.tt-size'))
+  await escInField()
+  check('Escape в поле закрыл правку', !edit())
+
+  // Полка внизу: семь кнопок, «Карточка» кладёт карточку сразу.
+  const полка = all('.canvas-dock .dock-btn')
+  check('на доске есть полка', полка.length === 7, String(полка.length))
+  const карточка = полка.find((b) => (b.textContent || '').includes('Карточка')) as any
+  const было2 = textCards().length
+  click(карточка)
+  await wait(300)
+  check('кнопка «Карточка» на полке кладёт карточку', textCards().length === было2 + 1)
+  await escInField()
+  // Счёт с полки — список над кнопкой.
+  click(полка.find((b) => (b.textContent || '').includes('Счёт')))
+  await wait(250)
+  check('кнопка «Счёт» раскрывает список счетов', all('.ctx-menu .ctx-item').length > 0 &&
+    (document.querySelector('.ctx-menu .ctx-title')?.textContent || '').includes('Счёт'))
+  key('Escape')
+  await wait(200)
+
+  // T — карточка под курсором, но только когда мышь над доской.
+  const было3 = textCards().length
+  mouse(wrap(), 'mousemove', 700, 500)
+  await wait(50)
+  key('е', { code: 'KeyT' })
+  await wait(300)
+  check('клавиша T (и русская Е на ней) кладёт карточку', textCards().length === было3 + 1, `${было3} → ${textCards().length}`)
+  key('Escape')
+  await wait(200)
+  wrap().dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true, relatedTarget: document.body }))
+  await wait(50)
+  key('t', { code: 'KeyT' })
+  await wait(300)
+  check('мышь не над доской — T ничего не кладёт', textCards().length === было3 + 1, String(textCards().length))
+
+  // «Весь текст на доске — «Авто»»: есть, пока есть карточки не в «Авто».
+  const openMenu = async () => {
+    wrap().dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 900, clientY: 700 }))
+    await wait(250)
+  }
+  await openMenu()
+  const всеАвто = menuItem('Весь текст на доске')
+  check('в меню есть «Весь текст на доске — «Авто»»', !!всеАвто)
+  click(всеАвто)
+  await wait(300)
+  await openMenu()
+  check('после него пункт пропадает — всё уже в «Авто»', !menuItem('Весь текст на доске'))
+  key('Escape')
+  await wait(200)
+  key('z', { ctrlKey: true })
+  await wait(300)
+  await openMenu()
+  check('Ctrl+Z возвращает прежние режимы', !!menuItem('Весь текст на доске'))
+  key('Escape')
+  await wait(200)
 }
 
 async function transactionsBulk() {
@@ -3306,6 +3405,7 @@ async function main() {
   await cardGlare()
   await canvasBoard()
   await canvasText()
+  await canvasOneClick()
   await dashboardWipe()
   await transactionsBulk()
   await entryDateFollowsPeriod()

@@ -20,6 +20,7 @@ import { Confirm, useToast } from '../components/ui'
 import { ContextMenu, type MenuItem } from '../components/canvas/ContextMenu'
 import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData } from '../components/canvas/nodes'
 import { ColorPalette } from '../components/canvas/ColorPalette'
+import { Полка, type ПунктПолки } from '../components/canvas/Polka'
 import { FIT_MODES, TextToolbar, wrapSelection } from '../components/canvas/TextToolbar'
 import {
   anchor, bestSides, boundsOf, curveOf, elbowOf, inRect, lineOf, midpoint, pathOf, pointAt, rectFrom, rectsOverlap,
@@ -73,7 +74,7 @@ const opposite = (s: Side): Side =>
  * панель, ни в саму связь. Сравнивать target с currentTarget нельзя: сверху
  * лежат прозрачные слои, и событие приходит на них, а не на полотно.
  */
-const INTERACTIVE = '.cnode, .canvas-tools, .canvas-hud, .edge-bar, .ctx-menu, .cv-hit, .cv-end'
+const INTERACTIVE = '.cnode, .canvas-tools, .canvas-hud, .canvas-dock, .edge-bar, .ctx-menu, .cv-hit, .cv-end'
 const isBackground = (target: EventTarget | null): boolean => {
   const el = target as Element | null
   if (!el || typeof el.closest !== 'function') return true
@@ -92,6 +93,12 @@ const DEFAULT_SIZE: Record<CanvasNodeKind, { w: number; h: number }> = {
   group: { w: 420, h: 300 },
   task: { w: 270, h: 118 },
 }
+
+/**
+ * Новая текстовая карточка — в режиме «Авто»: текст сам заполняет её.
+ * Старые карточки без режима остаются «Обычными» и выглядят как прежде.
+ */
+const НОВЫЙ_ТЕКСТ: Partial<CanvasNode> = { text: '', fit: 'auto' }
 
 /** Буфер обмена живёт в модуле: между досками копировать тоже нужно. */
 let clipboard: { nodes: CanvasNode[]; edges: CanvasEdge[] } | null = null
@@ -188,7 +195,7 @@ export default function CanvasView({ name }: { name?: string }) {
   const [линииОткрыты, setЛинииОткрыты] = useState(false)
   const [editing, setEditing] = useState<string | null>(null)
   const [period, setPeriod] = useState<'1m' | '3m' | '12m'>('3m')
-  const [menu, setMenu] = useState<{ x: number; y: number; title?: string; items: MenuItem[] } | null>(null)
+  const [menu, setMenu] = useState<{ x: number; y: number; title?: string; items: MenuItem[]; above?: boolean } | null>(null)
   const [marquee, setMarquee] = useState<Rect | null>(null)
   const [guides, setGuides] = useState<Guide[]>([])
   const [ghost, setGhost] = useState<{ from: Point; side: Side; to: Point } | null>(null)
@@ -210,6 +217,13 @@ export default function CanvasView({ name }: { name?: string }) {
   const saveTimer = useRef<number | null>(null)
   const drag = useRef<DragState | null>(null)
   const space = useRef(false)
+  /** Где мышь над доской (экранные координаты) — туда клавиша T ставит карточку. null — мышь не над доской. */
+  const мышь = useRef<Point | null>(null)
+  /** Ширина доски — узкой полка показывает только значки. */
+  const [ширина, setШирина] = useState(1000)
+  /** Ширина нижней панели масштаба: полка встаёт в свободное место слева от неё. */
+  const [ширинаМасштаба, setШиринаМасштаба] = useState(200)
+  const hudRef = useRef<HTMLDivElement>(null)
   /** Копим прокрутку: у мыши одна «щёлка» ≈ 100, у тачпада приходят крошки. */
   const wheelAcc = useRef(0)
   const docRef = useRef(doc)
@@ -219,6 +233,21 @@ export default function CanvasView({ name }: { name?: string }) {
 
   const cardStyle: CardStyle = doc.cardStyle ?? 'rich'
   const quickColors = doc.quickColors?.length ? doc.quickColors : DEFAULT_QUICK_COLORS
+
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    const hud = hudRef.current
+    const мерить = () => {
+      setШирина(el.clientWidth)
+      if (hud) setШиринаМасштаба(hud.offsetWidth)
+    }
+    const ro = new ResizeObserver(мерить)
+    ro.observe(el)
+    if (hud) ro.observe(hud)
+    мерить()
+    return () => ro.disconnect()
+  }, [current])
 
   // ------------------------------------------------------------- хранилище
   const persist = useCallback((next: CanvasDoc, file: string) => {
@@ -601,7 +630,8 @@ export default function CanvasView({ name }: { name?: string }) {
         id: 'text',
         label: т('Текстовая карточка'),
         icon: 'edit',
-        onClick: () => insertNode('text', at, { text: '' }, connectFrom),
+        hint: 'T',
+        onClick: () => insertNode('text', at, НОВЫЙ_ТЕКСТ, connectFrom),
       },
       {
         id: 'note',
@@ -698,19 +728,89 @@ export default function CanvasView({ name }: { name?: string }) {
     [insertNode, notes, data, upsertTask],
   )
 
+  /** Середина видимой части доски. */
+  const серединаВида = useCallback((): Point => {
+    const r = wrapRef.current?.getBoundingClientRect()
+    return r ? toWorld(r.left + r.width / 2, r.top + r.height / 2) : { x: 0, y: 0 }
+  }, [toWorld])
+
+  /** Сдвигает точку, пока на ней уже стоит чья-то середина: щелчок за щелчком карточки не ложатся стопкой. */
+  const безНаложения = useCallback((at: Point): Point => {
+    let p = at
+    for (let i = 0; i < 40 && docRef.current.nodes.some((n) => Math.abs(n.x + n.width / 2 - p.x) < 12 && Math.abs(n.y + n.height / 2 - p.y) < 12); i++) {
+      p = { x: p.x + 24, y: p.y + 24 }
+    }
+    return p
+  }, [])
+
   const openCanvasMenu = (clientX: number, clientY: number) => {
     const at = toWorld(clientX, clientY)
+    const всё = nodeMenuItems(at)
+    // Текстовые карточки не в «Авто» — для пункта «весь текст — авто».
+    const неАвто = doc.nodes.filter((n) => n.type === 'text' && n.fit !== 'auto')
     setMenu({
       x: clientX,
       y: clientY,
       items: [
-        { id: 'add', label: т('Добавить'), icon: 'plus', children: nodeMenuItems(at) },
+        // Самое частое — без захода в «Добавить».
+        ...всё.filter((i) => i.id === 'text'),
+        { id: 'add', label: т('Добавить'), icon: 'plus', children: всё.filter((i) => i.id !== 'text') },
         { id: 'paste', label: т('Вставить'), icon: 'copy', hint: 'Ctrl+V', disabled: !clipboard?.nodes.length, onClick: () => paste(at) },
         { id: 'all', label: т('Выделить всё'), icon: 'check', hint: 'Ctrl+A', onClick: () => setSel(new Set(doc.nodes.map((n) => n.id))) },
         { id: 'fit', label: т('Вписать всё'), icon: 'fit', onClick: () => zoomToFit() },
+        ...(неАвто.length
+          ? [{
+              id: 'all-auto',
+              label: т('Весь текст на доске — «Авто»'),
+              icon: 'scale',
+              onClick: () => {
+                const ids = new Set(неАвто.map((n) => n.id))
+                commit({ ...docRef.current, nodes: docRef.current.nodes.map((n) => (ids.has(n.id) ? { ...n, fit: 'auto' as const } : n)) })
+                toast(т('Текст подстраивается сам в карточках: {0}. Вернуть — Ctrl+Z', ids.size))
+              },
+            }]
+          : []),
       ],
     })
   }
+
+  // ---------------------------------------------------------- полка внизу
+  const полка: ПунктПолки[] = (() => {
+    const куда = () => безНаложения(серединаВида())
+    const пусто: Record<string, string> = {
+      note: т('Заметок пока нет — их пишут в «Заметках»'),
+      account: т('Счетов пока нет'),
+      category: т('Категорий пока нет'),
+      goal: т('Целей пока нет'),
+    }
+    // Список над кнопкой: те же пункты, что в «Добавить».
+    const список = (id: string) => (btn: HTMLElement) => {
+      const пункт = nodeMenuItems(куда()).find((i) => i.id === id)
+      const r = btn.getBoundingClientRect()
+      setMenu({
+        x: r.left,
+        y: r.top - 8,
+        above: true,
+        title: пункт?.label,
+        items: пункт?.children?.length ? пункт.children : [{ id: 'none', label: пусто[id] ?? '', disabled: true }],
+      })
+    }
+    return [
+      { id: 'text', label: т('Карточка'), icon: 'edit', hint: т('T или двойной щелчок по доске'), onPick: () => insertNode('text', куда(), НОВЫЙ_ТЕКСТ) },
+      { id: 'task', label: т('Задача'), icon: 'check', onPick: список('task') },
+      { id: 'note', label: т('Заметка'), icon: 'note', onPick: список('note') },
+      { id: 'account', label: т('Счёт'), icon: 'wallet', onPick: список('account') },
+      { id: 'category', label: т('Категория'), icon: 'tag', onPick: список('category') },
+      { id: 'goal', label: т('Цель'), icon: 'target', onPick: список('goal') },
+      {
+        id: 'query',
+        label: т('Запрос'),
+        icon: 'donut',
+        hint: т('график или сумма по операциям'),
+        onPick: () => nodeMenuItems(куда()).find((i) => i.id === 'query')?.onClick?.(),
+      },
+    ]
+  })()
 
   const openNodeMenu = (clientX: number, clientY: number, node: CanvasNode) => {
     const many = sel.size > 1 && sel.has(node.id)
@@ -1145,6 +1245,15 @@ export default function CanvasView({ name }: { name?: string }) {
     const down = (e: KeyboardEvent) => {
       if (e.key === ' ') space.current = true
       if (inField(e.target)) {
+        // Escape в поле карточки заканчивает правку, как щелчок мимо.
+        // Прежде он сюда не доходил: поле глотало клавишу, и выйти из
+        // правки можно было только мышью.
+        if (e.key === 'Escape' && editing && e.target === areaRef.current) {
+          e.preventDefault()
+          setEditing(null)
+          commit(docRef.current)
+          return
+        }
         // Внутри текстовой карточки Ctrl+B/I/U оформляют выделение.
         const el = areaRef.current
         const mod2 = e.ctrlKey || e.metaKey
@@ -1197,6 +1306,11 @@ export default function CanvasView({ name }: { name?: string }) {
         setSelEdge(null)
         setEditing(null)
         setMenu(null)
+      } else if (!mod && !e.altKey && !e.repeat && буква(e) === 't' && мышь.current) {
+        // T — карточка под курсором. Только когда мышь над доской: иначе
+        // буква, нажатая где-то ещё в окне, клала бы карточку вслепую.
+        e.preventDefault()
+        insertNode('text', безНаложения(toWorld(мышь.current.x, мышь.current.y)), НОВЫЙ_ТЕКСТ)
       } else if (e.key === 'Enter' && sel.size === 1) {
         const n = nodeById.get([...sel][0])
         if (n && (n.type === 'text' || n.type === 'query')) {
@@ -1214,7 +1328,7 @@ export default function CanvasView({ name }: { name?: string }) {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [undo, redo, copySelection, paste, duplicate, sel, selEdge, removeEdge, removeNodes, nodeById, editing, patchNode, zoomBy, zoomWith])
+  }, [undo, redo, copySelection, paste, duplicate, sel, selEdge, removeEdge, removeNodes, nodeById, editing, patchNode, zoomBy, zoomWith, insertNode, безНаложения, toWorld, commit])
 
   // ------------------------------------------------------------- рендер
   /** Линии по умолчанию: одни на все доски, см. components/canvas/linii. */
@@ -1264,8 +1378,10 @@ export default function CanvasView({ name }: { name?: string }) {
         if (isBackground(e.target)) openCanvasMenu(e.clientX, e.clientY)
       }}
       onDoubleClick={(e) => {
-        if (isBackground(e.target)) insertNode('text', toWorld(e.clientX, e.clientY), { text: '' })
+        if (isBackground(e.target)) insertNode('text', toWorld(e.clientX, e.clientY), НОВЫЙ_ТЕКСТ)
       }}
+      onMouseMove={(e) => { мышь.current = { x: e.clientX, y: e.clientY } }}
+      onMouseLeave={() => { мышь.current = null }}
     >
       <div
         className="canvas-dots"
@@ -1539,7 +1655,7 @@ export default function CanvasView({ name }: { name?: string }) {
         <div className="canvas-empty">
           <div className="strong" style={{ fontSize: 16, marginBottom: 6 }}>{т('Доска пустая')}</div>
           <div className="faint small" style={{ lineHeight: 1.6, maxWidth: 380 }}>
-            {т('Двойной клик по полотну создаёт карточку. Кнопка «Добавить» сверху кладёт счёт, категорию, цель или заметку. Чтобы связать две карточки, потяните за кружок на краю — если отпустить на пустом месте, программа предложит, что там создать.')}</div>
+            {т('Карточка — двойной щелчок по доске, клавиша T или полка внизу. С полки же кладут задачу, заметку, счёт, категорию и цель. Чтобы связать две карточки, потяните за кружок на краю — если отпустить на пустом месте, программа предложит, что там создать.')}</div>
         </div>
       )}
 
@@ -1693,7 +1809,7 @@ export default function CanvasView({ name }: { name?: string }) {
       </div>
 
       {/* -------------------------------------------- нижняя панель */}
-      <div className="canvas-hud" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="canvas-hud" ref={hudRef} onMouseDown={(e) => e.stopPropagation()}>
         <button className="icon-btn" title={т('Мельче (Ctrl+−)')} disabled={view.k <= ZOOM_STEPS[0]}
           onClick={() => zoomBy(-1)}>
           <Icon name="minus" size={15} />
@@ -1708,13 +1824,21 @@ export default function CanvasView({ name }: { name?: string }) {
         <button className="icon-btn" title={т('Вписать всё')} onClick={() => zoomToFit()}>
           <Icon name="fit" size={15} />
         </button>
+        {sel.size > 0 && (
+          <>
+            <span className="tool-sep" />
+            <span className="faint small">{т('выделено {0}', sel.size)}</span>
+          </>
+        )}
         <span className="tool-sep" />
-        <span className="faint small">
-          {sel.size > 0 ? т('выделено {0}', sel.size) : т('{0} узлов · {1} связей', doc.nodes.length, doc.edges.length)}
-        </span>
-        <span className="faint small" style={{ marginLeft: 8, opacity: 0.7 }}>
-          {т('рамка — выделение · средняя кнопка или пробел — сдвиг · правый клик — меню')}</span>
+        <span
+          className="hud-help faint"
+          title={т('{0} узлов · {1} связей', doc.nodes.length, doc.edges.length) + '\n' +
+            т('Карточка — двойной щелчок или T · рамка — выделение · средняя кнопка или пробел — сдвиг · правый щелчок — меню')}
+        >?</span>
       </div>
+
+      <Полка items={полка} ширинаДоски={ширина} занятоСправа={ширинаМасштаба + 14} />
 
       {(() => {
         if (!editing) return null
@@ -1747,7 +1871,7 @@ export default function CanvasView({ name }: { name?: string }) {
       )}
 
       {задача && <TaskModal value={задача} onClose={() => setЗадача(null)} />}
-      {menu && <ContextMenu x={menu.x} y={menu.y} title={menu.title} items={menu.items} onClose={() => setMenu(null)} />}
+      {menu && <ContextMenu x={menu.x} y={menu.y} title={menu.title} items={menu.items} above={menu.above} onClose={() => setMenu(null)} />}
 
     </div>
   )
