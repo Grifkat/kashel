@@ -1118,6 +1118,16 @@ kbd {
 .flow-label .flow-sum { fill: var(--muted); font-variant-numeric: tabular-nums; }
 .flow-label .flow-chev { fill: var(--muted); font-size: 10px; }
 .flow-label .flow-name.own { fill: var(--muted); font-weight: 500; font-style: italic; }
+/* Над столбцами — что в них: «Откуда», «Счета», «Куда». */
+.flows-head { font-size: 10.5px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; fill: var(--faint); }
+/* Проектный счёт: штриховка (маска), пунктирная рамка и плашка «проект». */
+.flow-frame { fill: none; stroke-width: 1.3; stroke-dasharray: 3 2.5; transition: opacity 0.22s ease; pointer-events: none; }
+.flows-dim .flow-frame { opacity: 0.22; }
+.flows-dim .flow-frame.in-trace { opacity: 1; }
+.flow-label .flow-tag text { stroke: none; font-size: 9.5px; font-weight: 600; fill: var(--text-strong); letter-spacing: 0.02em; }
+.flow-tag rect { stroke-width: 1; }
+.flows-tip-tag { font-size: 10.5px; padding: 0 6px; border: 1px solid; border-radius: 999px; color: var(--text-strong); }
+.flows-tip-note { line-height: 1.4; }
 .flow-label:hover .flow-name { fill: var(--accent); }
 
 /* Плавность. Форма лент и места узлов переходят от прежней раскладки к
@@ -1127,23 +1137,23 @@ kbd {
   animation: flow-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
   animation-delay: calc(var(--i, 0) * 120ms);
 }
-.flows-anim-full .flow-node {
+.flows-anim-full .flow-node, .flows-anim-full .flow-frame {
   transition: x 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), y 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
     height 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.22s ease;
   animation: flow-node-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
   animation-delay: calc(var(--i, 0) * 120ms);
 }
-.flows-anim-full .flow-label {
+.flows-anim-full .flow-label, .flows-anim-full .flows-head {
   transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
   animation: flow-fade 0.5s ease backwards;
   animation-delay: calc(var(--i, 0) * 120ms + 150ms);
 }
 .flows-anim-subtle .flow-link { transition: d 0.35s ease, opacity 0.18s ease; animation: flow-fade 0.3s ease backwards; }
-.flows-anim-subtle .flow-node { transition: x 0.35s ease, y 0.35s ease, height 0.35s ease, opacity 0.18s ease; animation: flow-fade 0.3s ease backwards; }
-.flows-anim-subtle .flow-label { transition: transform 0.35s ease; animation: flow-fade 0.3s ease backwards; }
+.flows-anim-subtle .flow-node, .flows-anim-subtle .flow-frame { transition: x 0.35s ease, y 0.35s ease, height 0.35s ease, opacity 0.18s ease; animation: flow-fade 0.3s ease backwards; }
+.flows-anim-subtle .flow-label, .flows-anim-subtle .flows-head { transition: transform 0.35s ease; animation: flow-fade 0.3s ease backwards; }
 .flows-anim-full .flow-trace, .flows-anim-subtle .flow-trace { animation: flow-fade 0.2s ease backwards; }
-.flows-anim-off .flow-link, .flows-anim-off .flow-node, .flows-anim-off .flow-label { transition: none; animation: none; }
-.flows-fresh .flow-link, .flows-fresh .flow-node, .flows-fresh .flow-label { transition: none; }
+.flows-anim-off .flow-link, .flows-anim-off .flow-node, .flows-anim-off .flow-frame, .flows-anim-off .flow-label, .flows-anim-off .flows-head { transition: none; animation: none; }
+.flows-fresh .flow-link, .flows-fresh .flow-node, .flows-fresh .flow-frame, .flows-fresh .flow-label, .flows-fresh .flows-head { transition: none; }
 @keyframes flow-in {
   from { opacity: 0; clip-path: inset(0 100% 0 0); }
 }
@@ -1153,7 +1163,7 @@ kbd {
 @keyframes flow-fade {
   from { opacity: 0; }
 }
-.flow-node { transform-box: fill-box; transform-origin: center; }
+.flow-node, .flow-frame { transform-box: fill-box; transform-origin: center; }
 
 /* Панель «Потоков» — строкой сверху: схеме нужна вся ширина окна. */
 .graph-flows .graph-panel {
