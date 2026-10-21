@@ -207,7 +207,7 @@ export default function CanvasView({ name }: { name?: string }) {
   const [справка, setСправка] = useState(false)
   const animLevel = useAnimLevel()
   /** Сдвиг, масштаб, колесо и тачпад — см. components/canvas/kamera. */
-  const { view, viewRef, движется, масштабК, zoomBy, тянуть, вписать, колесо, выбратьКолесо } = useКамера(wrapRef, current, animLevel)
+  const { view, viewRef, движется, масштабК, zoomBy, тянуть, вписать, колесо, выбратьКолесо, замереть } = useКамера(wrapRef, current, animLevel)
   const docRef = useRef(doc)
   docRef.current = doc
 
@@ -419,6 +419,11 @@ export default function CanvasView({ name }: { name?: string }) {
       }
       withHistory ? commit(next) : touch(next)
       if (!withHistory) persist(next, current)
+      // Свежий документ — сразу, не дожидаясь перерисовки. Подгонка текста
+      // просит новую высоту у нескольких карточек в одном проходе, и каждая
+      // следующая правка, собранная от старого docRef, затирала предыдущую:
+      // вырастала только последняя карточка, у остальных текст обрезался.
+      docRef.current = next
     },
     [commit, touch, persist, current],
   )
@@ -938,6 +943,11 @@ export default function CanvasView({ name }: { name?: string }) {
    */
   const правыйСдвиг = (e: React.MouseEvent): boolean => {
     if (e.button !== 2) return false
+    // Уже что-то тянут левой — правая кнопка его не перебивает: иначе сдвиг
+    // карточки не попадал ни в историю, ни на диск, а рамка и линия связи
+    // оставались висеть.
+    if (drag.current) return true
+    замереть()
     drag.current = { mode: 'pan', right: true, sx: e.clientX, sy: e.clientY, ox: viewRef.current.x, oy: viewRef.current.y }
     return true
   }
@@ -955,7 +965,8 @@ export default function CanvasView({ name }: { name?: string }) {
     if (правыйСдвиг(e)) return
     setMenu(null)
     if (e.button === 1 || space.current || e.altKey) {
-      drag.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, ox: view.x, oy: view.y }
+      замереть()
+      drag.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, ox: viewRef.current.x, oy: viewRef.current.y }
       return
     }
     if (!e.shiftKey) {
@@ -1217,7 +1228,7 @@ export default function CanvasView({ name }: { name?: string }) {
         // Escape в поле карточки заканчивает правку, как щелчок мимо.
         // Прежде он сюда не доходил: поле глотало клавишу, и выйти из
         // правки можно было только мышью.
-        if (e.key === 'Escape' && editing && e.target === areaRef.current) {
+        if (e.key === 'Escape' && editing && (e.target as HTMLElement).classList?.contains('cnode-edit')) {
           e.preventDefault()
           setEditing(null)
           commit(docRef.current)
@@ -1275,9 +1286,14 @@ export default function CanvasView({ name }: { name?: string }) {
         setSelEdge(null)
         setEditing(null)
         setMenu(null)
-      } else if (!mod && !e.altKey && !e.repeat && буква(e) === 't' && мышь.current) {
-        // T — карточка под курсором. Только когда мышь над доской: иначе
-        // буква, нажатая где-то ещё в окне, клала бы карточку вслепую.
+      } else if (
+        !mod && !e.altKey && !e.repeat && буква(e) === 't' && мышь.current &&
+        !задача && !palette && !askDelete &&
+        isBackground(document.elementFromPoint?.(мышь.current.x, мышь.current.y) ?? null)
+      ) {
+        // T — карточка под курсором. Только когда мышь над самой доской, а не
+        // над панелью, полкой или окном поверх неё, и окно задачи не открыто:
+        // иначе карточка ложилась под панель или за окно и уводила туда фокус.
         e.preventDefault()
         insertNode('text', безНаложения(toWorld(мышь.current.x, мышь.current.y)), НОВЫЙ_ТЕКСТ)
       } else if (e.key === 'Enter' && sel.size === 1) {
@@ -1297,7 +1313,7 @@ export default function CanvasView({ name }: { name?: string }) {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [undo, redo, copySelection, paste, duplicate, sel, selEdge, removeEdge, removeNodes, nodeById, editing, patchNode, zoomBy, масштабК, insertNode, безНаложения, toWorld, commit])
+  }, [undo, redo, copySelection, paste, duplicate, sel, selEdge, removeEdge, removeNodes, nodeById, editing, patchNode, zoomBy, масштабК, insertNode, безНаложения, toWorld, commit, задача, palette, askDelete])
 
   // ------------------------------------------------------------- рендер
   /** Линии по умолчанию: одни на все доски, см. components/canvas/linii. */
@@ -1326,8 +1342,8 @@ export default function CanvasView({ name }: { name?: string }) {
    * собирал все карточки: на доске в 250 карточек — десятки миллисекунд.
    * Действия берутся из ref, чтобы запомненный слой звал свежие.
    */
-  const действия = useRef({ правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app })
-  действия.current = { правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app }
+  const действия = useRef({ правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть })
+  действия.current = { правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть }
   const слойКарточек = useMemo(
     () => doc.nodes.map((n) => {
       const info = nodeData(n, data, cardCtx)
@@ -1352,6 +1368,7 @@ export default function CanvasView({ name }: { name?: string }) {
             // Зажатое колесо (и пробел) двигает холст, даже если курсор на карточке.
             if (e.button === 1 || space.current) {
               e.preventDefault()
+              действия.current.замереть()
               drag.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, ox: viewRef.current.x, oy: viewRef.current.y }
               return
             }
@@ -1415,6 +1432,7 @@ export default function CanvasView({ name }: { name?: string }) {
                 setMenu(null)
                 if (e.button === 1 || space.current) {
                   e.preventDefault()
+                  действия.current.замереть()
                   drag.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, ox: viewRef.current.x, oy: viewRef.current.y }
                   return
                 }
@@ -1432,6 +1450,7 @@ export default function CanvasView({ name }: { name?: string }) {
                 if (действия.current.правыйСдвиг(e)) return
                 if (e.button === 1 || space.current) {
                   e.preventDefault()
+                  действия.current.замереть()
                   drag.current = { mode: 'pan', sx: e.clientX, sy: e.clientY, ox: viewRef.current.x, oy: viewRef.current.y }
                   return
                 }

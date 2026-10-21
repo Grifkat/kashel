@@ -1,7 +1,7 @@
 import React from 'react'
 import { Icon } from '../../lib/icons'
 import { money, moneyShort } from '../../lib/format'
-import { MONTHS_SHORT, addMonths, startOfMonth, today } from '../../lib/date'
+import { MONTHS_SHORT, addDays, addMonths, startOfMonth, today } from '../../lib/date'
 import { balanceTimeline, balances, monthlySeries, sumOf } from '../../engine/stats'
 import { прогрессЗаработка, этоЗаработок } from '../../engine/zarabotok'
 import { личное, проектный } from '../../engine/project'
@@ -51,7 +51,13 @@ const размерОт = (n: CanvasNode): Размер =>
 
 const месяц = (key: string) => MONTHS_SHORT[Number(key.slice(5, 7)) - 1]
 
-export function Виджет({
+/**
+ * Виджет запомнен: слой карточек перерисовывается на каждом кадре
+ * перетаскивания любой из них, а виджет пересчитывает историю операций —
+ * без запоминания доска с парой виджетов подтормаживала бы при каждом
+ * движении. Пересчёт — только когда меняется сам узел, данные или период.
+ */
+export const Виджет = React.memo(function Виджет({
   node,
   data,
   from,
@@ -82,7 +88,12 @@ export function Виджет({
       <div className="cw-body">{тело}</div>
     </div>
   )
-}
+})
+
+/** «Скрыть баланс» прячет суммы и в виджетах — как на дашборде и в строке состояния. */
+const скрыть = (data: VaultData) => data.settings.hideBalance
+const деньги = (data: VaultData, m: Money, opts?: Parameters<typeof money>[1]) => (скрыть(data) ? '••••' : money(m, opts))
+const кратко = (data: VaultData, m: Money) => (скрыть(data) ? '••' : moneyShort(m))
 
 // ------------------------------------------------------- доход и расход
 function ДоходИРасход({ data, from, размер }: { data: VaultData; from: string; размер: Размер }) {
@@ -96,8 +107,8 @@ function ДоходИРасход({ data, from, размер }: { data: VaultDat
   if (размер === 'S') {
     return (
       <>
-        <div className={'cw-big num' + (итог < 0 ? ' neg' : ' pos')}>{money(итог, { sign: true })}</div>
-        <div className="cw-sub num">+{moneyShort(доход)} · −{moneyShort(расход)}</div>
+        <div className={'cw-big num' + (итог < 0 ? ' neg' : ' pos')}>{деньги(data, итог, { sign: true })}</div>
+        <div className="cw-sub num">+{кратко(data, доход)} · −{кратко(data, расход)}</div>
       </>
     )
   }
@@ -110,13 +121,13 @@ function ДоходИРасход({ data, from, размер }: { data: VaultDat
         <div key={р.имя} className="cw-row">
           <span className="cw-row-name">{р.имя}</span>
           <span className="cw-row-bar"><i style={{ width: `${(р.v / макс) * 100}%`, background: р.цвет }} /></span>
-          <span className="cw-row-v num">{moneyShort(р.v)}</span>
+          <span className="cw-row-v num">{кратко(data, р.v)}</span>
         </div>
       ))}
       <div className="cw-row cw-total">
         <span className="cw-row-name">{т('Итог')}</span>
         <span />
-        <span className={'cw-row-v num' + (итог < 0 ? ' neg' : ' pos')}>{money(итог, { sign: true })}</span>
+        <span className={'cw-row-v num' + (итог < 0 ? ' neg' : ' pos')}>{деньги(data, итог, { sign: true })}</span>
       </div>
     </div>
   )
@@ -131,6 +142,7 @@ function ДоходИРасход({ data, from, размер }: { data: VaultDat
       <div className="cw-chart">
         <BarChart
           height={130}
+          format={(v) => кратко(data, v)}
           groups={ряд.map((p) => ({
             label: месяц(p.key),
             values: [
@@ -158,17 +170,17 @@ function Заработок({ data, goalId, размер }: { data: VaultData; g
       <>
         <div className="cw-big num">{Math.round(п.доля * 100)}%</div>
         {полоса}
-        <div className="cw-sub num">{moneyShort(п.заработано)} {т('из')} {moneyShort(g.targetAmount)}</div>
+        <div className="cw-sub num">{кратко(data, п.заработано)} {т('из')} {кратко(data, g.targetAmount)}</div>
       </>
     )
   }
   const детали: [string, string][] = [
-    [т('Заработано'), money(п.заработано)],
-    [т('Осталось'), money(п.осталось)],
-    [т('Темп'), п.темп ? т('{0} в месяц', moneyShort(п.темп)) : '—'],
+    [т('Заработано'), деньги(data, п.заработано)],
+    [т('Осталось'), деньги(data, п.осталось)],
+    [т('Темп'), п.темп ? т('{0} в месяц', кратко(data, п.темп)) : '—'],
   ]
-  if (п.нужноВМесяц != null) детали.push([т('Нужно'), т('{0} в месяц', moneyShort(п.нужноВМесяц))])
-  if (п.нужноВДень != null) детали.push([т('Нужно'), т('{0} в день', moneyShort(п.нужноВДень))])
+  if (п.нужноВМесяц != null) детали.push([т('Нужно'), т('{0} в месяц', кратко(data, п.нужноВМесяц))])
+  if (п.нужноВДень != null) детали.push([т('Нужно'), т('{0} в день', кратко(data, п.нужноВДень))])
   return (
     <>
       <div className="cw-line">
@@ -191,16 +203,18 @@ function Заработок({ data, goalId, размер }: { data: VaultData; g
 function Остаток({ data, from, размер }: { data: VaultData; from: string; размер: Размер }) {
   const б = balances(data.accounts, data.transactions)
   const свои = data.accounts.filter((a) => !a.archived && !проектный(a))
-  const кривая = balanceTimeline(свои, data.transactions, from, today()).map((p) => p.value)
+  // С дня перед периодом: первая точка — остаток до него, и операции первого
+  // дня периода входят в сдвиг, как в «Доходе и расходе».
+  const кривая = balanceTimeline(свои, data.transactions, addDays(from, -1), today()).map((p) => p.value)
   const было: Money = кривая[0] ?? б.assets
   const сдвиг = б.assets - было
 
   const итог = (
     <>
-      <div className="cw-big num">{money(б.assets)}</div>
+      <div className="cw-big num">{деньги(data, б.assets)}</div>
       {размер !== 'S' && (
         <div className="cw-line">
-          <span className={'cw-sub num ' + (сдвиг < 0 ? 'neg' : 'pos')}>{money(сдвиг, { sign: true })}</span>
+          <span className={'cw-sub num ' + (сдвиг < 0 ? 'neg' : 'pos')}>{деньги(data, сдвиг, { sign: true })}</span>
           <Spark values={кривая.filter((_, i) => i % Math.max(1, Math.floor(кривая.length / 40)) === 0)} color="var(--accent)" width={120} height={28} />
         </div>
       )}
@@ -217,7 +231,7 @@ function Остаток({ data, from, размер }: { data: VaultData; from: s
             <span className="cw-acc-dot" style={{ background: a.color }} />
             <span className="cw-acc-name">{a.name}</span>
             {проектный(a) && <span className="cw-chip">{т('проект')}</span>}
-            <span className={'cw-acc-v num' + ((б.byAccount.get(a.id) ?? 0) < 0 ? ' neg' : '')}>{money(б.byAccount.get(a.id) ?? 0)}</span>
+            <span className={'cw-acc-v num' + ((б.byAccount.get(a.id) ?? 0) < 0 ? ' neg' : '')}>{деньги(data, б.byAccount.get(a.id) ?? 0)}</span>
           </div>
         ))}
       </div>

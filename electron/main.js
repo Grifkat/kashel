@@ -799,15 +799,24 @@ const живыеУведомления = new Set()
  */
 let будильникПомидора = null
 
+// setTimeout держит не больше 2^31−1 мс (≈24,8 дня): дольше — переполнение,
+// и звонок раздавался бы сразу. Длинный отрезок ждём частями.
+const ПРЕДЕЛ_ТАЙМЕРА = 2 ** 31 - 1
+
 ipcMain.on('pomodoro:arm', (e, endAt) => {
   clearTimeout(будильникПомидора)
   будильникПомидора = null
   if (typeof endAt !== 'number' || !Number.isFinite(endAt)) return
   const окно = e.sender
-  будильникПомидора = setTimeout(() => {
-    будильникПомидора = null
-    if (!окно.isDestroyed()) окно.send('pomodoro:due', endAt)
-  }, Math.max(0, endAt - Date.now()))
+  const ждать = () => {
+    const осталось = endAt - Date.now()
+    будильникПомидора = setTimeout(() => {
+      будильникПомидора = null
+      if (endAt - Date.now() > 0) return ждать()
+      if (!окно.isDestroyed()) окно.send('pomodoro:due', endAt)
+    }, Math.min(ПРЕДЕЛ_ТАЙМЕРА, Math.max(0, осталось)))
+  }
+  ждать()
 })
 
 ipcMain.handle('notify:show', (_e, п) => {

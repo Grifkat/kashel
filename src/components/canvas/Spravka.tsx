@@ -22,7 +22,9 @@ export function Справка({
 }) {
   return (
     <>
-      <div className="period-pick-shade" onMouseDown={onClose} />
+      {/* Щелчок мимо только закрывает справку: до доски он не доходит, иначе
+          снимал бы выделение и начинал рамку. */}
+      <div className="period-pick-shade" onMouseDown={(e) => { e.stopPropagation(); onClose() }} />
       <div className="card cv-help-pop" onMouseDown={(e) => e.stopPropagation()}>
         <div className="strong">{т('Управление доской')}</div>
         <dl className="cv-help-list">

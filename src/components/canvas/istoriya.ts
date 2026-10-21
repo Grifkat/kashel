@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
+import { useCallback, useEffect, useRef, useState, type Dispatch, type MutableRefObject, type SetStateAction } from 'react'
 import { writeCanvas } from '../../state/vault'
 import type { CanvasDoc } from '../../lib/types'
 import { т } from '../../i18n'
@@ -33,17 +33,48 @@ export function useИстория({
   const [future, setFuture] = useState<CanvasDoc[]>([])
   /** Отложенная запись: доска сбрасывает её перед удалением и переименованием. */
   const saveTimer = useRef<number | null>(null)
+  /** Что ждёт записи — чтобы дописать сразу, не дожидаясь таймера. */
+  const ждёт = useRef<{ file: string; doc: CanvasDoc } | null>(null)
+
+  const записать = useCallback((file: string, doc: CanvasDoc) => {
+    ждёт.current = null
+    void writeCanvas(file, doc).catch((e) =>
+      toast(т('Доска не сохранена: ') + (e instanceof Error ? e.message : String(e))),
+    )
+  }, [toast])
 
   const persist = useCallback((next: CanvasDoc, file: string) => {
     if (!file) return
     if (saveTimer.current) window.clearTimeout(saveTimer.current)
-    saveTimer.current = window.setTimeout(
-      () => void writeCanvas(file, next).catch((e) =>
-        toast(т('Доска не сохранена: ') + (e instanceof Error ? e.message : String(e))),
-      ),
-      300,
-    )
-  }, [toast])
+    ждёт.current = { file, doc: next }
+    saveTimer.current = window.setTimeout(() => {
+      saveTimer.current = null
+      записать(file, next)
+    }, 300)
+  }, [записать])
+
+  /*
+   * Дописать отложенное сразу. Окно, спрятанное в трей, Chromium теперь
+   * усыпляет, и 300 мс таймера могли растянуться до минуты — а «Выйти» из
+   * трея закрыло бы программу раньше. Поэтому, как только окно прячут или
+   * доску закрывают (другая вкладка, другая доска), пишем без ожидания.
+   */
+  useEffect(() => {
+    const дописать = () => {
+      if (!ждёт.current) return
+      if (saveTimer.current) window.clearTimeout(saveTimer.current)
+      saveTimer.current = null
+      записать(ждёт.current.file, ждёт.current.doc)
+    }
+    const спрятали = () => { if (document.visibilityState === 'hidden') дописать() }
+    document.addEventListener('visibilitychange', спрятали)
+    window.addEventListener('pagehide', дописать)
+    return () => {
+      document.removeEventListener('visibilitychange', спрятали)
+      window.removeEventListener('pagehide', дописать)
+      дописать()
+    }
+  }, [current, записать])
 
   /** Изменение с записью в историю — всё, что можно отменить. */
   const commit = useCallback(
@@ -107,6 +138,7 @@ export function useИстория({
     if (!saveTimer.current) return false
     window.clearTimeout(saveTimer.current)
     saveTimer.current = null
+    ждёт.current = null
     return true
   }, [])
 
