@@ -3735,6 +3735,90 @@ async function потокиПусто() {
     && (document.querySelector('.flows-empty')?.textContent || '').includes('Здесь появятся потоки денег'))
 }
 
+/*
+ * «Потоки» на данных, похожих на владельца: около тридцати статей расходов
+ * и проектный счёт, окно графа — как у него при 1440×900 с открытыми
+ * панелями (838×836). jsdom размеров не меряет, поэтому их на время
+ * проверки подкладываем сами. Ни одна подпись не должна прятаться.
+ */
+async function потокиВсеПодписи(root: Root): Promise<Root> {
+  console.log('\n— граф: на «Потоках» подписан каждый узел —')
+  await wait(1300)
+  root.unmount()
+  await wait(250)
+  const было = (await loadVault()) as VaultData
+  const месяц = today().slice(0, 7)
+  const добавка = Array.from({ length: 14 }, (_, i) => ({
+    id: 'cat_ui_' + i, name: 'Статья ' + (i + 1), kind: 'expense', icon: 'gift', color: '#8b5cf6',
+  })) as unknown as VaultData['categories']
+  const операции = добавка.map((c, i) => ({
+    id: 'tx_ui_' + i, kind: 'expense', date: today(), amount: (i + 1) * 150_00, accountId: 'acc_main',
+    categoryId: c.id, tags: [], createdAt: new Date().toISOString(),
+  })) as unknown as VaultData['transactions']
+  await saveCore({
+    ...было,
+    categories: [...было.categories, ...добавка],
+    accounts: было.accounts.map((a) => (a.id === 'acc_cash' ? { ...a, project: true } : a)),
+  } as VaultData)
+  await saveTransactions([...было.transactions, ...операции], new Set([месяц]))
+
+  // Размеры окна графа, панели и подсказки внизу — как у владельца.
+  const proto = dom.window.HTMLElement.prototype
+  const размер = (el: Element, ось: 'w' | 'h') =>
+    el.classList.contains('graph-flows') ? (ось === 'w' ? 838 : 836)
+      : el.classList.contains('flows-panel') ? (ось === 'w' ? 810 : 130)
+        : el.classList.contains('flows-hint') ? (ось === 'w' ? 806 : 37) : 0
+  Object.defineProperty(proto, 'clientWidth', { configurable: true, get() { return размер(this, 'w') } })
+  Object.defineProperty(proto, 'clientHeight', { configurable: true, get() { return размер(this, 'h') } })
+
+  root = mount()
+  await wait(1800)
+  await open('Граф')
+  click(byText('.graph-vid button', 'Потоки'))
+  await wait(2000)
+
+  const проверить = (подпись: string) => {
+    const узлы = all('.flow-node').map((у) => у.getAttribute('data-id') || '')
+    const подписаны = new Set(all('.flow-label').map((л) => л.getAttribute('data-id')))
+    const без = узлы.filter((id) => !подписаны.has(id))
+    check(`при 1440×900 подписан каждый узел — ${подпись}`, узлы.length > 30 && !без.length, без.length ? без.join(', ') : `${узлы.length} узлов`)
+    check(`подписи целиком и в одну строку (в две — только проект с плашкой) — ${подпись}`,
+      !all('.flow-label').some((л) => (л.textContent || '').includes('…'))
+      && all('.flow-label.two').every((л) => !!л.querySelector('.flow-tag')))
+  }
+  const статей = all('.flow-node').filter((у) => (у.getAttribute('data-id') || '').startsWith('e:')).length
+  check('данные как у владельца: около тридцати статей и проектный счёт', статей >= 28 && !!document.querySelector('.flow-node.project'), `${статей} статей`)
+  проверить('без переводов')
+  const проект = document.querySelector('.flow-label[data-id="acc:acc_cash"]')
+  check('проектный счёт подписан с плашкой «проект»', !!проект?.querySelector('.flow-tag') && (проект?.textContent || '').includes('Наличные'))
+
+  // Шапка — над своим столбцом: «Откуда» по правому краю полосы, прочие — по левому.
+  const x = (el: Element | null | undefined) => Number((el as HTMLElement | null)?.style.transform.match(/translate\(([-\d.]+)px/)?.[1] ?? NaN)
+  const шапка = (текст: string) => all('.flows-head').find((ш) => (ш.textContent || '').trim() === текст)
+  const полосаУ = (начало: string) => Math.min(...all('.flow-node').filter((у) => (у.getAttribute('data-id') || '').startsWith(начало)).map((у) => Number(у.getAttribute('x'))))
+  const откуда = x(шапка('Откуда')) - полосаУ('i:')
+  check('шапки стоят над своими столбцами', откуда >= 0 && откуда <= 14
+    && Math.abs(x(шапка('Счета')) - полосаУ('acc:')) < 1 && Math.abs(x(шапка('Куда')) - полосаУ('e:')) < 1,
+    `Откуда +${откуда.toFixed(1)}, Счета ${x(шапка('Счета'))}/${полосаУ('acc:')}, Куда ${x(шапка('Куда'))}/${полосаУ('e:')}`)
+
+  click(document.querySelector('.flows-transfers button'))
+  await wait(400)
+  проверить('с переводами')
+  click(document.querySelector('.flows-transfers button'))
+  await wait(300)
+
+  await wait(1300)
+  root.unmount()
+  await wait(250)
+  await saveCore({ ...((await loadVault()) as VaultData), categories: было.categories, accounts: было.accounts } as VaultData)
+  await saveTransactions(было.transactions, new Set([месяц]))
+  delete (proto as unknown as Record<string, unknown>).clientWidth
+  delete (proto as unknown as Record<string, unknown>).clientHeight
+  root = mount()
+  await wait(1800)
+  return root
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -3778,6 +3862,7 @@ async function main() {
   await transactionsBulk()
   await entryDateFollowsPeriod()
   root = await графПодкатегории(root)
+  root = await потокиВсеПодписи(root)
   root = await persistence(root)
   root = await отменаИВерсия(root)
   await saveButton()
