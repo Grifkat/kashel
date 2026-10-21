@@ -1131,26 +1131,34 @@ kbd {
 .flow-label:hover .flow-name { fill: var(--accent); }
 
 /* Плавность. Форма лент и места узлов переходят от прежней раскладки к
-   новой; новые ленты проступают слева направо — по столбцу (--i). */
-.flows-anim-full .flow-link {
-  transition: d 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.22s ease;
-  animation: flow-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
-  animation-delay: calc(var(--i, 0) * 120ms);
-}
+   новой. Появление — только при открытии схемы (класс flows-reveal живёт
+   полторы секунды): ленты проступают слева направо, по столбцу (--i).
+   Подпись, что появилась позже — при смене размера окна или периода, —
+   видна сразу: если окно в этот миг не рисуется, анимация не застрянет
+   на нулевой прозрачности. */
+.flows-anim-full .flow-link { transition: d 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.22s ease; }
 .flows-anim-full .flow-node, .flows-anim-full .flow-frame {
   transition: x 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), y 0.7s cubic-bezier(0.2, 0.7, 0.2, 1),
     height 0.7s cubic-bezier(0.2, 0.7, 0.2, 1), opacity 0.22s ease;
+}
+.flows-anim-full .flow-label, .flows-anim-full .flows-head { transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.flows-reveal.flows-anim-full .flow-link {
+  animation: flow-in 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
+  animation-delay: calc(var(--i, 0) * 120ms);
+}
+.flows-reveal.flows-anim-full .flow-node, .flows-reveal.flows-anim-full .flow-frame {
   animation: flow-node-in 0.6s cubic-bezier(0.2, 0.7, 0.2, 1) backwards;
   animation-delay: calc(var(--i, 0) * 120ms);
 }
-.flows-anim-full .flow-label, .flows-anim-full .flows-head {
-  transition: transform 0.7s cubic-bezier(0.2, 0.7, 0.2, 1);
+.flows-reveal.flows-anim-full .flow-label, .flows-reveal.flows-anim-full .flows-head {
   animation: flow-fade 0.5s ease backwards;
   animation-delay: calc(var(--i, 0) * 120ms + 150ms);
 }
-.flows-anim-subtle .flow-link { transition: d 0.35s ease, opacity 0.18s ease; animation: flow-fade 0.3s ease backwards; }
-.flows-anim-subtle .flow-node, .flows-anim-subtle .flow-frame { transition: x 0.35s ease, y 0.35s ease, height 0.35s ease, opacity 0.18s ease; animation: flow-fade 0.3s ease backwards; }
-.flows-anim-subtle .flow-label, .flows-anim-subtle .flows-head { transition: transform 0.35s ease; animation: flow-fade 0.3s ease backwards; }
+.flows-anim-subtle .flow-link { transition: d 0.35s ease, opacity 0.18s ease; }
+.flows-anim-subtle .flow-node, .flows-anim-subtle .flow-frame { transition: x 0.35s ease, y 0.35s ease, height 0.35s ease, opacity 0.18s ease; }
+.flows-anim-subtle .flow-label, .flows-anim-subtle .flows-head { transition: transform 0.35s ease; }
+.flows-reveal.flows-anim-subtle .flow-link, .flows-reveal.flows-anim-subtle .flow-node, .flows-reveal.flows-anim-subtle .flow-frame,
+.flows-reveal.flows-anim-subtle .flow-label, .flows-reveal.flows-anim-subtle .flows-head { animation: flow-fade 0.3s ease backwards; }
 .flows-anim-full .flow-trace, .flows-anim-subtle .flow-trace { animation: flow-fade 0.2s ease backwards; }
 .flows-anim-off .flow-link, .flows-anim-off .flow-node, .flows-anim-off .flow-frame, .flows-anim-off .flow-label, .flows-anim-off .flows-head { transition: none; animation: none; }
 .flows-fresh .flow-link, .flows-fresh .flow-node, .flows-fresh .flow-frame, .flows-fresh .flow-label, .flows-fresh .flows-head { transition: none; }
