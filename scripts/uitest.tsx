@@ -3782,9 +3782,14 @@ async function потокиВсеПодписи(root: Root): Promise<Root> {
     const подписаны = new Set(all('.flow-label').map((л) => л.getAttribute('data-id')))
     const без = узлы.filter((id) => !подписаны.has(id))
     check(`при 1440×900 подписан каждый узел — ${подпись}`, узлы.length > 30 && !без.length, без.length ? без.join(', ') : `${узлы.length} узлов`)
-    check(`подписи целиком и в одну строку (в две — только проект с плашкой) — ${подпись}`,
-      !all('.flow-label').some((л) => (л.textContent || '').includes('…'))
-      && all('.flow-label.two').every((л) => !!л.querySelector('.flow-tag')))
+    // В две строки — только если в одну не влезает по ширине: у статей расходов места хватает всегда.
+    // Статьи и доходы — целиком. Счета с переводами расходятся на несколько узких столбцов,
+    // и длинное имя счёта там может укоротиться: полное — в подсказке.
+    const статья = (л: Element) => /^(e|i|eo|io):/.test(л.getAttribute('data-id') || '')
+    check(`подписи статей целиком и в одну строку — ${подпись}`,
+      !all('.flow-label').some((л) => статья(л) && (л.textContent || '').includes('…'))
+      && !all('.flow-label.two').some((л) => (л.getAttribute('data-id') || '').startsWith('e:')),
+      all('.flow-label').filter((л) => (статья(л) && (л.textContent || '').includes('…')) || (л.classList.contains('two') && (л.getAttribute('data-id') || '').startsWith('e:'))).map((л) => л.textContent).join(' · '))
   }
   const статей = all('.flow-node').filter((у) => (у.getAttribute('data-id') || '').startsWith('e:')).length
   check('данные как у владельца: около тридцати статей и проектный счёт', статей >= 28 && !!document.querySelector('.flow-node.project'), `${статей} статей`)
