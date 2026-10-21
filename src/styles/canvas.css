@@ -189,6 +189,9 @@
 .cnode-fit .md h2 { font-size: 1.107em; }
 .cnode-fit .md h3 { font-size: 1em; }
 .cnode-fit .md code { font-size: 0.93em; }
+/* «Авто»: длинное слово (ссылка) переносится. Иначе оно не влезало по ширине
+   ни при каком кегле, и подгонка навсегда застревала на самом мелком. */
+.fit-auto { overflow-wrap: anywhere; }
 
 .cnode-edit {
   flex: 1;

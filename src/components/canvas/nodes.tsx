@@ -62,7 +62,7 @@ function FittedText({
 
   // cnode-fit: кегль разметки берётся от контейнера, см. canvas.css.
   return (
-    <div ref={ref} className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll')}>
+    <div ref={ref} className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '')}>
       {children}
     </div>
   )
@@ -212,7 +212,7 @@ function ПолеПравки({
   return (
     <textarea
       ref={ref}
-      className={'cnode-edit' + (fit === 'fixed' ? '' : ' no-scroll')}
+      className={'cnode-edit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '')}
       autoFocus
       style={{ fontSize }}
       value={node.text ?? ''}
