@@ -278,7 +278,7 @@ function ПополнениеЦели({ goal, suggested, onClose }: { goal: Goal
   )
 }
 
-function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) => void; onClose: () => void }) {
+export function GoalModal({ value, onSave, onClose }: { value: Goal; onSave: (g: Goal) => void; onClose: () => void }) {
   const { data } = useStore()
   const [g, setG] = useState<Goal>(value)
   const [pick, setPick] = useState(false)

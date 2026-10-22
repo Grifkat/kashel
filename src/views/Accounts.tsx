@@ -183,7 +183,7 @@ export default function Accounts() {
   )
 }
 
-function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: Account) => void; onClose: () => void }) {
+export function AccountModal({ value, onSave, onClose }: { value: Account; onSave: (a: Account) => void; onClose: () => void }) {
   const { data } = useStore()
   const [a, setA] = useState<Account>(value)
   const [pick, setPick] = useState(false)

@@ -10,12 +10,14 @@ import { addMonths, today } from '../lib/date'
 import { CANVAS_COLORS, DEFAULT_QUICK_COLORS, colorName } from '../lib/emoji'
 import { deleteCanvas, listCanvases, listNotes, readCanvas, readNote, renameCanvas, writeCanvas } from '../state/vault'
 import { TaskModal, пустая as пустаяЗадача } from './Tasks'
+import { AccountModal } from './Accounts'
+import { GoalModal } from './Goals'
 import { криваяСвязи, связьПодКарточкой, встроитьВСвязь } from '../components/canvas/vstavka'
 import { безСвоегоВида, линииПоУмолчанию, свойВид, видСвязи, штрихЛинии } from '../components/canvas/linii'
 import { НастройкаЛинии } from '../components/canvas/NastroykaLinii'
 import { priorityOf, sortTasks } from '../engine/tasks'
 import { safeFileName } from '../engine/archive'
-import type { ВидЛинии, EdgeShape, Task } from '../lib/types'
+import type { Account, Goal, ВидЛинии, EdgeShape, Task } from '../lib/types'
 import { Confirm, useToast } from '../components/ui'
 import { ContextMenu, type MenuItem } from '../components/canvas/ContextMenu'
 import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData } from '../components/canvas/nodes'
@@ -158,7 +160,7 @@ const ЦВЕТ_ВАЖНОСТИ = ['var(--accent)', 'var(--info)', 'var(--warn)'
 
 export default function CanvasView({ name }: { name?: string }) {
   const app = useApp()
-  const { data, upsertTask, отметитьДействие, patchSettings } = useStore()
+  const { data, upsertTask, upsertAccount, upsertGoal, отметитьДействие, patchSettings } = useStore()
   const toast = useToast()
   const удаление = useУдаление()
 
@@ -185,6 +187,12 @@ export default function CanvasView({ name }: { name?: string }) {
   const [новоеИмя, setНовоеИмя] = useState<string | null>(null)
   /** Открытое окно задачи. */
   const [задача, setЗадача] = useState<Task | null>(null)
+  /** «Новая запись» с доски: окно счёта, кредита или цели и место, куда лечь карточке. */
+  const [новаяЗапись, setНоваяЗапись] = useState<
+    { вид: 'account'; at: Point; счёт: Account } | { вид: 'goal'; at: Point; цель: Goal } | null
+  >(null)
+  /** Долг заводится окном «Дать / Взять в долг»: ждём новый счёт-долг и кладём его карточку. */
+  const ждёмДолг = useRef<{ at: Point; было: Set<string> } | null>(null)
   /** Связь, в которую встанет перетаскиваемая карточка, если её отпустить. */
   const [вставкаВ, setВставкаВ] = useState<string | null>(null)
   /** Связь, конец которой сейчас тащат, — рисуется бледной. */
@@ -616,7 +624,18 @@ export default function CanvasView({ name }: { name?: string }) {
         id: 'widget',
         label: т('Виджет'),
         icon: 'chart',
-        children: ВИДЖЕТЫ.map((w) =>
+        children: [{
+          id: 'w:new',
+          label: т('Новая запись…'),
+          icon: 'plus',
+          children: [
+            { id: 'nr:account', label: т('Счёт'), icon: 'wallet', onClick: () => setНоваяЗапись({ вид: 'account', at, счёт: { id: uid('a'), name: '', type: 'card', icon: 'credit-card', color: '#4cc46a', initialBalance: 0 } }) },
+            { id: 'nr:credit', label: т('Кредит'), icon: 'credit', onClick: () => setНоваяЗапись({ вид: 'account', at, счёт: { id: uid('a'), name: '', type: 'credit', icon: 'credit-card', color: '#e05252', initialBalance: 0 } }) },
+            { id: 'nr:goal', label: т('Цель'), icon: 'target', onClick: () => setНоваяЗапись({ вид: 'goal', at, цель: { id: uid('g'), name: '', icon: '🎯', color: '#4cc46a', targetAmount: 0, targetDate: addMonths(today(), 12), saved: 0, priority: data.goals.length + 1 } }) },
+            { id: 'nr:lend', label: т('Дать в долг'), icon: 'handshake', onClick: () => { ждёмДолг.current = { at, было: new Set(data.accounts.map((a) => a.id)) }; app.погасить({ вид: 'new', направление: 'owed_to_me' }) } },
+            { id: 'nr:borrow', label: т('Взять в долг'), icon: 'handshake', onClick: () => { ждёмДолг.current = { at, было: new Set(data.accounts.map((a) => a.id)) }; app.погасить({ вид: 'new', направление: 'i_owe' }) } },
+          ],
+        }, ...ВИДЖЕТЫ.map((w) =>
           w.id === 'earn'
             ? {
                 id: 'w:earn',
@@ -635,7 +654,7 @@ export default function CanvasView({ name }: { name?: string }) {
                 icon: w.icon,
                 hint: undefined,
                 onClick: () => insertNode('widget', at, { options: { widget: w.id }, text: текстДляСтарых(w.id) }, connectFrom),
-              }),
+              })],
       },
       {
         id: 'query',
@@ -650,7 +669,7 @@ export default function CanvasView({ name }: { name?: string }) {
           ),
       },
     ],
-    [insertNode, notes, data, upsertTask],
+    [insertNode, notes, data, upsertTask, app],
   )
 
   /** Середина видимой части доски. */
@@ -864,6 +883,15 @@ export default function CanvasView({ name }: { name?: string }) {
       { id: 'task-tab', label: т('Открыть «Задачи»'), icon: 'arrowRight', onClick: () => app.openTab('tasks') },
     ]
   }
+
+  useEffect(() => {
+    const ж = ждёмДолг.current
+    if (!ж) return
+    const новый = data.accounts.find((a) => a.type === 'debt' && !ж.было.has(a.id))
+    if (!новый) return
+    ждёмДолг.current = null
+    insertNode('account', ж.at, { ref: новый.id, color: новый.color })
+  }, [data.accounts, insertNode])
 
   // ---------------------------------------------------- виджеты
   /** Сменить вид виджета: «Доход и расход», «Заработок» (с выбором цели), «Остаток». */
@@ -1892,6 +1920,42 @@ export default function CanvasView({ name }: { name?: string }) {
       )}
 
       {задача && <TaskModal value={задача} onClose={() => setЗадача(null)} />}
+      {новаяЗапись?.вид === 'account' && (
+        <AccountModal
+          value={новаяЗапись.счёт}
+          onClose={() => setНоваяЗапись(null)}
+          onSave={(a) => {
+            if (!a.name.trim()) {
+              toast(т('Введите название счёта'))
+              return
+            }
+            upsertAccount(a)
+            insertNode('account', новаяЗапись.at, { ref: a.id, color: a.color })
+            toast(т('Счёт «{0}» заведён — он и в «Счетах»', a.name))
+            setНоваяЗапись(null)
+          }}
+        />
+      )}
+      {новаяЗапись?.вид === 'goal' && (
+        <GoalModal
+          value={новаяЗапись.цель}
+          onClose={() => setНоваяЗапись(null)}
+          onSave={(g) => {
+            if (!g.name.trim()) {
+              toast(т('Введите название цели'))
+              return
+            }
+            if (!(g.targetAmount > 0)) {
+              toast(т('Укажите, сколько нужно собрать'))
+              return
+            }
+            upsertGoal(g)
+            insertNode('goal', новаяЗапись.at, { ref: g.id, color: g.color })
+            toast(т('Цель «{0}» заведена — она и в «Целях»', g.name))
+            setНоваяЗапись(null)
+          }}
+        />
+      )}
       {menu && <ContextMenu x={menu.x} y={menu.y} title={menu.title} items={menu.items} above={menu.above} onClose={() => setMenu(null)} />}
 
     </div>
