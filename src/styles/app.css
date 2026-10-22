@@ -1206,17 +1206,26 @@ kbd {
 
 .flows-tip {
   position: absolute; left: 0; top: 0; z-index: 5; pointer-events: none;
-  min-width: 200px; max-width: 290px; padding: 10px 12px;
+  min-width: min(200px, 45%); max-width: min(290px, 48%); padding: 10px 12px;
   background: color-mix(in srgb, var(--panel) 96%, transparent);
   border: 1px solid var(--border-soft); border-radius: var(--radius-lg);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.16); backdrop-filter: blur(8px);
   display: flex; flex-direction: column; gap: 6px;
 }
+.flows-tip-main { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+/* Узкое окно: широкая низкая полоса поверх итогов над схемой, колонками. */
+.flows-tip.wide {
+  width: calc(100% - 16px); max-width: none; min-width: 0;
+  display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1fr) minmax(0, 1.6fr); column-gap: 16px; row-gap: 4px; align-items: start;
+}
+.flows-tip.wide .flows-tip-hint { grid-column: 1 / -1; }
 .flows-tip-head { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; color: var(--text-strong); }
 .flows-tip-sum { font-size: 17px; font-weight: 600; color: var(--text-strong); }
 .flows-tip-list { display: flex; flex-direction: column; gap: 3px; }
 .flows-tip-sub { text-transform: uppercase; letter-spacing: 0.05em; }
 .flows-tip-row { display: flex; align-items: center; gap: 7px; }
+/* Имена в подсказке не обрезаются — переносятся: в узкой колонке иначе терялся смысл. */
+.flows-tip-row .graph-found-name { white-space: normal; overflow: visible; text-overflow: clip; flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .flows-tip-hint { border-top: 1px solid var(--border-soft); padding-top: 6px; }
 
 /* Узкое окно: панель в две-три строки, без заголовка и без подсказки внизу. */

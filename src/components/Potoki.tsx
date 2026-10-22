@@ -324,21 +324,77 @@ export default function ПотокиДенег({ период, setПериод, 
     return из?.счёт ? из : в
   }
 
-  /** Подсказка идёт за мышью сама, без перерисовки схемы. */
+  /*
+   * Подсказка идёт за мышью сама, без перерисовки схемы — и не ложится на
+   * подсвеченный путь. В неполном окне она закрывала как раз те ленты, ради
+   * которых навели. Теперь из нескольких мест (справа, слева, сверху, снизу
+   * от курсора и в углах схемы) берётся то, где она меньше всего заслоняет
+   * подсвеченное, а при равенстве — ближе к курсору. Содержимое не урезается.
+   */
   const мышь = useRef({ x: 0, y: 0 })
+  /** Прямоугольники подсвеченного пути относительно схемы — считаются раз на наведение. */
+  const путь = useRef<{ x: number; y: number; w: number; h: number }[]>([])
   const вестиПодсказку = () => {
     const el = подсказкаRef.current
     const wrap = wrapRef.current?.getBoundingClientRect()
     if (!el || !wrap) return
-    let x = мышь.current.x - wrap.left + 16
-    let y = мышь.current.y - wrap.top + 14
-    if (x + el.offsetWidth > wrap.width - 8) x = мышь.current.x - wrap.left - el.offsetWidth - 14
-    if (y + el.offsetHeight > wrap.height - 8) y = Math.max(8, wrap.height - el.offsetHeight - 8)
-    el.style.transform = `translate(${Math.round(x)}px, ${Math.round(y)}px)`
+    // Узкое окно: рядом со схемой места нет, и подсказка становится широкой
+    // низкой полосой — то же содержимое колонками — поверх итогов над схемой.
+    el.classList.toggle('wide', wrap.width < 900)
+    const w = el.offsetWidth
+    const h = el.offsetHeight
+    const mx = мышь.current.x - wrap.left
+    const my = мышь.current.y - wrap.top
+    const край = (v: number, max: number) => Math.max(8, Math.min(v, max - 8))
+    const места = [
+      [mx + 16, my + 14], [mx - w - 14, my + 14], [mx + 16, my - h - 14], [mx - w - 14, my - h - 14],
+      [8, 8], [wrap.width - w - 8, 8], [8, wrap.height - h - 8], [wrap.width - w - 8, wrap.height - h - 8],
+    ].map(([x, y]) => [край(x, wrap.width - w), край(y, wrap.height - h)])
+    let лучшее = места[0]
+    let счёт = Infinity
+    for (const [x, y] of места) {
+      let заслон = 0
+      for (const р of путь.current) {
+        const ш = Math.min(x + w, р.x + р.w) - Math.max(x, р.x)
+        const в = Math.min(y + h, р.y + р.h) - Math.max(y, р.y)
+        if (ш > 0 && в > 0) заслон += ш * в
+      }
+      // Под курсором подсказке не место: она закрыла бы то, на что смотрят.
+      const подМышью = mx >= x && mx <= x + w && my >= y && my <= y + h
+      // Заслон пути — главное; расстояние до курсора решает только между равными.
+      const с = заслон * 100 + (подМышью ? 1e9 : 0) + Math.hypot(x - mx, y - my)
+      if (с < счёт) { счёт = с; лучшее = [x, y] }
+    }
+    el.style.transform = `translate(${Math.round(лучшее[0])}px, ${Math.round(лучшее[1])}px)`
   }
-  // Подсказка появляется сразу у мыши, а не прыгает из угла.
+  // Подсказка появляется сразу на своём месте, а не прыгает из угла.
   useLayoutEffect(() => {
-    if (наведено) вестиПодсказку()
+    const wrap = wrapRef.current
+    if (наведено && wrap) {
+      const о = wrap.getBoundingClientRect()
+      // Подсвеченное — ленты, узлы и их подписи: закрытая подпись так же мешает, как лента.
+      const узлы = new Set([...wrap.querySelectorAll('.flow-node.in-trace')].map((e) => (e as HTMLElement).dataset.id))
+      const подписи = [...wrap.querySelectorAll('.flow-label')].filter((e) => узлы.has((e as HTMLElement).dataset.id))
+      const рамка = (e: Element) => {
+        const r = e.getBoundingClientRect()
+        return { x: r.left - о.left, y: r.top - о.top, w: r.width, h: r.height }
+      }
+      // Изогнутая лента почти не заполняет свой описанный прямоугольник, поэтому
+      // ленту меряем по точкам вдоль контура — небольшими квадратами.
+      const ленты = [...wrap.querySelectorAll<SVGPathElement>('.flows-trace path')].flatMap((p) => {
+        const длина = p.getTotalLength?.() ?? 0
+        const м = p.getScreenCTM?.()
+        if (!длина || !м) return [рамка(p)]
+        return Array.from({ length: 40 }, (_, i) => {
+          const т0 = p.getPointAtLength((длина * i) / 40)
+          const x = м.a * т0.x + м.c * т0.y + м.e - о.left
+          const y = м.b * т0.x + м.d * т0.y + м.f - о.top
+          return { x: x - 6, y: y - 6, w: 12, h: 12 }
+        })
+      })
+      путь.current = [...ленты, ...[...wrap.querySelectorAll('.flow-node.in-trace'), ...подписи].map(рамка)]
+      вестиПодсказку()
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [наведено])
 
@@ -635,6 +691,7 @@ const Подсказка = React.forwardRef<HTMLDivElement, {
 
   return (
     <div className="flows-tip" ref={ref}>
+      <div className="flows-tip-main">
       {лента ? (
         <div className="flows-tip-head">
           <span className="graph-dot" style={{ background: из?.цвет }} />
@@ -653,6 +710,7 @@ const Подсказка = React.forwardRef<HTMLDivElement, {
       )}
       {оПроекте && <div className="faint small flows-tip-note">{оПроекте}</div>}
       <div className="num flows-tip-sum">{деньги(сумма)}</div>
+      </div>
       {откуда.length > 0 && <Строки заголовок={узел && начало(узел) ? т('Из чего') : т('Откуда')} строки={откуда} деньги={деньги} />}
       {куда.length > 0 && <Строки заголовок={узел && конец(узел) ? т('Из чего') : т('Куда')} строки={куда} деньги={деньги} />}
       {подпись && <div className="faint small flows-tip-hint">{подпись}</div>}
