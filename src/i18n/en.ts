@@ -1505,6 +1505,8 @@ export const EN: Record<string, string> = {
   'Виджет': 'Widget',
   'доход и расход, заработок, остаток': 'income and spending, earnings, balance',
   'Вид виджета': 'Widget type',
+  'Удалить долг «{0}»?': 'Delete the debt “{0}”?',
+  'Операции по этому долгу останутся в истории, но повиснут без привязки. Сразу после удаления его можно вернуть кнопкой «Отменить».': 'Transactions for this debt stay in history but lose their link. Right after deleting you can bring it back with “Undo”.',
   // lib/versiya.ts
   'Новый вид графа — «Потоки»: откуда пришли деньги, через какие счета прошли и на что ушли. Чем толще лента, тем больше сумма; наведите на статью или ленту — подсветится путь именно этих денег. Над столбцами подписано: «Откуда», «Счета», «Куда».': 'A new graph view, “Flows”: where money came from, which accounts it passed through and what it was spent on. The thicker the ribbon, the bigger the sum; hover a category or ribbon to highlight the path of exactly that money. Columns are labelled “From”, “Accounts”, “To”.',
   'Граф знает о подкатегориях: сумма главной категории — вместе с ними, щелчок по главной сворачивает и разворачивает подкатегории. Прежний граф — во вкладке «Связи», он стал легче и, когда стоит, не тратит процессор.': 'The graph knows about subcategories: a parent category’s sum includes them, and clicking the parent collapses or expands them. The previous graph lives in the “Links” tab; it got lighter and uses no processor while still.',

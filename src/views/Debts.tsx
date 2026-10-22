@@ -10,7 +10,8 @@ import { creditRemaining, остатокДолга, счётПоУмолчани
 import { KreditDashbord } from '../components/KreditDashbord'
 import { SverkaDolgov } from '../components/SverkaDolgov'
 import { LineChart } from '../components/charts'
-import { Avatar } from '../components/ui'
+import { Avatar, Confirm } from '../components/ui'
+import { useУдаление } from '../components/Udalenie'
 import type { Account, Money } from '../lib/types'
 import { т, тр } from '../i18n'
 
@@ -43,6 +44,9 @@ export default function Debts() {
   // Суммы на экране — с учётом «Скрывать баланс».
   const money = useДеньги()
   const app = useApp()
+  const удаление = useУдаление()
+  /** Долг, который просят удалить, — ждёт подтверждения. */
+  const [удалить, setУдалить] = useState<Account | null>(null)
   const { data, upsertAccount } = useStore()
   const { fc } = useAnalytics(data)
   const [extraById, setExtra] = useState<Record<string, number>>({})
@@ -238,12 +242,23 @@ export default function Debts() {
                       {мне ? т('Дать ещё') : т('Взять ещё')}
                     </button>
                     <button className="btn sm ghost" onClick={() => app.openTab('accounts')}>{т('Изменить')}</button>
+                    {/* Удалить долг можно и отсюда — прежде только через «Счета». */}
+                    <button className="btn sm ghost danger" onClick={() => setУдалить(a)}>{т('Удалить')}</button>
                   </div>
                 </div>
               )
             })}
           </div>
         </>
+      )}
+
+      {удалить && (
+        <Confirm
+          title={т('Удалить долг «{0}»?', удалить.name)}
+          text={т('Операции по этому долгу останутся в истории, но повиснут без привязки. Сразу после удаления его можно вернуть кнопкой «Отменить».')}
+          onConfirm={() => удаление.счёт(удалить.id)}
+          onClose={() => setУдалить(null)}
+        />
       )}
 
       {!credits.length && !debts.length && (
