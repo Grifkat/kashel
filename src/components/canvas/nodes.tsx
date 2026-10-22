@@ -1,4 +1,6 @@
-import React, { useLayoutEffect, useRef } from 'react'
+import React, { useLayoutEffect, useRef, useState, type MutableRefObject } from 'react'
+import { можноЖиво, useЖиваяПравка, type ПравкаТекста } from './Pravka'
+import { правкаПоля } from './TextToolbar'
 import { исполнениеЛимита } from '../../engine/limity'
 import { прогрессЦели, этоЗаработок } from '../../engine/zarabotok'
 import { money, moneyShort } from '../../lib/format'
@@ -80,7 +82,7 @@ function FittedText({
   return (
     <div
       ref={ref}
-      className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '') + ' v-' + поВертикалиУзла(node)}
+      className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '') + ' v-' + поВертикалиУзла(node) + ' a-' + выравниваниеУзла(node)}
       style={{ textAlign: выравниваниеУзла(node) }}
     >
       {children}
@@ -241,7 +243,65 @@ function useПодгонка(
   }, [fit, fontSize, node.width, node.height, node.text, !!onGrowProp, поВертикали])
 }
 
-/** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */
+interface СвойстваПравки {
+  node: CanvasNode
+  fit: TextFit
+  fontSize: number
+  areaRef?: MutableRefObject<ПравкаТекста | null>
+  onChange(patch: Partial<CanvasNode>): void
+  onEndEdit(): void
+  onGrow?(height: number): void
+}
+
+/**
+ * Правка текстовой карточки. Обычно — «как в Word», в оформленном виде; с
+ * разметкой — по выбору человека или когда текст правке не по силам (его
+ * нельзя было бы вернуть байт в байт). Выбор делается раз, при входе в правку.
+ */
+function ПравкаКарточки(props: СвойстваПравки & { разметка: boolean }) {
+  const [живая] = useState(() => !props.разметка && можноЖиво(props.node.text ?? ''))
+  return живая && !props.разметка ? <ЖиваяПравка {...props} /> : <ПолеПравки {...props} />
+}
+
+/** Правка в оформленном виде: тот же шрифт, кегль и подгонка, что при чтении. */
+function ЖиваяПравка({ node, fit, fontSize, areaRef, onChange, onEndEdit, onGrow }: СвойстваПравки) {
+  const рамка = useRef<HTMLDivElement>(null)
+  const поле = useRef<HTMLDivElement>(null)
+  useЖиваяПравка(поле, node.text ?? '', (text) => onChange({ text }), areaRef)
+  useПодгонка(рамка, node, fit, fontSize, onGrow)
+  const пусто = !node.text?.trim()
+  return (
+    <div
+      ref={рамка}
+      className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '') + ' v-' + поВертикалиУзла(node) + ' a-' + выравниваниеУзла(node) + (пусто ? ' pusto' : '')}
+      style={{ textAlign: выравниваниеУзла(node), ['--ph' as string]: JSON.stringify(т('Напишите что-нибудь…')) }}
+      onMouseDown={(e) => {
+        // Щелчок по пустому месту карточки — курсор в конец текста, а не
+        // конец правки: поле не на всю высоту, когда текст посередине.
+        if (e.target !== e.currentTarget || !поле.current) return
+        e.preventDefault()
+        поле.current.focus()
+        const sel = document.getSelection()
+        sel?.selectAllChildren(поле.current)
+        sel?.collapseToEnd()
+      }}
+    >
+      <div
+        ref={поле}
+        className="md cnode-pravka"
+        contentEditable
+        suppressContentEditableWarning
+        onBlur={(e) => {
+          // Фокус ушёл в панель форматирования — это ещё правка.
+          if ((e.relatedTarget as Element | null)?.closest?.('.text-toolbar')) return
+          onEndEdit()
+        }}
+      />
+    </div>
+  )
+}
+
+/** Поле с разметкой: тот же кегль и та же подгонка, что при чтении. */
 function ПолеПравки({
   node,
   fit,
@@ -254,14 +314,22 @@ function ПолеПравки({
   node: CanvasNode
   fit: TextFit
   fontSize: number
-  areaRef?: React.RefObject<HTMLTextAreaElement>
+  areaRef?: MutableRefObject<ПравкаТекста | null>
   onChange(patch: Partial<CanvasNode>): void
   onEndEdit(): void
   onGrow?(height: number): void
 }) {
-  const свой = useRef<HTMLTextAreaElement>(null)
-  const ref = areaRef ?? свой
+  const ref = useRef<HTMLTextAreaElement>(null)
   useПодгонка(ref, node, fit, fontSize, onGrow, поВертикалиУзла(node))
+  const onChangeRef = useRef(onChange)
+  onChangeRef.current = onChange
+  useLayoutEffect(() => {
+    if (!areaRef || !ref.current) return
+    areaRef.current = правкаПоля(ref.current, (text) => onChangeRef.current({ text }))
+    return () => {
+      areaRef.current = null
+    }
+  }, [areaRef])
   return (
     <textarea
       ref={ref}
@@ -413,6 +481,7 @@ export function NodeBody({
   style,
   editing,
   areaRef,
+  разметка = false,
   onChange,
   onEndEdit,
   onLink,
@@ -423,7 +492,9 @@ export function NodeBody({
   info: NodeData | null
   style: CardStyle
   editing: boolean
-  areaRef?: React.RefObject<HTMLTextAreaElement>
+  areaRef?: MutableRefObject<ПравкаТекста | null>
+  /** Править текст с разметкой, а не «как в Word». */
+  разметка?: boolean
   onChange(patch: Partial<CanvasNode>): void
   onEndEdit(): void
   onLink(name: string): void
@@ -464,7 +535,9 @@ export function NodeBody({
   if (node.type === 'text') {
     if (editing) {
       return (
-        <ПолеПравки
+        <ПравкаКарточки
+          key={разметка ? 'md' : 'word'}
+          разметка={разметка}
           node={node}
           fit={fit}
           fontSize={fontSize}

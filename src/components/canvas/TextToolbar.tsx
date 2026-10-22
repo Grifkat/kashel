@@ -1,7 +1,8 @@
-import React, { useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { Icon } from '../../lib/icons'
 import type { TextFit } from '../../lib/types'
 import type { Выравнивание, ПоВертикали } from './nodes'
+import type { ПравкаТекста } from './Pravka'
 import { т } from '../../i18n'
 
 export const FIT_MODES: { id: TextFit; name: string; about: string }[] = [
@@ -67,15 +68,30 @@ const BUTTONS: Btn[] = [
   { id: 'link', label: т('Ссылка на заметку'), icon: 'link', apply: (el) => wrapSelection(el, '[[', ']]') },
 ]
 
+/** Панель над полем с разметкой: кнопки вставляют markdown в текст. */
+export function правкаПоля(el: HTMLTextAreaElement, onText: (next: string) => void): ПравкаТекста {
+  return {
+    run(id) {
+      const b = BUTTONS.find((x) => x.id === id)
+      if (!b) return el.focus()
+      onText(b.apply(el))
+      el.focus()
+    },
+    активные: () => new Set(),
+  }
+}
+
 /**
- * Панель форматирования текстовой карточки. Кнопки вставляют обычную разметку,
- * поэтому файл доски остаётся читаемым и совместимым с Obsidian.
+ * Панель форматирования текстовой карточки. Поле правки — «как в Word» или с
+ * разметкой — само решает, как оформить; в файл в обоих случаях уходит
+ * обычный markdown, совместимый с Obsidian.
  */
 export function TextToolbar({
-  areaRef,
+  editorRef,
   fontSize,
   fit,
-  onText,
+  разметка,
+  onРазметка,
   onFontSize,
   onFit,
   align,
@@ -83,10 +99,12 @@ export function TextToolbar({
   onAlign,
   onValign,
 }: {
-  areaRef: React.RefObject<HTMLTextAreaElement>
+  editorRef: React.RefObject<ПравкаТекста | null>
   fontSize: number
   fit: TextFit
-  onText(next: string): void
+  /** Правка в виде разметки (# и **) вместо оформленного текста. */
+  разметка: boolean
+  onРазметка(next: boolean): void
   onFontSize(next: number): void
   onFit(next: TextFit): void
   align: Выравнивание
@@ -94,12 +112,20 @@ export function TextToolbar({
   onAlign(next: Выравнивание): void
   onValign(next: ПоВертикали): void
 }) {
+  const [активные, setАктивные] = useState<Set<string>>(new Set())
   const run = (b: Btn) => {
-    const el = areaRef.current
-    if (!el) return
-    onText(b.apply(el))
-    el.focus()
+    editorRef.current?.run(b.id)
+    setАктивные(editorRef.current?.активные() ?? new Set())
   }
+  // Кнопки подсвечивают оформление у курсора — как «Ж» в Word.
+  useEffect(() => {
+    const обновить = () => {
+      const next = editorRef.current?.активные() ?? new Set<string>()
+      setАктивные((prev) => (prev.size === next.size && [...next].every((x) => prev.has(x)) ? prev : next))
+    }
+    document.addEventListener('selectionchange', обновить)
+    return () => document.removeEventListener('selectionchange', обновить)
+  }, [editorRef])
   const [режимы, setРежимы] = useState(false)
   const текущій = FIT_MODES.find((m) => m.id === fit) ?? FIT_MODES[0]
 
@@ -117,7 +143,7 @@ export function TextToolbar({
       {BUTTONS.map((b) => (
         <button
           key={b.id}
-          className="tt-btn"
+          className={'tt-btn' + (активные.has(b.id) ? ' on' : '')}
           title={b.hint ? `${b.label} (${b.hint})` : b.label}
           onClick={() => run(b)}
         >
@@ -184,7 +210,7 @@ export function TextToolbar({
                 onClick={() => {
                   onFit(m.id)
                   setРежимы(false)
-                  areaRef.current?.focus()
+                  editorRef.current?.run('focus')
                 }}
               >
                 <span className="tt-fit-name">{m.name}</span>
@@ -194,6 +220,13 @@ export function TextToolbar({
           </div>
         )}
       </div>
+      <button
+        className={'tt-btn tt-markup' + (разметка ? ' on' : '')}
+        title={разметка ? т('Сейчас видна разметка. Нажмите — править оформленный текст, как в Word') : т('Показать разметку: решётки, звёздочки, живые запросы')}
+        onClick={() => onРазметка(!разметка)}
+      >
+        <span>MD</span>
+      </button>
     </div>
   )
 }

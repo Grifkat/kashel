@@ -197,7 +197,42 @@
 .cnode-fit.v-middle, .cnode-fit.v-bottom { display: flex; flex-direction: column; }
 .cnode-fit.v-middle { justify-content: safe center; }
 .cnode-fit.v-bottom { justify-content: safe flex-end; }
+/* По центру и справа маркеры списка идут за текстом, а не стоят у левого края. */
+.cnode-fit.a-center :is(ul, ol), .cnode-fit.a-right :is(ul, ol) { list-style-position: inside; padding-left: 0; }
+.cnode-fit.a-center .md-task { justify-content: center; }
+.cnode-fit.a-right .md-task { justify-content: flex-end; }
 .tt-btn.on { background: var(--hover); color: var(--text-strong); }
+
+/* Правка «как в Word»: то же оформление, что при чтении (.md), только живое. */
+.cnode-pravka { outline: none; cursor: text; min-height: 1.6em; }
+.cnode-pravka > :first-child { margin-top: 0; }
+.cnode-pravka > :last-child { margin-bottom: 0; }
+.pusto .cnode-pravka > :first-child { position: relative; }
+.pusto .cnode-pravka > :first-child::before {
+  content: var(--ph);
+  position: absolute;
+  left: 0;
+  right: 0;
+  color: var(--faint);
+  pointer-events: none;
+}
+.cnode-pravka li.md-zadacha { list-style: none; margin-left: -1.2em; }
+.cnode-pravka .md-check { display: inline-block; margin-right: 0.45em; vertical-align: -0.1em; }
+.cnode-pravka .md-check input { width: 0.95em; height: 0.95em; margin: 0; accent-color: var(--accent); cursor: pointer; }
+.cnode-pravka .wikilink { cursor: default; }
+.cnode-pravka .md-atom {
+  margin: 6px 0;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: var(--panel-2);
+  text-align: left;
+  user-select: none;
+  opacity: 0.85;
+}
+.cnode-pravka .md-atom pre { margin: 0; font-family: var(--mono); font-size: 0.8em; white-space: pre-wrap; }
+.cnode-pravka .md-atom-title { font-size: 0.75em; color: var(--muted); margin-bottom: 3px; }
+.cnode-pravka .md-atom-props { opacity: 0.6; }
+.tt-markup span { font-size: 10.5px; font-weight: 700; letter-spacing: 0.04em; }
 
 .cnode-edit {
   flex: 1;

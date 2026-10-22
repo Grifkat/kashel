@@ -381,7 +381,8 @@ export default function App() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.ctrlKey || e.metaKey
-      const inField = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)
+      const inField = ['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName) ||
+        !!(e.target as HTMLElement)?.closest?.('[contenteditable="true"]')
       if (mod && буква(e) === 'p' && !e.shiftKey) {
         e.preventDefault()
         setPaletteOpen(true)

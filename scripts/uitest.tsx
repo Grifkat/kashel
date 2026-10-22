@@ -22,6 +22,7 @@ import type { VaultData } from '../src/lib/types'
 import { ВЕРСИЯ } from '../src/lib/versiya'
 import { accountBalance, balances, creditRemaining, остатокДолга, счётПоУмолчанию } from '../src/engine/stats'
 import { money, toMinor } from '../src/lib/format'
+import { построить, разметкаИз } from '../src/components/canvas/Pravka'
 
 const dom = new JSDOM('<!doctype html><html><body><div id="root"></div></body></html>', {
   url: 'http://localhost/',
@@ -564,6 +565,49 @@ async function canvasBoard() {
 }
 
 /** Форматирование текста, подгонка размера и палитра карточек. */
+/**
+ * Правка «как в Word» не имеет права портить текст: разметка → поле → разметка
+ * обязана вернуть его байт в байт, со всеми маркерами, пробелами и пустыми
+ * строками. Что вернуть нельзя — правится в поле с разметкой.
+ */
+function pravkaRoundTrip() {
+  console.log('\n— правка «как в Word» без потерь —')
+  const тексты = [
+    '',
+    'просто строка',
+    '# Заголовок\nи **жирный**, *курсив*, <u>подчёркнутый</u>, ~~зачёркнутый~~, ==маркер==, `код`',
+    '#### Мелкий заголовок\n##  Два пробела',
+    '* звёздочка\n- минус\n  - вложенный\n\n1) скобка\n2. точка',
+    '- [ ] дело\n- [X] сделано большой X\n* [x] звёздочка',
+    '> цитата\n>без пробела\n\n\n   \nпосле пустых строк с пробелами\n',
+    'ссылки [[Заметка]] и [[Цель|подпись]], [сайт](https://example.com) и #тег в тексте',
+    '---\n***\nтекст',
+    '```kashel\ntype: sum\nkind: expense\n```\nпосле запроса',
+    '```js\nconst a = 1\n```',
+    '---\ntags: [a]\n---\n# После свойств',
+    '2 * 3 * 4 и **жирный **',
+    'хвост\n\n',
+  ]
+  for (const t of тексты) {
+    const div = document.createElement('div')
+    const ok = построить(div, t)
+    check(`  без потерь: ${JSON.stringify(t.slice(0, 32))}`, ok && разметкаИз(div) === t, JSON.stringify(разметкаИз(div)))
+  }
+  // В поле — оформление, а не знаки разметки.
+  const div = document.createElement('div')
+  построить(div, '# Заголовок\n**жирный** и [[Заметка]]')
+  check('заголовок — заголовком, без решётки', div.querySelector('h1')?.textContent === 'Заголовок')
+  check('жирный — тегом, без звёздочек', div.querySelector('strong')?.textContent === 'жирный')
+  check('ссылка — подписью', div.querySelector('.wikilink')?.textContent === 'Заметка')
+  // Незакрытый блок кода вернуть байт в байт нельзя — такой текст в поле с разметкой.
+  check('незакрытый блок кода правится разметкой', !построить(document.createElement('div'), '```\nкод без конца'))
+  // Новое из поля — обычный markdown.
+  const нов = document.createElement('div')
+  построить(нов, '')
+  нов.innerHTML = '<h2>План</h2><ul><li>раз</li><li><b>два</b></li></ul><blockquote>мысль</blockquote><p>a<br>b</p>'
+  check('из поля выходит markdown', разметкаИз(нов) === '## План\n- раз\n- **два**\n> мысль\na\nb', JSON.stringify(разметкаИз(нов)))
+}
+
 async function canvasText() {
   console.log('\n— текст и цвет карточек —')
   await open('Канвас')
@@ -574,8 +618,11 @@ async function canvasText() {
   textCard.dispatchEvent(new dom.window.MouseEvent('dblclick', { bubbles: true, clientX: 400, clientY: 400 }))
   await wait(300)
 
-  const area = () => document.querySelector('.cnode-edit') as any
+  const area = () => document.querySelector('.cnode-pravka, .cnode-edit') as any
+  const живое = () => document.querySelector('.cnode-pravka') as any
   check('двойной клик открыл правку', !!area())
+  check('правка — «как в Word», в оформленном виде', живое()?.getAttribute('contenteditable') === 'true')
+  check('в поле нет решёток и звёздочек', !/(^|\n)#|\*\*/.test(живое()?.textContent || ''), живое()?.textContent)
   check('появилась панель форматирования', !!document.querySelector('.text-toolbar'))
 
   const ttBtn = (title: string) =>
@@ -585,17 +632,32 @@ async function canvasText() {
   }
 
   // Ставим курсор в конец и жмём «Жирный».
-  const before = area().value
-  area().setSelectionRange(before.length, before.length)
+  {
+    const sel = document.getSelection()!
+    sel.selectAllChildren(живое())
+    sel.collapseToEnd()
+  }
   click(ttBtn('Жирный'))
   await wait(250)
-  check('кнопка «Жирный» вставила разметку', area().value.includes('**текст**'),
-    JSON.stringify(area().value.slice(-14)))
+  check('кнопка «Жирный» сделала текст жирным', !!живое()?.querySelector('strong, b'), живое()?.innerHTML.slice(-80))
 
   // Заголовок применяется к строке целиком.
   click(ttBtn('Заголовок'))
   await wait(250)
-  check('кнопка «Заголовок» добавила решётку', /(^|\n)# /.test(area().value))
+  check('кнопка «Заголовок» сделала строку заголовком', !!живое()?.querySelector('h1'), живое()?.innerHTML.slice(-80))
+
+  // «MD» показывает ту же карточку разметкой — той, что понимает Obsidian.
+  const md = () => document.querySelector('.text-toolbar .tt-markup') as any
+  check('в панели есть кнопка разметки', !!md())
+  click(md())
+  await wait(300)
+  const поле = document.querySelector('textarea.cnode-edit') as any
+  check('«MD» открыл поле с разметкой', !!поле)
+  check('жирный записан как **текст**', (поле?.value || '').includes('**текст**'), JSON.stringify((поле?.value || '').slice(-30)))
+  check('заголовок записан решёткой', /(^|\n)# /.test(поле?.value || ''))
+  click(md())
+  await wait(300)
+  check('повторное «MD» вернуло правку «как в Word»', !!живое())
 
   // Размер шрифта. Ручной кегль есть только вне «Авто», а карточки, созданные
   // выше в этом прогоне, — новые, то есть в «Авто»: переключаем на «Обычный».
@@ -642,7 +704,7 @@ async function canvasText() {
 
   check('режим «Вписывать» выбирается из меню', await выбратьРежимъ('Вписывать'))
   check('кнопка показывает выбранный режим', (document.querySelector('.tt-fit-btn')?.textContent || '').includes('Вписывать'))
-  check('поле правки тоже без прокрутки — подгонка работает и при правке', area()?.classList.contains('no-scroll') === true)
+  check('поле правки тоже без прокрутки — подгонка работает и при правке', !!area()?.closest('.no-scroll'))
 
   /*
    * Уход фокуса в панель — ещё правка, а не её конец.
@@ -771,7 +833,7 @@ async function canvasOneClick() {
   await wait(600)
   const wrap = () => document.querySelector('.canvas-wrap') as any
   const textCards = () => all('.cnode').filter((c) => c.className.includes('cnode-t-text'))
-  const edit = () => document.querySelector('.cnode-edit') as any
+  const edit = () => document.querySelector('.cnode-pravka, .cnode-edit') as any
   const escInField = async () => {
     edit()?.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     await wait(250)
@@ -3871,6 +3933,7 @@ async function main() {
   await themes()
   await cardGlare()
   await canvasBoard()
+  pravkaRoundTrip()
   await canvasText()
   await canvasOneClick()
   await canvasNavigation()

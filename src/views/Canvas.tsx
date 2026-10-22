@@ -28,7 +28,8 @@ import { useИстория } from '../components/canvas/istoriya'
 import { Справка } from '../components/canvas/Spravka'
 import { Виджет, ВИДЖЕТЫ, видВиджета, текстДляСтарых, type ВидВиджета } from '../components/canvas/Vidzhety'
 import { этоЗаработок } from '../engine/zarabotok'
-import { FIT_MODES, TextToolbar, wrapSelection } from '../components/canvas/TextToolbar'
+import { FIT_MODES, TextToolbar } from '../components/canvas/TextToolbar'
+import type { ПравкаТекста } from '../components/canvas/Pravka'
 import {
   anchor, bestSides, boundsOf, curveOf, elbowOf, inRect, lineOf, midpoint, pathOf, pointAt, rectFrom, rectsOverlap,
   sideTowards, snapToNeighbours, SIDES, type Guide, type Point, type Rect,
@@ -198,7 +199,23 @@ export default function CanvasView({ name }: { name?: string }) {
   /** Связь, конец которой сейчас тащат, — рисуется бледной. */
   const [тащимКонец, setТащимКонец] = useState<string | null>(null)
   const [palette, setPalette] = useState<Set<string> | null>(null)
-  const areaRef = useRef<HTMLTextAreaElement>(null)
+  const areaRef = useRef<ПравкаТекста | null>(null)
+  /** Править текст карточек с разметкой (# и **), а не «как в Word». */
+  const [разметка, setРазметка] = useState(() => {
+    try {
+      return localStorage.getItem('kashel:canvas-markup') === '1'
+    } catch {
+      return false
+    }
+  })
+  const сменитьРазметку = (next: boolean) => {
+    setРазметка(next)
+    try {
+      localStorage.setItem('kashel:canvas-markup', next ? '1' : '0')
+    } catch {
+      /* без хранилища выбор живёт до перезапуска */
+    }
+  }
 
   const wrapRef = useRef<HTMLDivElement>(null)
   const drag = useRef<DragState | null>(null)
@@ -1248,7 +1265,8 @@ export default function CanvasView({ name }: { name?: string }) {
   // ------------------------------------------------------------ клавиши
   useEffect(() => {
     const inField = (t: EventTarget | null) =>
-      ['INPUT', 'TEXTAREA', 'SELECT'].includes((t as HTMLElement)?.tagName)
+      ['INPUT', 'TEXTAREA', 'SELECT'].includes((t as HTMLElement)?.tagName) ||
+      !!(t as HTMLElement)?.closest?.('[contenteditable="true"]')
 
     const down = (e: KeyboardEvent) => {
       if (e.key === ' ') space.current = true
@@ -1256,20 +1274,21 @@ export default function CanvasView({ name }: { name?: string }) {
         // Escape в поле карточки заканчивает правку, как щелчок мимо.
         // Прежде он сюда не доходил: поле глотало клавишу, и выйти из
         // правки можно было только мышью.
-        if (e.key === 'Escape' && editing && (e.target as HTMLElement).classList?.contains('cnode-edit')) {
+        if (e.key === 'Escape' && editing && (e.target as HTMLElement).closest?.('.cnode-edit, .cnode-pravka')) {
           e.preventDefault()
           setEditing(null)
           commit(docRef.current)
           return
         }
-        // Внутри текстовой карточки Ctrl+B/I/U оформляют выделение.
-        const el = areaRef.current
+        // Внутри текстовой карточки Ctrl+B/I/U оформляют выделение — в любой
+        // раскладке и в обоих видах правки.
+        const правка = areaRef.current
         const mod2 = e.ctrlKey || e.metaKey
-        if (!el || e.target !== el || !mod2 || !editing) return
-        const wrap = { b: ['**', '**'], i: ['*', '*'], u: ['<u>', '</u>'] }[буква(e)]
-        if (!wrap) return
+        if (!правка || !mod2 || !editing || !(e.target as HTMLElement).closest?.('.cnode-edit, .cnode-pravka')) return
+        const id = ({ b: 'b', i: 'i', u: 'u' } as Record<string, string>)[буква(e)]
+        if (!id) return
         e.preventDefault()
-        patchNode(editing, { text: wrapSelection(el, wrap[0], wrap[1]) }, false)
+        правка.run(id)
         return
       }
       const mod = e.ctrlKey || e.metaKey
@@ -1439,6 +1458,7 @@ export default function CanvasView({ name }: { name?: string }) {
             style={cardStyle}
             editing={editing === n.id}
             areaRef={editing === n.id ? areaRef : undefined}
+            разметка={разметка}
             onChange={(patch) => действия.current.patchNode(n.id, patch, false)}
             onEndEdit={() => {
               setEditing(null)
@@ -1495,7 +1515,7 @@ export default function CanvasView({ name }: { name?: string }) {
       )
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [doc.nodes, sel, editing, data, cardCtx, cardStyle, nodeById, from, periodLabel],
+    [doc.nodes, sel, editing, data, cardCtx, cardStyle, nodeById, from, periodLabel, разметка],
   )
 
   if (!current) {
@@ -1898,10 +1918,11 @@ export default function CanvasView({ name }: { name?: string }) {
         return (
           <ПанельНадъКарточкой left={p.x} cardTop={p.y} cardBottom={низъ.y}>
             <TextToolbar
-              areaRef={areaRef}
+              editorRef={areaRef}
               fontSize={n.fontSize ?? DEFAULT_FONT_SIZE}
               fit={n.fit ?? 'fixed'}
-              onText={(text) => patchNode(n.id, { text }, false)}
+              разметка={разметка}
+              onРазметка={сменитьРазметку}
               onFontSize={(fontSize) => patchNode(n.id, { fontSize }, false)}
               onFit={(fit) => patchNode(n.id, { fit }, false)}
               align={выравниваниеУзла(n)}
