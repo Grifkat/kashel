@@ -30,6 +30,22 @@ function ЗначокъУзла({ icon }: { icon?: string }) {
   return <>{icon ?? '•'}</>
 }
 
+/**
+ * Выравнивание текста карточки — как в Word: по горизонтали и по вертикали.
+ * Живёт в options узла: файл доски остаётся совместимым с Obsidian, а старые
+ * версии Кошеля просто показывают текст слева сверху.
+ */
+export type Выравнивание = 'left' | 'center' | 'right'
+export type ПоВертикали = 'top' | 'middle' | 'bottom'
+export const выравниваниеУзла = (n: CanvasNode): Выравнивание => {
+  const v = n.options?.align
+  return v === 'center' || v === 'right' ? v : 'left'
+}
+export const поВертикалиУзла = (n: CanvasNode): ПоВертикали => {
+  const v = n.options?.valign
+  return v === 'middle' || v === 'bottom' ? v : 'top'
+}
+
 /** Ширина текстовой карточки по умолчанию — точка отсчёта для режима «тянуть». */
 const BASE_WIDTH = 280
 export const DEFAULT_FONT_SIZE = 13
@@ -62,7 +78,11 @@ function FittedText({
 
   // cnode-fit: кегль разметки берётся от контейнера, см. canvas.css.
   return (
-    <div ref={ref} className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '')}>
+    <div
+      ref={ref}
+      className={'cnode-scroll cnode-md cnode-fit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '') + ' v-' + поВертикалиУзла(node)}
+      style={{ textAlign: выравниваниеУзла(node) }}
+    >
       {children}
     </div>
   )
@@ -120,6 +140,7 @@ function useПодгонка(
   fit: TextFit,
   fontSize: number,
   onGrowProp?: (height: number) => void,
+  поВертикали: ПоВертикали = 'top',
 ) {
   /*
    * onGrow доска создаёт заново на каждой своей перерисовке. Стоял бы он в
@@ -131,9 +152,40 @@ function useПодгонка(
   const growRef = useRef(onGrowProp)
   growRef.current = onGrowProp
   useLayoutEffect(() => {
+    // Подгоняем сразу и ещё раз на следующем кадре и после загрузки шрифтов:
+    // поле правки в миг появления ещё не встало на место, и подобранный в
+    // тот миг кегль потом вылезал за карточку.
+    let жив = true
+    const кадр = typeof requestAnimationFrame === 'function' ? requestAnimationFrame(() => жив && подогнать()) : 0
+    void document.fonts?.ready?.then(() => жив && подогнать())
+    подогнать()
+    return () => {
+      жив = false
+      if (кадр) cancelAnimationFrame(кадр)
+    }
+
+    function подогнать() {
+      подобрать()
+      // Поле правки — посередине или снизу, как текст после правки: сверху
+      // столько отступа, сколько остаётся свободного места.
+      const el = ref.current
+      if (!el || el.tagName !== 'TEXTAREA' || поВертикали === 'top') return
+      const база = parseFloat(getComputedStyle(el).paddingTop) || 0
+      el.style.flex = '0 0 auto'
+      el.style.height = 'auto'
+      const занято = el.scrollHeight
+      el.style.height = ''
+      el.style.flex = ''
+      const свободно = el.clientHeight - занято
+      if (свободно > 0) el.style.paddingTop = `${база + (поВертикали === 'middle' ? свободно / 2 : свободно)}px`
+    }
+
+    function подобрать() {
     const el = ref.current
     if (!el) return
     const onGrow = growRef.current
+    // Отступ «посередине / снизу» ставится после подгонки; мерить надо без него.
+    el.style.paddingTop = ''
 
     if (fit === 'auto') {
       // Пустая карточка: подбирать нечего, а подсказку поля Chromium считает
@@ -185,7 +237,8 @@ function useПодгонка(
     if (fit === 'grow' && onGrow) подогнатьВысоту(el, node, onGrow, false)
     // ref в зависимостях не нужен: объект стабилен, меняется только .current.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fit, fontSize, node.width, node.height, node.text, !!onGrowProp])
+    }
+  }, [fit, fontSize, node.width, node.height, node.text, !!onGrowProp, поВертикали])
 }
 
 /** Поле правки текстовой карточки: тот же кегль и та же подгонка, что при чтении. */
@@ -208,13 +261,13 @@ function ПолеПравки({
 }) {
   const свой = useRef<HTMLTextAreaElement>(null)
   const ref = areaRef ?? свой
-  useПодгонка(ref, node, fit, fontSize, onGrow)
+  useПодгонка(ref, node, fit, fontSize, onGrow, поВертикалиУзла(node))
   return (
     <textarea
       ref={ref}
       className={'cnode-edit' + (fit === 'fixed' ? '' : ' no-scroll') + (fit === 'auto' ? ' fit-auto' : '')}
       autoFocus
-      style={{ fontSize }}
+      style={{ fontSize, textAlign: выравниваниеУзла(node) }}
       value={node.text ?? ''}
       onChange={(e) => onChange({ text: e.target.value })}
       onBlur={(e) => {
@@ -223,7 +276,7 @@ function ПолеПравки({
         if ((e.relatedTarget as Element | null)?.closest?.('.text-toolbar')) return
         onEndEdit()
       }}
-      placeholder={т('Текст, **жирный**, [[ссылка]], #тег\n\n```kashel\ntype: sum\nkind: expense\nperiod: 1m\n```')}
+      placeholder={т('Напишите что-нибудь…')}
     />
   )
 }

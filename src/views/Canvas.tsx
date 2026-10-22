@@ -20,7 +20,7 @@ import { safeFileName } from '../engine/archive'
 import type { Account, Goal, ВидЛинии, EdgeShape, Task } from '../lib/types'
 import { Confirm, useToast } from '../components/ui'
 import { ContextMenu, type MenuItem } from '../components/canvas/ContextMenu'
-import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData } from '../components/canvas/nodes'
+import { buildCardContext, CARD_STYLES, DEFAULT_FONT_SIZE, NodeBody, nodeData, выравниваниеУзла, поВертикалиУзла } from '../components/canvas/nodes'
 import { ColorPalette } from '../components/canvas/ColorPalette'
 import { Полка, type ПунктПолки } from '../components/canvas/Polka'
 import { K_MAX, K_MIN, ZOOM_DEFAULT, useКамера } from '../components/canvas/kamera'
@@ -1904,6 +1904,10 @@ export default function CanvasView({ name }: { name?: string }) {
               onText={(text) => patchNode(n.id, { text }, false)}
               onFontSize={(fontSize) => patchNode(n.id, { fontSize }, false)}
               onFit={(fit) => patchNode(n.id, { fit }, false)}
+              align={выравниваниеУзла(n)}
+              valign={поВертикалиУзла(n)}
+              onAlign={(align) => patchNode(n.id, { options: { ...(n.options ?? {}), align } }, false)}
+              onValign={(valign) => patchNode(n.id, { options: { ...(n.options ?? {}), valign } }, false)}
             />
           </ПанельНадъКарточкой>
         )

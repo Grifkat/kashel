@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { Icon } from '../../lib/icons'
 import type { TextFit } from '../../lib/types'
+import type { Выравнивание, ПоВертикали } from './nodes'
 import { т } from '../../i18n'
 
 export const FIT_MODES: { id: TextFit; name: string; about: string }[] = [
@@ -77,6 +78,10 @@ export function TextToolbar({
   onText,
   onFontSize,
   onFit,
+  align,
+  valign,
+  onAlign,
+  onValign,
 }: {
   areaRef: React.RefObject<HTMLTextAreaElement>
   fontSize: number
@@ -84,6 +89,10 @@ export function TextToolbar({
   onText(next: string): void
   onFontSize(next: number): void
   onFit(next: TextFit): void
+  align: Выравнивание
+  valign: ПоВертикали
+  onAlign(next: Выравнивание): void
+  onValign(next: ПоВертикали): void
 }) {
   const run = (b: Btn) => {
     const el = areaRef.current
@@ -131,6 +140,28 @@ export function TextToolbar({
       )}
 
       <span className="tool-sep" />
+      {(['left', 'center', 'right'] as const).map((a) => (
+        <button
+          key={a}
+          className={'tt-btn' + (align === a ? ' on' : '')}
+          title={a === 'left' ? т('По левому краю') : a === 'center' ? т('По центру') : т('По правому краю')}
+          onClick={() => onAlign(a)}
+        >
+          <ЗначокРовно a={a} />
+        </button>
+      ))}
+      {(['top', 'middle', 'bottom'] as const).map((v) => (
+        <button
+          key={v}
+          className={'tt-btn' + (valign === v ? ' on' : '')}
+          title={v === 'top' ? т('Сверху') : v === 'middle' ? т('Посередине по высоте') : т('Снизу')}
+          onClick={() => onValign(v)}
+        >
+          <ЗначокВысоты v={v} />
+        </button>
+      ))}
+
+      <span className="tool-sep" />
       <div className="tt-fit">
         <button
           className="tt-btn tt-fit-btn"
@@ -164,5 +195,29 @@ export function TextToolbar({
         )}
       </div>
     </div>
+  )
+}
+
+/** Строки текста, выровненные влево, по центру или вправо. */
+function ЗначокРовно({ a }: { a: Выравнивание }) {
+  const x = (w: number) => (a === 'left' ? 2 : a === 'center' ? 8 - w / 2 : 14 - w)
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      {[[3, 12], [7, 8], [11, 12]].map(([y, w]) => (
+        <rect key={y} x={x(w)} y={y} width={w} height="1.6" rx="0.8" fill="currentColor" />
+      ))}
+    </svg>
+  )
+}
+
+/** Текст у верха, посередине или у низа рамки. */
+function ЗначокВысоты({ v }: { v: ПоВертикали }) {
+  const y = v === 'top' ? 3 : v === 'middle' ? 6.5 : 10
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <rect x="1.5" y="1.5" width="13" height="13" rx="2.5" fill="none" stroke="currentColor" strokeOpacity="0.45" />
+      <rect x="4" y={y} width="8" height="1.6" rx="0.8" fill="currentColor" />
+      <rect x="5" y={y + 2.4} width="6" height="1.6" rx="0.8" fill="currentColor" />
+    </svg>
   )
 }

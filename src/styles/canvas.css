@@ -192,6 +192,12 @@
 /* «Авто»: длинное слово (ссылка) переносится. Иначе оно не влезало по ширине
    ни при каком кегле, и подгонка навсегда застревала на самом мелком. */
 .fit-auto { overflow-wrap: anywhere; }
+/* Текст посередине или у низа карточки. safe — если текста больше, чем
+   места, он не уходит за верхний край, а прокручивается как обычно. */
+.cnode-fit.v-middle, .cnode-fit.v-bottom { display: flex; flex-direction: column; }
+.cnode-fit.v-middle { justify-content: safe center; }
+.cnode-fit.v-bottom { justify-content: safe flex-end; }
+.tt-btn.on { background: var(--hover); color: var(--text-strong); }
 
 .cnode-edit {
   flex: 1;
@@ -204,6 +210,9 @@
   font-size: 13px;
   line-height: 1.6;
   outline: none;
+  /* Общий transition полей анимировал бы и кегль: подгонка мерила бы старый
+     размер, и «Авто» в правке никогда не уменьшал текст. */
+  transition: none;
 }
 
 /* --- оформление «полные»: цветная шапка, крупная сумма */
@@ -562,7 +571,7 @@
 /* --------------------------------------------------- подгонка текста */
 /* Режимы «тянуть», «вписывать» и «растить» меряют содержимое, поэтому
    прокрутка в них только помешала бы. */
-.cnode-scroll.no-scroll { overflow: hidden; }
+.cnode-scroll.no-scroll, .cnode-edit.no-scroll { overflow: hidden; }
 
 /* ------------------------------------------------- панель форматирования */
 .text-toolbar-holder {
