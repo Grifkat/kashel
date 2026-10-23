@@ -87,6 +87,26 @@
 /* Связь, чей конец сейчас тянут, — бледная: вместо неё рисуется пунктир. */
 .cv-edge.moving path:not(.cv-hit) { opacity: 0.2; }
 
+/* Бег по линиям: короткие штрихи едут от начала связи к концу. Анимация
+   есть, только пока мышь над линией или карточкой, — в покое процессор
+   свободен. Без движения штрих просто подсвечивает связь. */
+.cv-run {
+  stroke-dasharray: 1 13;
+  opacity: 0.9;
+  animation: cv-run 0.7s linear infinite;
+}
+@keyframes cv-run {
+  from { stroke-dashoffset: 14; }
+  to { stroke-dashoffset: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* Страховка на случай, если анимации включены явно, а система просит покоя:
+     штрих стоит, но видно, какие связи у карточки. */
+  :root:not([data-anim="full"]) .cv-run { animation: none; }
+}
+.cv-moving .cv-run { animation-play-state: paused; }
+.cv-help-run { margin-top: -4px; }
+
 .cv-guide {
   stroke: var(--accent);
   stroke-width: 1;

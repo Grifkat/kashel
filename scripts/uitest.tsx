@@ -1219,6 +1219,105 @@ async function свойВиджет() {
   check('после уборки на первой доске своих виджетов как было', доска() === перваяДоска && свои().length === было, `${доска()} · ${свои().length}`)
 }
 
+/**
+ * Бег по линиям: выключен, пока не включат в справке «?». Включён — штрих
+ * бежит только по связям наведённой карточки или линии, в покое ничего нет.
+ * Анимации выключены — связи только подсвечиваются. Цвет денег — по смыслу.
+ */
+async function бегПоЛиниям() {
+  console.log('\n— бег по линиям —')
+  await open('Канвас')
+  await wait(600)
+  const доска = (document.querySelector('.canvas-tools select') as HTMLSelectElement).value
+  const файл = await readCanvas(доска)
+  // Карточка с самым большим числом связей.
+  const связиУ = (id: string) => (файл?.edges ?? []).filter((e) => e.fromNode === id || e.toNode === id).length
+  const узел = [...(файл?.nodes ?? [])].sort((a, b) => связиУ(b.id) - связиУ(a.id))[0]
+  const карточка = () => document.querySelector(`.cnode[data-node="${узел?.id}"]`) as HTMLElement
+  // Снаружи React: на «over» от своего же узла React не отзывается, ждёт «out».
+  const фон = document.body
+  const навести = () => карточка().dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true, relatedTarget: фон }))
+  const увести = () => карточка().dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true, relatedTarget: фон }))
+  const бегут = () => all('.cv-run').length
+  const настройка = () => JSON.parse(dom.window.localStorage.getItem('kashel:data.json') || '{}').settings?.canvasLinesAnim
+  check('на доске есть карточка со связями', !!узел && связиУ(узел.id) > 0 && !!карточка())
+
+  навести()
+  await wait(150)
+  check('по умолчанию бег выключен: наведение ничего не запускает', бегут() === 0 && !document.querySelector('.cv-edge.run'))
+  увести()
+  click(document.querySelector('.hud-help'))
+  await wait(200)
+  const кнопки = all('.cv-help-run button')
+  check('в справке «?» рядом с колесом — «Бег по линиям», выключен', кнопки.length === 2 && кнопки[0].classList.contains('on') && text().includes('Бег по линиям'))
+  click(кнопки.find((b) => (b.textContent || '').includes('При наведении')))
+  await wait(1500)
+  check('включение сохраняется в настройках', настройка() === true, String(настройка()))
+  click(document.querySelector('.hud-help'))
+  await wait(150)
+
+  check('в покое ничего не бежит', бегут() === 0)
+  навести()
+  await wait(150)
+  check('наведение на карточку — штрих по всем её связям', бегут() === связиУ(узел!.id), `${бегут()} из ${связиУ(узел!.id)}`)
+  увести()
+  await wait(150)
+  check('мышь ушла — снова покой', бегут() === 0)
+  const линия = document.querySelector('.cv-edge .cv-hit') as HTMLElement
+  линия.dispatchEvent(new dom.window.MouseEvent('mouseover', { bubbles: true, relatedTarget: фон }))
+  await wait(150)
+  check('наведение на линию — бежит только она', бегут() === 1)
+  линия.dispatchEvent(new dom.window.MouseEvent('mouseout', { bubbles: true, relatedTarget: фон }))
+  await wait(100)
+
+  // Анимации «как в системе», а система просит меньше движения: только подсветка.
+  const уровень = async (имя: string) => {
+    click(all('.ribbon-btn').find((b) => (b.getAttribute('title') || '').startsWith('Оформление')))
+    await wait(350)
+    click(all('.modal .chip').find((c) => (c.textContent || '').includes(имя)))
+    await wait(200)
+    key('Escape')
+    await wait(250)
+  }
+  await уровень('Как в системе')
+  setSystemReduced(true)
+  await wait(250)
+  навести()
+  await wait(150)
+  check('без анимаций штрих не бежит, связи только подсвечены', бегут() === 0 && all('.cv-edge.run').length === связиУ(узел!.id),
+    `${document.documentElement.dataset.anim} · ${бегут()} · ${all('.cv-edge.run').length}`)
+  увести()
+  setSystemReduced(false)
+  await wait(200)
+  await уровень('Полные')
+
+  // Цвет по смыслу: категория дохода со счётом — зелёный, расхода — красный.
+  const data = JSON.parse(dom.window.localStorage.getItem('kashel:data.json') || '{}') as VaultData
+  const видКатегории = (id?: string) => data.categories.find((c) => c.id === id)?.kind
+  const денежные = (файл?.edges ?? []).map((e) => {
+    const a = файл!.nodes.find((n) => n.id === e.fromNode)
+    const b = файл!.nodes.find((n) => n.id === e.toNode)
+    const кат = a?.type === 'category' && b?.type === 'account' ? a : b?.type === 'category' && a?.type === 'account' ? b : null
+    return кат && !e.color ? { e, вид: видКатегории(кат.ref) } : null
+  }).filter((x): x is { e: (typeof файл & object)['edges'][number]; вид: 'income' | 'expense' | undefined } => !!x)
+  const цвет = (id: string) => document.querySelector(`.cv-edge[data-edge="${id}"] path:not(.cv-hit)`)?.getAttribute('stroke')
+  check('есть денежные связи для проверки цвета', денежные.length > 0)
+  check('доход — зелёный, расход — красный', денежные.every(({ e, вид }) => цвет(e.id) === (вид === 'income' ? 'var(--money-in)' : 'var(--money-out)')),
+    денежные.map(({ e, вид }) => `${вид}:${цвет(e.id)}`).join(' '))
+
+  // Выключить обратно — остальные проверки идут как прежде.
+  click(document.querySelector('.hud-help'))
+  await wait(200)
+  click(all('.cv-help-run button').find((b) => (b.textContent || '').includes('Выкл')))
+  await wait(200)
+  click(document.querySelector('.hud-help'))
+  await wait(150)
+  навести()
+  await wait(150)
+  check('выключили — наведение снова ничего не запускает', бегут() === 0)
+  увести()
+}
+
 async function transactionsBulk() {
   console.log('\n— массовое выделение в операциях —')
   await open('Операции')
@@ -4089,6 +4188,7 @@ async function main() {
   await canvasNavigation()
   await canvasWidgets()
   await свойВиджет()
+  await бегПоЛиниям()
   await dashboardWipe()
   await transactionsBulk()
   await entryDateFollowsPeriod()

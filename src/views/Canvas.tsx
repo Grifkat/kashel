@@ -247,6 +247,17 @@ export default function CanvasView({ name }: { name?: string }) {
   const гасимМеню = useRef(false)
   const [справка, setСправка] = useState(false)
   const animLevel = useAnimLevel()
+  /**
+   * Бег по линиям: под мышью линия или карточка — по её связям бежит штрих.
+   * Выключен, пока не включат в справке; в покое ничего не движется и
+   * процессор не тратится — анимация живёт, только пока мышь над линией.
+   */
+  const линииБегут = !!data.settings.canvasLinesAnim
+  const [наведено, setНаведено] = useState<{ edge?: string; node?: string } | null>(null)
+  const навести = useCallback((x: { edge?: string; node?: string } | null) => {
+    if (!линииБегут) return
+    setНаведено((было) => (было?.edge === x?.edge && было?.node === x?.node ? было : x))
+  }, [линииБегут])
   /** Сдвиг, масштаб, колесо и тачпад — см. components/canvas/kamera. */
   const { view, viewRef, движется, масштабК, zoomBy, тянуть, вписать, колесо, выбратьКолесо, замереть } = useКамера(wrapRef, current, animLevel)
   const docRef = useRef(doc)
@@ -1533,6 +1544,26 @@ export default function CanvasView({ name }: { name?: string }) {
     patchSettings({ canvasLines: next })
   }
   const selectedEdge = selEdge ? doc.edges.find((e) => e.id === selEdge) : null
+  /** Связи, по которым сейчас бежит штрих: наведённая или все у наведённой карточки. */
+  const бегущие = new Set<string>(
+    !линииБегут || !наведено ? []
+      : наведено.edge ? [наведено.edge]
+        : doc.edges.filter((e) => e.fromNode === наведено.node || e.toNode === наведено.node).map((e) => e.id),
+  )
+  /**
+   * Цвет по смыслу: на концах категория и счёт — значит, это деньги. Доход
+   * зелёный, расход красный — по виду категории, а не по стрелке: связь
+   * могли протянуть и задом наперёд. Свой цвет линии важнее смысла.
+   */
+  const смыслСвязи = (e: CanvasEdge): string | undefined => {
+    const a = nodeById.get(e.fromNode)
+    const b = nodeById.get(e.toNode)
+    if (!a || !b) return undefined
+    const кат = a.type === 'category' && b.type === 'account' ? a : b.type === 'category' && a.type === 'account' ? b : null
+    if (!кат) return undefined
+    const c = data.categories.find((x) => x.id === кат.ref)
+    return c ? (c.kind === 'income' ? 'var(--money-in)' : 'var(--money-out)') : undefined
+  }
   const edgeCurve = (e: CanvasEdge) => {
     const a = nodeById.get(e.fromNode)
     const b = nodeById.get(e.toNode)
@@ -1547,8 +1578,8 @@ export default function CanvasView({ name }: { name?: string }) {
    * собирал все карточки: на доске в 250 карточек — десятки миллисекунд.
    * Действия берутся из ref, чтобы запомненный слой звал свежие.
    */
-  const действия = useRef({ правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть })
-  действия.current = { правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть }
+  const действия = useRef({ правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть, навести })
+  действия.current = { правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть, навести }
   const слойКарточек = useMemo(
     () => doc.nodes.map((n) => {
       const info = nodeData(n, data, cardCtx)
@@ -1556,6 +1587,7 @@ export default function CanvasView({ name }: { name?: string }) {
       return (
         <div
           key={n.id}
+          data-node={n.id}
           className={`cnode cnode-${cardStyle} cnode-t-${n.type}${selected ? ' sel' : ''}`}
           style={{
             left: n.x,
@@ -1607,6 +1639,8 @@ export default function CanvasView({ name }: { name?: string }) {
             else действия.current.openNodeTarget(n)
           }}
           onAuxClick={(e) => e.preventDefault()}
+          onMouseEnter={() => действия.current.навести({ node: n.id })}
+          onMouseLeave={() => действия.current.навести(null)}
         >
           {n.type === 'widget' ? (
             <Виджет node={n} data={data} from={from} periodLabel={periodLabel} />
@@ -1753,15 +1787,20 @@ export default function CanvasView({ name }: { name?: string }) {
             // непомерно); у прочих — по толщине и цвету линии.
             const конец = e.flow ? (on ? 'url(#cv-arrow-sel)' : 'url(#cv-arrow)') : 'url(#cv-arr)'
             const начало = e.flow ? 'url(#cv-arrow-back)' : 'url(#cv-arr)'
+            const цвет = вид.color ?? смыслСвязи(e) ?? (e.flow ? from?.color ?? 'var(--faint)' : 'var(--faint)')
+            const бежит = бегущие.has(e.id)
             return (
               <g
                 key={e.id}
-                className={'cv-edge' + (on ? ' on' : '') + (вставкаВ === e.id ? ' insert' : '') + (тащимКонец === e.id ? ' moving' : '')}
+                data-edge={e.id}
+                className={'cv-edge' + (on ? ' on' : '') + (вставкаВ === e.id ? ' insert' : '') + (тащимКонец === e.id ? ' moving' : '') + (бежит ? ' run' : '')}
               >
                 {/* Широкая прозрачная дорожка — попасть мышью по кривой иначе тяжело. */}
                 <path
                   d={pathOf(c)}
                   className="cv-hit"
+                  onMouseEnter={() => навести({ edge: e.id })}
+                  onMouseLeave={() => навести(null)}
                   onMouseDown={(ev) => {
                     ev.stopPropagation()
                     if (правыйСдвиг(ev)) return
@@ -1785,16 +1824,30 @@ export default function CanvasView({ name }: { name?: string }) {
                 <path
                   d={pathOf(c)}
                   fill="none"
-                  stroke={on ? 'var(--accent)' : вид.color ?? (e.flow ? from?.color ?? 'var(--faint)' : 'var(--faint)')}
+                  stroke={on ? 'var(--accent)' : цвет}
                   strokeWidth={on ? w + 1 : w}
                   strokeDasharray={штрихЛинии(вид.dash, Math.min(w, 4))}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity={on ? 0.95 : e.flow ? 0.5 : 0.8}
+                  opacity={on || бежит ? 0.95 : e.flow ? 0.5 : 0.8}
                   markerEnd={arrow === 'none' ? undefined : конец}
                   markerStart={arrow === 'both' ? начало : undefined}
                   pointerEvents="none"
                 />
+                {/* Бегущий штрих — от начала связи к концу, туда, куда смотрит
+                    стрелка. Без движения (анимации выключены) линия только
+                    подсвечивается. */}
+                {бежит && animLevel !== 'off' && (
+                  <path
+                    d={pathOf(c)}
+                    className="cv-run"
+                    fill="none"
+                    stroke="var(--panel)"
+                    strokeWidth={Math.max(1.5, Math.min(w, 10) * 0.6)}
+                    strokeLinecap="round"
+                    pointerEvents="none"
+                  />
+                )}
                 {(e.label || (e.flow && amount > 0)) && view.k > 0.45 && (
                   <text x={mid.x} y={mid.y - 7} textAnchor="middle" className="cv-edge-label" pointerEvents="none">
                     {e.label ? e.label + ' ' : ''}
@@ -2059,6 +2112,12 @@ export default function CanvasView({ name }: { name?: string }) {
         <Справка
           колесо={колесо}
           onКолесо={выбратьКолесо}
+          линииБегут={линииБегут}
+          onЛинииБегут={(v) => {
+            patchSettings({ canvasLinesAnim: v || undefined })
+            if (!v) setНаведено(null)
+          }}
+          движениеВыкл={animLevel === 'off'}
           карточек={doc.nodes.length}
           связей={doc.edges.length}
           onClose={() => setСправка(false)}
