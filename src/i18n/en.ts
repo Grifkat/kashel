@@ -2189,6 +2189,8 @@ export const EN: Record<string, string> = {
   'Свой виджет — правка на всех досках': 'Custom widget — edit on every board',
   'Свой виджет — только эта карточка': 'Custom widget — this card only',
   'Собрать и положить': 'Build and place',
+  'Правка обновит этот виджет на всех досках, где он лежит.': 'The edit updates this widget on every board that holds it.',
+  'Эта карточка отвязана от библиотеки: правка изменит только её.': 'This card is unlinked from the library: the edit changes only it.',
   'Удалить из библиотеки?': 'Delete from library?',
   'Виджет «{0}» уйдёт из «Моих виджетов». Доски, где он лежит, не сломаются: его карточки останутся копиями, которые больше не следуют правкам.': 'Widget “{0}” will leave “My widgets”. Boards that hold it will not break: its cards stay as copies that no longer follow edits.',
   'Удалить из библиотеки': 'Delete from library',

@@ -183,7 +183,7 @@ type Узел =
   | { k: 'op'; оп: '+' | '-' | '*' | '/'; a: Узел; b: Узел; где: number }
 
 export class ОшибкаФормулы extends Error {
-  constructor(сообщение: string, public где: number) {
+  constructor(сообщение: string, public где: number, public длина = 1) {
     super(сообщение)
   }
 }
@@ -406,7 +406,7 @@ function связать(у: Extract<Узел, { k: 'name' }>, data: VaultData, �
 
   if (у.уточнение !== undefined) {
     const что = у.уточнение
-    if (!что.trim()) throw new ОшибкаФормулы(т('После «{0}:» нужно имя', у.слово), у.где)
+    if (!что.trim()) throw new ОшибкаФормулы(т('После «{0}:» нужно имя', у.слово), у.где, у.текст.length)
     switch (слово) {
       case 'income':
       case 'expense':
@@ -417,35 +417,35 @@ function связать(у: Extract<Узел, { k: 'name' }>, data: VaultData, �
         if (c) return { к, кат: семьяКат(c) }
         const тег = естьТег(data, что)
         if (тег) return { к, тег }
-        throw new ОшибкаФормулы(т('Нет категории или тега «{0}»', что), у.где)
+        throw new ОшибкаФормулы(т('Нет категории или тега «{0}»', что), у.где, у.текст.length)
       }
       case 'category': {
         const c = категорияПо(data, что)
-        if (!c) throw new ОшибкаФормулы(т('Нет категории «{0}»', что), у.где)
+        if (!c) throw new ОшибкаФормулы(т('Нет категории «{0}»', что), у.где, у.текст.length)
         return { к: 'metric', metric: 'category', ref: c.id }
       }
       case 'account': {
         const a = найти(data.accounts, что)
-        if (!a) throw new ОшибкаФормулы(т('Нет счёта «{0}»', что), у.где)
+        if (!a) throw new ОшибкаФормулы(т('Нет счёта «{0}»', что), у.где, у.текст.length)
         return { к: 'metric', metric: 'account', ref: a.id }
       }
       case 'goal': {
         const g = найти(data.goals, что)
-        if (!g) throw new ОшибкаФормулы(т('Нет цели «{0}»', что), у.где)
+        if (!g) throw new ОшибкаФормулы(т('Нет цели «{0}»', что), у.где, у.текст.length)
         return { к: 'metric', metric: 'goal', ref: g.id }
       }
       case 'tag': {
         const тег = естьТег(data, что)
-        if (!тег) throw new ОшибкаФормулы(т('Нет тега «{0}»', что), у.где)
+        if (!тег) throw new ОшибкаФормулы(т('Нет тега «{0}»', что), у.где, у.текст.length)
         return { к: 'expense', тег }
       }
       case 'widget': {
         const w = найти(библиотека, что)
-        if (!w) throw new ОшибкаФормулы(т('Нет своего виджета «{0}»', что), у.где)
+        if (!w) throw new ОшибкаФормулы(т('Нет своего виджета «{0}»', что), у.где, у.текст.length)
         return { к: 'widget', w }
       }
       default:
-        throw new ОшибкаФормулы(т('Не знаю «{0}:». Уточнять можно доход, расход, операций, счёт, цель, категорию, тег и виджет', у.слово), у.где)
+        throw new ОшибкаФормулы(т('Не знаю «{0}:». Уточнять можно доход, расход, операций, счёт, цель, категорию, тег и виджет', у.слово), у.где, у.текст.length)
     }
   }
 
@@ -457,7 +457,7 @@ function связать(у: Extract<Узел, { k: 'name' }>, data: VaultData, �
     case 'count': return { к: 'metric', metric: 'count' }
     case 'avg': return { к: 'metric', metric: 'avg' }
     case undefined: break
-    default: throw new ОшибкаФормулы(т('После «{0}» нужно двоеточие и имя', у.слово), у.где)
+    default: throw new ОшибкаФормулы(т('После «{0}» нужно двоеточие и имя', у.слово), у.где, у.текст.length)
   }
   // Голое имя: свой виджет, цель, счёт, категория, тег — в таком порядке.
   const w = найти(библиотека, у.слово)
@@ -470,7 +470,7 @@ function связать(у: Extract<Узел, { k: 'name' }>, data: VaultData, �
   if (c) return { к: 'metric', metric: 'category', ref: c.id }
   const тег = естьТег(data, у.слово)
   if (тег) return { к: 'expense', тег }
-  throw new ОшибкаФормулы(т('Не знаю «{0}». {1}', у.текст, подсказкаИмён()), у.где)
+  throw new ОшибкаФормулы(т('Не знаю «{0}». {1}', у.текст, подсказкаИмён()), у.где, у.текст.length)
 }
 
 // ---------------------------------------------------------------- счёт
@@ -586,14 +586,14 @@ export function посчитать(w: СвойВиджет, data: VaultData, д�
   return посчитатьВ(w, data, окноВиджета(w, доскаС, now))
 }
 
-/** Только проверка формулы — для окна конструктора. Пустая строка — всё верно. */
-export function проверитьФормулу(w: СвойВиджет, data: VaultData): { ошибка: string; где: number } | null {
+/** Только проверка формулы — для окна конструктора: ошибка, где она и сколько знаков подсветить. null — всё верно. */
+export function проверитьФормулу(w: СвойВиджет, data: VaultData): { ошибка: string; где: number; длина: number } | null {
   if (!естьФормула(w)) return null
   try {
     подготовить(w, data)
     return null
   } catch (e) {
-    if (e instanceof ОшибкаФормулы) return { ошибка: e.message, где: e.где }
+    if (e instanceof ОшибкаФормулы) return { ошибка: e.message, где: e.где, длина: e.длина }
     throw e
   }
 }

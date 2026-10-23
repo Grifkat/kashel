@@ -65,6 +65,7 @@ export function КонструкторВиджета({
   periodLabel,
   заголовок,
   кнопка,
+  пояснение,
   onSave,
   onClose,
 }: {
@@ -75,6 +76,8 @@ export function КонструкторВиджета({
   periodLabel: string
   заголовок: string
   кнопка: string
+  /** Под предпросмотром: куда ляжет виджет и кого заденет правка. */
+  пояснение: string
   onSave(w: СвойВиджет): void
   onClose(): void
 }) {
@@ -195,7 +198,7 @@ export function КонструкторВиджета({
               {ошибка.ошибка}
               {ошибка.где > 0 && (w.formula ?? '').length > 0 && (
                 <div className="svw-where mono">
-                  {(w.formula ?? '').slice(0, ошибка.где)}<mark>{(w.formula ?? '').slice(ошибка.где, ошибка.где + 1) || ' '}</mark>{(w.formula ?? '').slice(ошибка.где + 1)}
+                  {(w.formula ?? '').slice(0, ошибка.где)}<mark>{(w.formula ?? '').slice(ошибка.где, ошибка.где + ошибка.длина) || ' '}</mark>{(w.formula ?? '').slice(ошибка.где + ошибка.длина)}
                 </div>
               )}
             </div>
@@ -328,7 +331,7 @@ export function КонструкторВиджета({
             <СвойВиджетВид w={предпросмотр} data={data} from={from} periodLabel={periodLabel} размер={размер} />
           </div>
           <div className="faint small" style={{ lineHeight: 1.5 }}>
-            {т('Виджет ляжет в «Мои виджеты» и будет доступен на любой доске. Правка в библиотеке обновит все его копии.')}
+            {пояснение}
           </div>
         </div>
       </div>
