@@ -30,6 +30,9 @@ import tsiolkovsky from './portrety/tsiolkovsky.jpg'
 import turgenev from './portrety/turgenev.jpg'
 import tyutchev from './portrety/tyutchev.jpg'
 import zhukovsky from './portrety/zhukovsky.jpg'
+import vrangel from './portrety/vrangel.jpg'
+import denikin from './portrety/denikin.jpg'
+import mendeleev from './portrety/mendeleev.jpg'
 
 export const ПОРТРЕТЫ: Record<string, string> = {
   bulgakov,
@@ -59,4 +62,7 @@ export const ПОРТРЕТЫ: Record<string, string> = {
   turgenev,
   tyutchev,
   zhukovsky,
+  vrangel,
+  denikin,
+  mendeleev,
 }

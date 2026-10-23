@@ -38,6 +38,9 @@ PD-RusEmpire / PD-US-expired и подобные. Лицензии CC BY, CC BY-
 | bulgakov.jpg | Михаил Булгаков | Фото, автор неизвестен | 1916 | Public domain (PD-RusEmpire, PD-US-expired) | [Commons](https://commons.wikimedia.org/wiki/File:Mikhail_Bulgakov,_1916,_restored.jpg) |
 | esenin.jpg | Сергей Есенин | Фото, автор неизвестен | до 1925 | Public domain (PD-Russia-1996) | [Commons](https://commons.wikimedia.org/wiki/File:Sergey_Yesenin_2.jpg) |
 | dal.jpg | Владимир Даль (и «Народная мудрость» из его собрания) | Василий Перов | 1872 | Public domain (PD-Art, PD-old) | [Commons](https://commons.wikimedia.org/wiki/File:1872._%D0%9F%D0%BE%D1%80%D1%82%D1%80%D0%B5%D1%82_%D0%BF%D0%B8%D1%81%D0%B0%D1%82%D0%B5%D0%BB%D1%8F_%D0%92%D0%BB%D0%B0%D0%B4%D0%B8%D0%BC%D0%B8%D1%80%D0%B0_%D0%98%D0%B2%D0%B0%D0%BD%D0%BE%D0%B2%D0%B8%D1%87%D0%B0_%D0%94%D0%B0%D0%BB%D1%8F.jpg) |
+| mendeleev.jpg | Дмитрий Менделеев | Фото в кабинете, автор неизвестен | 1897 | Public domain (PD-old) | [Commons](https://commons.wikimedia.org/wiki/File:DIMendeleevCab.jpg) |
+| denikin.jpg | Антон Деникин | Фото, автор неизвестен | 1918–1919 | Public domain (PD-old) | [Commons](https://commons.wikimedia.org/wiki/File:Denikin1.PNG) |
+| vrangel.jpg | Пётр Врангель | Фото, автор неизвестен | ок. 1920 | Public domain (PD-old) | [Commons](https://commons.wikimedia.org/wiki/File:Pyotr_Wrangel,_portrait_medium.jpg) |
 
 ## Без портрета — монограмма
 
