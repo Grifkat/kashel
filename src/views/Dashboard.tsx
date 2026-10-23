@@ -26,6 +26,7 @@ import { KreditDashbord } from '../components/KreditDashbord'
 import { подкатегории, поГлавным, раскладкаГлавной } from '../engine/podkategorii'
 import { БЛОКИ_ПО_УМОЛЧАНИЮ, type БлокСводки, type Transaction } from '../lib/types'
 import { т, тр } from '../i18n'
+import { ЦитатаДняСтрока } from '../components/Citaty'
 
 /** Названия блоков «Сводки» — видны только в настройке порядка. */
 const НАЗВАНИЯ_БЛОКОВ: Record<БлокСводки, string> = {
@@ -643,9 +644,9 @@ export default function Dashboard() {
         </div>
         <div className="hero-label">
           {тр('чистый капитал {0}{1}', hidden ? '••••' : money(bal.net), bal.liabilities < 0 && т(' · обязательства {0}', hidden ? '••••' : money(bal.liabilities)))}</div>
-        {/* Напутствие: видно всякий раз, когда открываешь «Сводку», — учёт
-            держится не порывом, а привычкой. */}
-        <div className="hero-deviz">{т('Москва не была построена за один день, но кирпичи клали каждый час')}</div>
+        {/* Цитата дня: та же, что в окне при запуске. Клик — раздел «Цитаты»,
+            звезда — в избранное. */}
+        <ЦитатаДняСтрока />
       </div>
 
       {/* ------------------------------------------------ дашборд кредита */}

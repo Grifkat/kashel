@@ -1,6 +1,6 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type {
-  Account, Category, Goal, Honors, ImportRule, Recurring, Reminder, Scenario, Settings, Task, TaskList,
+  Account, Category, Goal, Honors, ImportRule, Recurring, Reminder, Scenario, Settings, Task, TaskList, НастройкиЦитат,
   Transaction, VaultData,
 } from '../lib/types'
 import { monthKey, today } from '../lib/date'
@@ -76,6 +76,8 @@ interface Store {
   deleteScenario(id: string): void
   setImportRules(rules: ImportRule[]): void
   patchSettings(p: Partial<Settings>): void
+  /** Настройки цитат — функцией от текущих: две правки подряд не затирают друг друга. */
+  patchQuotes(f: (q: НастройкиЦитат) => НастройкиЦитат): void
 
   /** Стереть всё. Перед этим — резервная копия; возвращает её путь (или null в браузере). */
   wipeAll(): Promise<string | null>
@@ -525,6 +527,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     [setData],
   )
 
+  const patchQuotes = useCallback(
+    (f: (q: НастройкиЦитат) => НастройкиЦитат) =>
+      setData((d) => ({ ...d, settings: { ...d.settings, quotes: f(d.settings.quotes ?? {}) } }), undefined, { безОтметки: true }),
+    [setData],
+  )
+
   const patchHonors = useCallback(
     (p: Partial<Honors>) => setData((d) => ({ ...d, honors: { ...d.honors, ...p } }), undefined, { безОтметки: true }),
     [setData],
@@ -603,7 +611,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       upsertAccount, deleteAccount, upsertCategory, deleteCategory,
       upsertRecurring, deleteRecurring, upsertReminder, deleteReminder,
       upsertTask, deleteTask, repeatTask, stopRepeat, upsertTaskList, deleteTaskList, upsertGoal, deleteGoal,
-      upsertScenario, deleteScenario, setImportRules, patchSettings, patchHonors,
+      upsertScenario, deleteScenario, setImportRules, patchSettings, patchQuotes, patchHonors,
       wipeAll, replaceAll, chooseVault,
       failure, saveError, retryBoot: boot,
     }),

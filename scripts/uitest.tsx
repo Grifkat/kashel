@@ -91,7 +91,7 @@ function seedStorage() {
     ? { ...a, credit: { ...a.credit, remind: true, remindFrom: '2099-01-01' } }
     : a))
   // «Что нового» уже просмотрено — иначе окно закрыло бы собой все проверки. Само окно проверяется отдельно.
-  ls.setItem('kashel:data.json', JSON.stringify({ ...core, settings: { ...core.settings, whatsNewSeen: '99.0.0' },
+  ls.setItem('kashel:data.json', JSON.stringify({ ...core, settings: { ...core.settings, whatsNewSeen: '99.0.0', quotes: { popup: 'off' } },
     accounts: счета, notifications: [уведомленіе] }))
   const byMonth = new Map<string, typeof transactions>()
   for (const t of transactions) {
@@ -182,7 +182,7 @@ async function sections() {
   console.log('\n— разделы —')
   const names = [
     'Дашборд', 'Операции', 'Счета', 'Категории', 'Бюджет', 'Цели',
-    'Задачи', 'Грамота', 'Регулярные', 'Напоминания', 'Долги и кредиты', 'Прогноз', 'Календарь', 'Итоги года', 'Советы',
+    'Задачи', 'Грамота', 'Регулярные', 'Напоминания', 'Долги и кредиты', 'Прогноз', 'Календарь', 'Итоги года', 'Советы', 'Цитаты',
     'Канвас', 'Заметки', 'Граф', 'Импорт', 'Настройки',
   ]
   for (const n of names) {
@@ -3313,8 +3313,8 @@ async function правки107() {
 
   // ------------------------------------------------ период на «Сводке»
   await open('Дашборд')
-  check('напутствие видно в шапке «Сводки»',
-    (document.querySelector('.view .hero-deviz')?.textContent || '').includes('кирпичи клали каждый час'),
+  check('цитата дня видна в шапке «Сводки»',
+    (document.querySelector('.view .hero-deviz')?.textContent || '').includes('Фёдор Достоевский'),
     document.querySelector('.view .hero-deviz')?.textContent ?? 'нет')
   const ярлык = () => (document.querySelector('.view .period-label')?.textContent || '').trim()
   click(byText('.view .seg button', 'День'))
@@ -3898,6 +3898,84 @@ async function потокиВсеПодписи(root: Root): Promise<Root> {
   return root
 }
 
+/**
+ * Цитаты: строка дня на «Сводке», звезда избранного, раздел и окно при
+ * запуске. Окно в оснастке выключено (иначе закрыло бы собой все проверки) —
+ * здесь его включаем «при каждом запуске» и перезапускаем программу.
+ */
+async function цитатыЭкраны(root: Root): Promise<Root> {
+  console.log('\n— цитаты —')
+  await open('Дашборд')
+  const строка = () => document.querySelector('.citata-stroka') as HTMLElement | null
+  check('под балансом цитата дня с автором', !!строка() && /Деньги есть чеканенная свобода.*Фёдор Достоевский/.test(строка()!.textContent || ''),
+    (строка()?.textContent || '').slice(0, 80))
+  check('фразы про Москву больше нет', !text().includes('Москва не была построена'))
+
+  // Девиз в избранном с самого начала: первая звезда убирает, вторая возвращает.
+  const звезда = () => строка()?.querySelector('.citata-zvezda') as HTMLElement | null
+  check('звезда девиза золотая сразу', !!звезда()?.classList.contains('on'))
+  click(звезда())
+  await wait(300)
+  check('звезда убирает из избранного', !звезда()?.classList.contains('on') && text().includes('Убрано из избранного'))
+  click(звезда())
+  await wait(300)
+  check('☆ добавляет в избранное', !!звезда()?.classList.contains('on') && text().includes('Добавлено в избранное'))
+  const открыть = [...document.querySelectorAll('[data-sonner-toast] button')].find((b) => (b.textContent || '').includes('Открыть'))
+  check('в уведомлении есть «Открыть»', !!открыть)
+
+  // Клик по тексту — раздел «Цитаты».
+  click(строка()!.querySelector('.citata-stroka-tekst'))
+  await wait(450)
+  const раздел = document.querySelector('.citaty-view')
+  check('клик по цитате открывает раздел', !!раздел && (раздел.textContent || '').includes('К чему это'))
+  check('в разделе избранное и «Были раньше»', /Избранное.*Деньги есть чеканенная свобода.*Были раньше/.test((раздел?.textContent || '').replace(/\s+/g, ' ')))
+  check('у цитаты дня портрет', !!раздел?.querySelector('img.citata-portret'))
+  check('пункт «Цитаты» в группе «Анализ»', !!byText('.nav-item', 'Цитаты'))
+
+  // Окно при запуске: включаем «при каждом запуске» в настройках.
+  await open('Настройки')
+  const кнопка = byText('.nastroyki-citaty .seg button', 'При каждом запуске')
+  check('в настройках выбор окна с цитатой', !!кнопка && !!byText('.nastroyki-citaty .seg button', 'Не показывать'))
+  click(кнопка)
+  await wait(200)
+  check('и стиль общения', !!byText('.nastroyki-citaty .seg button', 'Жёстко, но по делу'))
+  click(byText('.nastroyki-citaty .seg button', 'Жёстко, но по делу'))
+  await wait(1200)
+
+  root.unmount()
+  await wait(250)
+  root = mount()
+  await wait(1800)
+  const окно = () => document.querySelector('.citata-okno') as HTMLElement | null
+  check('при запуске окно с цитатой', !!окно() && (окно()!.textContent || '').includes('К чему это'))
+  check('в окне кнопки избранного, «Ещё цитата» и «Закрыть»', !!окно() && ['В избранн', 'Ещё цитата', 'Закрыть · Esc'].every((т) => (окно()!.textContent || '').includes(т)))
+  check('в окне цитата дня', (окно()?.textContent || '').includes('Цитата дня'))
+  const былоТекст = окно()?.querySelector('.citata-golova')?.textContent
+  click(byText('.citata-okno .btn', 'Ещё цитата'))
+  await wait(200)
+  check('«Ещё цитата» показывает другую', !!окно() && окно()!.querySelector('.citata-golova')?.textContent !== былоТекст)
+  key('Escape')
+  await wait(250)
+  check('окно закрывается по Esc', !окно())
+
+  // Ещё раз — теперь клик мимо карточки.
+  root.unmount()
+  await wait(250)
+  root = mount()
+  await wait(1800)
+  check('«при каждом запуске» — снова окно', !!окно())
+  if (окно()) mouse(окно(), 'mousedown', 2, 2)
+  await wait(250)
+  check('окно закрывается кликом мимо карточки', !окно())
+
+  // Вернуть оснастку как была: окно не мешает следующим проверкам.
+  await open('Настройки')
+  click(byText('.nastroyki-citaty .seg button', 'Не показывать'))
+  click(byText('.nastroyki-citaty .seg button', 'Нейтрально'))
+  await wait(1200)
+  return root
+}
+
 async function main() {
   seedStorage()
   let root = mount()
@@ -3941,6 +4019,7 @@ async function main() {
   await dashboardWipe()
   await transactionsBulk()
   await entryDateFollowsPeriod()
+  root = await цитатыЭкраны(root)
   root = await графПодкатегории(root)
   root = await потокиВсеПодписи(root)
   root = await persistence(root)

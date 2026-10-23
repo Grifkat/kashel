@@ -24,6 +24,7 @@ import type { AnimLevel, Density, ReadingFont, ЗадачаПоУмолчани�
 import { PRIORITIES } from '../engine/tasks'
 import { т, тр } from '../i18n'
 import { ЗвукиНастройки } from '../components/ZvukiNastroyki'
+import { НастройкиЦитатКарточка } from '../components/Citaty'
 
 export default function SettingsView() {
   const app = useApp()
@@ -267,6 +268,9 @@ export default function SettingsView() {
           <div className="card-title"><Icon name="bell" size={14} /> {т(' Звуки и уведомления')}</div>
           <ЗвукиНастройки />
         </div>
+
+        {/* ------------------------------------------------ цитаты */}
+        <НастройкиЦитатКарточка />
 
         {/* ------------------------------------------------ новая задача */}
         <НоваяЗадача />
