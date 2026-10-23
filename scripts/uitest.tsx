@@ -4203,6 +4203,18 @@ async function цитатыЭкраны(root: Root): Promise<Root> {
   const открыть = [...document.querySelectorAll('[data-sonner-toast] button')].find((b) => (b.textContent || '').includes('Открыть'))
   check('в уведомлении есть «Открыть»', !!открыть)
 
+  // Правый щелчок — то же окно, что при запуске, когда захочется (1.0.25).
+  строка()!.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 300, clientY: 200 }))
+  await wait(250)
+  check('правый щелчок по цитате — меню с «На весь экран»', !!menuItem('Открыть на весь экран'))
+  click(menuItem('Открыть на весь экран'))
+  await wait(300)
+  const окноПоПросьбе = document.querySelector('.citata-okno')
+  check('и окно открывается сразу, не дожидаясь завтра', !!окноПоПросьбе && (окноПоПросьбе.textContent || '').includes('Деньги есть чеканенная свобода'))
+  key('Escape')
+  await wait(250)
+  check('и закрывается по Esc', !document.querySelector('.citata-okno'))
+
   // Клик по тексту — раздел «Цитаты».
   click(строка()!.querySelector('.citata-stroka-tekst'))
   await wait(450)
@@ -4210,6 +4222,11 @@ async function цитатыЭкраны(root: Root): Promise<Root> {
   check('клик по цитате открывает раздел', !!раздел && (раздел.textContent || '').includes('К чему это'))
   check('в разделе избранное и «Были раньше»', /Избранное.*Деньги есть чеканенная свобода.*Были раньше/.test((раздел?.textContent || '').replace(/\s+/g, ' ')))
   check('у цитаты дня портрет', !!раздел?.querySelector('img.citata-portret'))
+  click(byText('.citaty-view .btn', 'На весь экран'))
+  await wait(300)
+  check('из раздела цитата тоже открывается на весь экран', !!document.querySelector('.citata-okno'))
+  key('Escape')
+  await wait(250)
   check('пункт «Цитаты» в группе «Анализ»', !!byText('.nav-item', 'Цитаты'))
 
   // Окно при запуске: включаем «при каждом запуске» в настройках.

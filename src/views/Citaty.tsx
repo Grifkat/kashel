@@ -6,7 +6,7 @@ import { т } from '../i18n'
 import type { Цитата } from '../citaty/baza'
 import { авторЦитаты, цитатаПоId } from '../citaty/vybor'
 import {
-  Портрет, useЗвезда, useЦитатаДня,
+  Портрет, useЗвезда, useЦитатаДня, открытьЦитату,
   годыА, имяА, источникЦ, кЧемуЦ, оговоркаЦ, славаА, текстЦ,
 } from '../components/Citaty'
 
@@ -60,6 +60,9 @@ export default function CitatyView() {
               onClick={() => звезда.нажать(дня.id)}
             >
               <Icon name="star" size={15} /> {отмечена ? т('В избранном') : т('В избранное')}
+            </button>
+            <button className="btn" onClick={() => открытьЦитату(дня)}>
+              <Icon name="fit" size={15} /> {т('На весь экран')}
             </button>
           </div>
         </div>
@@ -126,6 +129,9 @@ function Строка({ ц, день }: { ц: Цитата; день?: string })
         onClick={() => звезда.нажать(ц.id)}
       >
         <Icon name="star" size={16} />
+      </button>
+      <button className="icon-btn citaty-na-ekran" title={т('Открыть на весь экран')} aria-label={т('Открыть на весь экран')} onClick={() => открытьЦитату(ц)}>
+        <Icon name="fit" size={16} />
       </button>
     </div>
   )

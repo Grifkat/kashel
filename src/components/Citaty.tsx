@@ -11,6 +11,19 @@ import type { Автор } from '../citaty/avtory'
 import { ПОРТРЕТЫ } from '../citaty/portrety'
 import { авторЦитаты, выбратьНаДень, ещёЦитата, обстановка, разрезать, цитатаПоId } from '../citaty/vybor'
 import type { НастройкиЦитат } from '../lib/types'
+import { ContextMenu } from './canvas/ContextMenu'
+
+/*
+ * Окно цитаты по просьбе, а не только раз в день при запуске: правый клик по
+ * цитате на «Сводке», кнопка в разделе «Цитаты». Окно одно на всю программу —
+ * его держит ЦитатыХост, сюда же приходит просьба показать нужную цитату.
+ */
+const СОБЫТИЕ_ОКНА = 'kashel:citata-okno'
+
+/** Открыть окно на весь экран: с этой цитатой или, без неё, — с цитатой дня. */
+export function открытьЦитату(ц?: Цитата) {
+  window.dispatchEvent(new window.CustomEvent(СОБЫТИЕ_ОКНА, { detail: ц?.id }))
+}
 
 /*
  * Цитаты в окне программы: цитата дня на «Сводке», окно при запуске,
@@ -111,9 +124,29 @@ export function ЦитатаДняСтрока() {
   const звезда = useЗвезда()
   const а = авторЦитаты(ц)
   const отмечена = звезда.есть(ц.id)
+  const [меню, setМеню] = useState<{ x: number; y: number } | null>(null)
   return (
-    <div className="hero-deviz citata-stroka">
-      <button className="citata-stroka-tekst" onClick={() => app.openTab('quotes')} title={т('Открыть раздел «Цитаты»')}>
+    <div
+      className="hero-deviz citata-stroka"
+      onContextMenu={(e) => {
+        e.preventDefault()
+        setМеню({ x: e.clientX, y: e.clientY })
+      }}
+    >
+      {меню && (
+        <ContextMenu
+          x={меню.x}
+          y={меню.y}
+          title={т('Цитата дня')}
+          onClose={() => setМеню(null)}
+          items={[
+            { id: 'full', label: т('Открыть на весь экран'), icon: 'fit', onClick: () => открытьЦитату(ц) },
+            { id: 'star', label: отмечена ? т('Убрать из избранного') : т('В избранное'), icon: 'star', onClick: () => звезда.нажать(ц.id) },
+            { id: 'all', label: т('Раздел «Цитаты»'), icon: 'quote', onClick: () => app.openTab('quotes') },
+          ]}
+        />
+      )}
+      <button className="citata-stroka-tekst" onClick={() => app.openTab('quotes')} title={т('Открыть раздел «Цитаты». Правый щелчок — на весь экран')}>
         {т('«{0}»', текстЦ(ц))} <span className="citata-stroka-avtor">— {имяА(а)}</span>
       </button>
       <button
@@ -133,12 +166,12 @@ export function ЦитатаДняСтрока() {
  * Окно «Поверх Кошеля»: тёмная завеса над программой, цитата крупно,
  * пояснение и портрет во всю высоту. Закрывается Esc и кликом мимо карточки.
  */
-export function ЦитатаОкно({ onClose }: { onClose: () => void }) {
+export function ЦитатаОкно({ onClose, начальная }: { onClose: () => void; начальная?: Цитата }) {
   const дня = useЦитатаДня()
   const звезда = useЗвезда()
-  const [показ, setПоказ] = useState<Цитата>(дня)
+  const [показ, setПоказ] = useState<Цитата>(начальная ?? дня)
   const [номер, setНомер] = useState(0)
-  const [было, setБыло] = useState<string[]>([дня.id])
+  const [было, setБыло] = useState<string[]>([(начальная ?? дня).id])
   const перваяКнопка = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -228,7 +261,19 @@ export function ЦитатыХост() {
   const { data, ready, patchQuotes } = useStore()
   const ц = useЦитатаДня()
   const [открыто, setОткрыто] = useState(false)
+  /** Какую цитату показать — когда окно открыли по просьбе, а не при запуске. */
+  const [какая, setКакая] = useState<Цитата | undefined>()
   const решено = useRef(false)
+
+  useEffect(() => {
+    const открыть = (e: Event) => {
+      const id = (e as CustomEvent<string | undefined>).detail
+      setКакая(id ? цитатаПоId(id) : undefined)
+      setОткрыто(true)
+    }
+    window.addEventListener(СОБЫТИЕ_ОКНА, открыть)
+    return () => window.removeEventListener(СОБЫТИЕ_ОКНА, открыть)
+  }, [])
   const день = today()
   const q: НастройкиЦитат = data.settings.quotes ?? {}
 
@@ -251,7 +296,8 @@ export function ЦитатыХост() {
   }, [ready, ждётЧтоНового, q.popup, q.popupSeen, день, patchQuotes])
 
   if (!открыто) return null
-  return <ЦитатаОкно onClose={() => setОткрыто(false)} />
+  // key: новая просьба при открытом окне начинает показ заново, с той цитаты.
+  return <ЦитатаОкно key={какая?.id ?? 'den'} начальная={какая} onClose={() => { setОткрыто(false); setКакая(undefined) }} />
 }
 
 // ------------------------------------------------------------ настройки
