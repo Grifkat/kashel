@@ -17,6 +17,7 @@ import type { Account, Category, Goal, Recurring, Reminder, Scenario, Task, Tran
 import { СТАТЬЯ_ЦЕЛЕЙ, планъПополненія } from '../src/engine/goals'
 import { квадратъ, путьЗначкаДопустимъ, этоСвойЗначокъ } from '../src/lib/svoiznachki'
 import { parseArchive } from '../src/engine/archive'
+import { новыйВиджет, посчитать, проверитьФормулу, разбивкаВиджета, рядВиджета, цельПрогресса } from '../src/engine/vidzhety'
 import { вывестиТокены, значеніеДопустимо, контрастъ, очиститьТокены, простыяИзъТокеновъ, разобратьФайлТемы } from '../src/lib/svoitemy'
 import { dueReminders, nextDate } from '../src/engine/reminders'
 import { findRepeats } from '../src/engine/repeats'
@@ -54,7 +55,7 @@ import { личное } from '../src/engine/project'
 import { очиститьИсторію } from '../src/engine/uvedomleniya'
 import { включённыеВиджеты } from '../src/components/RightPanel'
 import { ждущія, новыеУведомления, отклонить, подтвердитьПлатёж } from '../src/engine/uvedomleniya'
-import type { Notice } from '../src/lib/types'
+import type { Notice, СвойВиджет } from '../src/lib/types'
 import { creditState, schedule, whatIf, следующийПлатёж, сводкаКредита, перевестиКредиты, планъПлатежа, разложитьПлатёжъ, датыПлатежей, остатокПослѣ, подсказкаОстатка, этоПлатёжПо, СТАТЬЯ_ПЛАТЕЖЕЙ, СТАТЬЯ_ПРОЦЕНТОВ } from '../src/engine/credit'
 import { личное, projectState, projectsSummary, проектная } from '../src/engine/project'
 import { НАСТАВЛЕНІЕ, наказЯзыка, полнаяВыгрузка, сводкаДляМодели } from '../src/engine/svodka'
@@ -3550,10 +3551,96 @@ async function завершить() {
   периодЛимитов()
   разовыеТраты()
   потокиПроверка()
+  своиВиджетыПроверка()
   переводъ()
   console.log(`\nПровалено проверок: ${fail.length}`)
   for (const f of fail) console.log('  ✗ ' + f)
   process.exit(fail.length ? 1 : 0)
+}
+
+/*
+ * Свой виджет канваса: показатели, фильтры, период и формула — свой парсер
+ * без eval, понятные ошибки, оба языка имён.
+ */
+function своиВиджетыПроверка() {
+  console.log('\n— свой виджет —')
+  const день = addDays(today(), -3)
+  const давно = addMonths(today(), -8)
+  const кат = (id: string, name: string, kind: 'expense' | 'income', parentId?: string): Category =>
+    ({ id, name, kind, icon: 'tag', color: '#888', ...(parentId ? { parentId } : {}) })
+  const счёт = (id: string, name: string, initialBalance: number, project = false): Account =>
+    ({ id, name, type: 'card', icon: 'card', color: '#888', initialBalance, ...(project ? { project: true } : {}) })
+  const тх = (id: string, kind: 'expense' | 'income', amount: number, accountId: string, categoryId: string, date = день, tags: string[] = []): Transaction =>
+    ({ id, kind, amount, accountId, categoryId, date, tags, createdAt: '2026-01-01T00:00:00Z' })
+  const д = {
+    ...buildSeed(),
+    accounts: [счёт('a1', 'Карта', 100_000_00), счёт('a2', 'Наличные', 5_000_00), счёт('ap', 'Комикс', 0, true)],
+    categories: [кат('food', 'Еда', 'expense'), кат('cafe', 'Кафе', 'expense', 'food'), кат('fun', 'Досуг', 'expense'), кат('sal', 'Зарплата', 'income')],
+    goals: [{ id: 'g1', name: 'Подушка', icon: '🎯', color: '#4cc46a', targetAmount: 200_000_00, saved: 30_000_00, priority: 1 } as Goal],
+    transactions: [
+      тх('t1', 'income', 80_000_00, 'a1', 'sal'),
+      тх('t2', 'expense', 12_000_00, 'a1', 'food'),
+      тх('t3', 'expense', 8_000_00, 'a2', 'cafe', день, ['кофе']),
+      тх('t4', 'expense', 20_000_00, 'a1', 'fun'),
+      тх('t5', 'expense', 50_000_00, 'ap', 'fun'),
+      тх('t6', 'expense', 99_000_00, 'a1', 'fun', давно),
+    ],
+    widgets: [] as СвойВиджет[],
+  }
+  const w = (p: Partial<СвойВиджет>): СвойВиджет => ({ ...новыйВиджет('w1'), ...p })
+  const с = addMonths(today(), -3)
+  const v = (p: Partial<СвойВиджет>) => посчитать(w(p), д, с)
+
+  check('расход за период доски — личный, без проекта и старого', v({ metric: 'expense' }).значение === 40_000_00, String(v({ metric: 'expense' }).значение))
+  check('проектные деньги — отдельным охватом', v({ metric: 'expense', filter: { scope: 'project' } }).значение === 50_000_00)
+  check('сумма по главной категории берёт подкатегории', v({ metric: 'category', ref: 'food' }).значение === 20_000_00)
+  check('фильтр по счёту', v({ metric: 'expense', filter: { accounts: ['a2'] } }).значение === 8_000_00)
+  check('фильтр по тегу', v({ metric: 'expense', filter: { tags: ['кофе'] } }).значение === 8_000_00)
+  check('фильтр по категории с подкатегориями', v({ metric: 'expense', filter: { categories: ['food'] } }).значение === 20_000_00)
+  check('свой период «всё время» видит старую трату', v({ metric: 'expense', period: 'all' }).значение === 139_000_00)
+  check('число операций и средний чек', v({ metric: 'count' }).значение === 4 && v({ metric: 'avg' }).значение === Math.round(40_000_00 / 3))
+
+  const ф = (formula: string, p: Partial<СвойВиджет> = {}) => v({ formula, ...p })
+  const доляЕды = ф('расход:Еда / доход * 100')
+  check('формула: доля еды в доходе — 25 %, сама понимает проценты', доляЕды.значение === 25 && доляЕды.формат === 'percent', JSON.stringify(доляЕды))
+  const подушка = ф('остаток - подушка')
+  const остаток = 100_000_00 + 80_000_00 - 12_000_00 - 20_000_00 - 99_000_00 + 5_000_00 - 8_000_00
+  check('формула: остаток минус цель — деньги', подушка.формат === 'money' && подушка.значение === остаток - 30_000_00, JSON.stringify(подушка))
+  check('формула: рубли в числах, скобки, проценты и разряды', ф('(доход - 10 000) * 50%').значение === 35_000_00, String(ф('(доход - 10 000) * 50%').значение))
+  check('формула: имена по-английски тоже', ф('expense:Еда / income * 100').значение === 25)
+  check('формула: регистр и ё не важны, имя в кавычках', ф('Расход:«Кафе» + счет:наличные').значение === 8_000_00 + (5_000_00 - 8_000_00))
+  check('формула: деление на ноль — без числа, с пометкой', ф('доход / (расход - расход)').значение === null && !!ф('доход / (расход - расход)').примечание)
+  const ош = (formula: string) => ф(formula).ошибка ?? ''
+  check('ошибка: незнакомое имя названо', ош('расход / зарплатка').includes('зарплатка'), ош('расход / зарплатка'))
+  check('ошибка: нет категории', ош('расход:Пицца').includes('Пицца'))
+  check('ошибка: скобка не закрыта', ош('(доход - расход') !== '')
+  check('ошибка: два числа без знака', ош('2 2') !== '' && ош('доход (2)') !== '', ош('2 2'))
+  check('ошибка: знак в конце', ош('доход +') !== '')
+  check('ошибка: чужой знак и попытка кода', ош('доход ^ 2') !== '' && ош('alert(1)') !== '' && ош('constructor.constructor') !== '')
+  check('ошибка: место ошибки указано', (ф('доход + )').где ?? -1) === 8, String(ф('доход + )').где))
+  check('проверка формулы для окна', проверитьФормулу(w({ formula: 'доход * 2' }), д) === null && !!проверитьФормулу(w({ formula: 'доход *' }), д))
+
+  // Ссылка на свой виджет из библиотеки и петля.
+  const а = w({ id: 'wa', name: 'Еда в месяц', metric: 'category', ref: 'food' })
+  const б = w({ id: 'wb', name: 'Петля', formula: 'виджет:Петля2 + 1' })
+  const в = w({ id: 'wc', name: 'Петля2', formula: 'Петля * 2' })
+  const сБиблиотекой = { ...д, widgets: [а, б, в] }
+  check('формула видит свой виджет по имени', посчитать(w({ formula: 'еда в месяц / 2' }), сБиблиотекой, с).значение === 10_000_00)
+  check('петля своих виджетов — ошибка, а не зависание', !!посчитать(б, сБиблиотекой, с).ошибка)
+
+  const ряд = рядВиджета(w({ metric: 'expense', period: '12m' }), д, с)
+  check('ряд за год — помесячно', ряд.length >= 12 && ряд.length <= 13 && ряд.reduce((s, x) => s + (x.значение ?? 0), 0) === 139_000_00, String(ряд.length))
+  const неделя = рядВиджета(w({ metric: 'expense', period: '1m' }), д, с)
+  check('ряд за месяц — понедельно', неделя.length >= 4 && неделя.length <= 6, String(неделя.length))
+  const части = разбивкаВиджета(w({ metric: 'expense' }), д, с)
+  check('разбивка расхода — по главным категориям', части.length === 2 && !части.some((x) => x.id === 'cafe') && части.find((x) => x.id === 'food')?.значение === 20_000_00, JSON.stringify(части.map((x) => [x.id, x.значение])))
+  check('разбивка формулы — её слагаемые', разбивкаВиджета(w({ formula: 'расход:Еда / доход * 100' }), д, с).length === 2)
+  check('прогресс к цели берёт её сумму', цельПрогресса(w({ metric: 'goal', ref: 'g1' }), д, v({ metric: 'goal', ref: 'g1' })) === 200_000_00)
+
+  // Библиотека переживает архив, странное чинится, без ида — отбрасывается.
+  const архив = parseArchive(JSON.stringify({ kashel: 'vault', formatVersion: 1, data: { ...д, widgets: [а, { id: 'x', metric: 'чепуха', view: 'тоже' }, { name: 'без ида' }] } }))
+  check('архив хранит свои виджеты и чинит странные', архив.ok && архив.archive.data.widgets?.length === 2 &&
+    архив.archive.data.widgets[1].metric === 'expense' && архив.archive.data.widgets[1].view === 'auto')
 }
 
 function потокиПроверка() {

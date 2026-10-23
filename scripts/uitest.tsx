@@ -1069,6 +1069,156 @@ async function canvasWidgets() {
   check('и убирает виджет', виджеты().length === было, String(виджеты().length))
 }
 
+/**
+ * «Собрать свой» виджет: конструктор с формулой, ошибка формулы, ручной вид,
+ * общая библиотека — виджет виден на другой доске, правка в библиотеке
+ * доходит до всех копий, удаление из библиотеки не ломает доски. Незнакомый
+ * виджет из более новой версии — заглушка, а не падение.
+ */
+async function свойВиджет() {
+  console.log('\n— свой виджет на доске —')
+  await open('Канвас')
+  await wait(600)
+  const доска = () => (document.querySelector('.canvas-tools select') as HTMLSelectElement).value
+  const перваяДоска = доска()
+  const свои = () => all('.cnode-t-widget').filter((n) => n.querySelector('.cw[data-widget="custom"]'))
+  const полкаВиджет = () => click(all('.canvas-dock .dock-btn').find((b) => (b.textContent || '').includes('Виджет')))
+  const библиотека = () => (JSON.parse(dom.window.localStorage.getItem('kashel:data.json') || '{}').widgets ?? []) as { id: string; name: string }[]
+  const было = свои().length
+  // Окно живёт в портале — как в конструкторе оформления, зовём обработчик поля напрямую.
+  const setInput = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value')!.set!
+  const ввести = async (поле: any, v: string) => {
+    setInput.call(поле, v)
+    поле[Object.keys(поле).find((k) => k.startsWith('__reactProps')) as string]?.onChange?.({ target: поле, currentTarget: поле })
+    await wait(80)
+  }
+
+  полкаВиджет()
+  await wait(250)
+  check('в «Виджете» есть «Собрать свой…» и «Мои виджеты»', !!menuItem('Собрать свой') && !!menuItem('Мои виджеты'))
+  click(menuItem('Собрать свой'))
+  await wait(400)
+  check('«Собрать свой…» открывает конструктор', !!document.querySelector('.modal .svw'))
+  check('в конструкторе — что считать, фильтры, период, формула, вид и предпросмотр',
+    !!document.querySelector('.svw-metric') && !!document.querySelector('.svw-formula') && !!document.querySelector('.svw-period') &&
+    !!document.querySelector('.svw-view') && !!document.querySelector('.svw-preview .cw') && text().includes('Фильтры'))
+  const формула = () => document.querySelector('.svw-formula') as HTMLInputElement
+  const сохранить = () => document.querySelector('.svw-save') as HTMLButtonElement
+
+  // Ошибка формулы — понятная, с именем, и сохранить нельзя.
+  await ввести(формула(), 'расход:Продукты / зарплатка * 100')
+  await wait(200)
+  const ошибка = document.querySelector('.svw-error')?.textContent || ''
+  check('неверная формула — понятная ошибка с незнакомым именем', ошибка.includes('зарплатка') && ошибка.includes('Не знаю'), ошибка)
+  check('с ошибкой сохранить нельзя, предпросмотр тоже говорит об ошибке', сохранить().disabled && !!document.querySelector('.svw-preview .cw-error'))
+  await ввести(формула(), '(доход - ')
+  await wait(150)
+  check('незаконченная формула — тоже ошибка', !!document.querySelector('.svw-error'))
+
+  // Верная формула — результат прямо в окне.
+  await ввести(формула(), 'расход:Продукты / доход * 100')
+  await wait(200)
+  const итог = document.querySelector('.svw-result')?.textContent || ''
+  check('верная формула — без ошибки, результат в процентах прямо в окне', !document.querySelector('.svw-error') && /\d.*%/.test(итог) && !сохранить().disabled, итог)
+  check('предпросмотр показывает то же число', (document.querySelector('.svw-preview .cw-big')?.textContent || '').includes('%'))
+  await ввести(document.querySelector('.svw-name') as HTMLInputElement, 'Доля продуктов')
+  // Ручной вид: список.
+  click(all('.svw-view button').find((b) => b.getAttribute('data-view') === 'list'))
+  await wait(200)
+  check('ручной вид «Список» — в предпросмотре список слагаемых', !!document.querySelector('.svw-preview .cw[data-view="list"] .cw-parts'))
+  click(сохранить())
+  await wait(500)
+  check('собранный виджет лёг на доску', свои().length === было + 1, `${было} → ${свои().length}`)
+  const наДоске = свои()[свои().length - 1] as any
+  check('на доске — подпись, ручной вид и знак библиотеки',
+    (наДоске.querySelector('.cw-title')?.textContent || '') === 'Доля продуктов' && !!наДоске.querySelector('.cw[data-view="list"]') && !!наДоске.querySelector('.cw-linked'))
+  await wait(1500)
+  check('виджет сохранён в библиотеку хранилища', библиотека().some((w) => w.name === 'Доля продуктов'), JSON.stringify(библиотека().map((w) => w.name)))
+
+  // Другая доска: виджет есть в «Мои виджеты».
+  click(all('.canvas-tools .icon-btn').find((b) => b.getAttribute('title') === 'Новая доска'))
+  await wait(700)
+  const втораяДоска = доска()
+  check('открыта новая пустая доска', втораяДоска !== перваяДоска && all('.cnode').length === 0, втораяДоска)
+  полкаВиджет()
+  await wait(250)
+  click(menuItem('Мои виджеты'))
+  await wait(200)
+  check('в «Моих виджетах» — собранный виджет', !!menuItem('Доля продуктов'))
+  click(menuItem('Доля продуктов'))
+  await wait(400)
+  check('виджет из библиотеки лёг на другую доску', свои().length === 1 && (свои()[0].querySelector('.cw-title')?.textContent || '') === 'Доля продуктов')
+
+  // Правка в библиотеке — на всех копиях.
+  свои()[0].dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 400, clientY: 300 }))
+  await wait(250)
+  check('в меню своего виджета — править, отвязать, удалить из библиотеки',
+    !!menuItem('Править (на всех досках)') && !!menuItem('Отвязать от библиотеки') && !!menuItem('Удалить из библиотеки'))
+  click(menuItem('Править (на всех досках)'))
+  await wait(400)
+  await ввести(document.querySelector('.svw-name') as HTMLInputElement, 'Продукты от дохода')
+  click(all('.svw-view button').find((b) => b.getAttribute('data-view') === 'number'))
+  await wait(150)
+  click(сохранить())
+  await wait(500)
+  check('правка видна на этой доске', (свои()[0]?.querySelector('.cw-title')?.textContent || '') === 'Продукты от дохода' && !!свои()[0]?.querySelector('.cw[data-view="number"]'))
+  const выбор = document.querySelector('.canvas-tools select') as HTMLSelectElement
+  выбор.value = перваяДоска
+  выбор.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+  await wait(700)
+  check('и на первой доске — та же правка', свои().some((n) => (n.querySelector('.cw-title')?.textContent || '') === 'Продукты от дохода'))
+
+  // Удаление из библиотеки: с подтверждением, доски не ломаются.
+  const копия = свои().find((n) => (n.querySelector('.cw-title')?.textContent || '') === 'Продукты от дохода') as any
+  копия.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, clientX: 400, clientY: 300 }))
+  await wait(250)
+  click(menuItem('Удалить из библиотеки'))
+  await wait(300)
+  check('удаление из библиотеки спрашивает подтверждение', !!document.querySelector('.modal') && text().includes('Доски, где он лежит, не сломаются'))
+  click(byText('.modal .btn.primary', 'Удалить из библиотеки'))
+  await wait(900)
+  check('виджет ушёл из библиотеки', !библиотека().some((w) => w.name === 'Продукты от дохода') || (await wait(1200), !библиотека().some((w) => w.name === 'Продукты от дохода')))
+  const осталась = свои().find((n) => (n.querySelector('.cw-title')?.textContent || '') === 'Продукты от дохода')
+  check('на этой доске он остался — отвязанной копией', !!осталась && !осталась.querySelector('.cw-linked') && !осталась.querySelector('.cw-empty'))
+  const файл = await readCanvas(втораяДоска)
+  const узел = файл?.nodes.find((n) => n.type === 'widget')
+  check('в файле другой доски — копия без ссылки на библиотеку', !!узел && !узел.options?.lib && (узел.options?.def as { name?: string })?.name === 'Продукты от дохода')
+  check('Мои виджеты снова пусты', (полкаВиджет(), await wait(250), !!menuItem('Мои виджеты')?.disabled || menuItem('Мои виджеты')?.getAttribute('aria-disabled') === 'true' || menuItem('Мои виджеты')?.className.includes('disabled')))
+  key('Escape')
+  await wait(150)
+
+  // Незнакомый виджет из будущей версии и виджет без библиотеки и копии — заглушки.
+  await writeCanvas(втораяДоска, {
+    nodes: [
+      { id: 'n_future', type: 'widget', x: 0, y: 0, width: 300, height: 200, options: { widget: 'hologram' }, text: 'Виджет «Голограмма» — обновите Кошель' },
+      { id: 'n_lost', type: 'widget', x: 340, y: 0, width: 300, height: 200, options: { widget: 'custom', lib: 'w_nope' } },
+    ],
+    edges: [],
+  })
+  выбор.value = перваяДоска
+  выбор.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+  await wait(400)
+  const выбор2 = document.querySelector('.canvas-tools select') as HTMLSelectElement
+  выбор2.value = втораяДоска
+  выбор2.dispatchEvent(new dom.window.Event('change', { bubbles: true }))
+  await wait(700)
+  check('незнакомый виджет — заглушка, доска открылась', !!document.querySelector('.cw[data-widget="unknown"]') && text().includes('более новой версией'))
+  check('свой виджет без библиотеки и копии — тоже заглушка', !!document.querySelector('.cnode .cw[data-widget="custom"] .cw-empty'))
+
+  // Прибраться: вторая доска — в корзину, копия на первой — убрать.
+  click(all('.canvas-tools .icon-btn').find((b) => b.getAttribute('title') === 'Удалить доску'))
+  await wait(700)
+  const ещё = свои().find((n) => (n.querySelector('.cw-title')?.textContent || '') === 'Продукты от дохода') as any
+  if (ещё) {
+    mouse(ещё, 'mousedown', 10, 10)
+    mouse(ещё, 'mouseup', 10, 10)
+    await wait(100)
+    key('Delete')
+    await wait(400)
+  }
+  check('после уборки на первой доске своих виджетов как было', доска() === перваяДоска && свои().length === было, `${доска()} · ${свои().length}`)
+}
+
 async function transactionsBulk() {
   console.log('\n— массовое выделение в операциях —')
   await open('Операции')
@@ -3938,6 +4088,7 @@ async function main() {
   await canvasOneClick()
   await canvasNavigation()
   await canvasWidgets()
+  await свойВиджет()
   await dashboardWipe()
   await transactionsBulk()
   await entryDateFollowsPeriod()
