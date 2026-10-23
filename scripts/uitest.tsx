@@ -3338,55 +3338,86 @@ async function связиИВремя() {
   check('в списке видно ⏱ 2 ч 30 мин', text().includes('⏱ 2 ч 30 мин'))
 }
 
-/* Настройка «Сводки»: порядок блоков и что показывать. */
+/*
+ * «Сводка» сеткой (1.0.24): порядок, видимость, виджеты.
+ *
+ * Перетаскивание и размер за угол идут указателем и меряют экран — jsdom
+ * этого не умеет, их проверяем вживую. Здесь — всё, что за ними стоит:
+ * стрелки, скрытие, добавление виджетов (готового и своего) и «Как было».
+ */
 async function настройкаСводки() {
   console.log('\n— настройка «Сводки» —')
   await open('Дашборд')
-  const порядок = () => all('.view .dash-block').map((b) => (b.querySelector('.dash-block-bar .strong')?.textContent || '').trim())
-  const блок = (имя: string) => all('.view .dash-block').find((b) => (b.querySelector('.dash-block-bar .strong')?.textContent || '').trim() === имя)
-  check('в обычном виде заголовков блоков нет', !document.querySelector('.dash-block-bar'))
+  const имяЭлемента = (э: Element) => (э.querySelector('.dash-grip span')?.textContent || '').trim()
+  const порядок = () => all('.view .dash-item').map(имяЭлемента)
+  const элемент = (имя: string) => all('.view .dash-item').find((э) => имяЭлемента(э) === имя)
+  check('«Сводка» — сетка блоков', all('.view .dash-grid .dash-item').length >= 5, String(all('.view .dash-item').length))
+  check('у каждого блока есть ручка и уголок — двигать можно и без настройки',
+    all('.view .dash-item').every((э) => !!э.querySelector('.dash-grip') && !!э.querySelector('.dash-resize')))
+  check('в обычном виде имён на ручках нет', !document.querySelector('.view .dash-grip span'))
   const кнопка = byText('.view .btn', 'Настроить вид') as HTMLElement
   check('кнопка «Настроить вид» стоит в строке периода, а не отдельной полосой',
     (кнопка?.closest('.row')?.textContent || '').includes('Месяц'), кнопка?.closest('.row')?.textContent?.slice(0, 60))
+  check('рядом с ней — «+ Виджет»', (кнопка?.closest('.row')?.textContent || '').includes('Виджет'))
   click(byText('.view .btn', 'Настроить вид'))
   await wait(300)
-  check('у блоков появились заголовки и стрелки', порядок().length >= 5 && порядок()[0] === 'Платежи этого месяца',
+  check('в настройке на ручках видны имена блоков', порядок().length >= 5 && порядок()[0] === 'Платежи этого месяца',
     порядок().join(' | '))
-  click(блок('Платежи этого месяца')?.querySelector('.icon-btn[title="Ниже"]'))
+  click(элемент('Платежи этого месяца')?.querySelector('.icon-btn[title="Ниже"]'))
   await wait(1300)
   let v = await loadVault()
   check('стрелка «Ниже» переставила блок', v.settings.dashBlocks?.[1] === 'payments' && порядок()[1] === 'Платежи этого месяца',
     (v.settings.dashBlocks ?? []).join())
-  // перетаскивание: «Платежи» — в самый низ
-  const последний = порядок()[порядок().length - 1]
-  const источник = блок('Платежи этого месяца')!
-  const цель = блок(последний)!
-  источник.dispatchEvent(new dom.window.Event('dragstart', { bubbles: true }))
-  await wait(120)
-  цель.dispatchEvent(new dom.window.Event('dragover', { bubbles: true, cancelable: true }))
-  await wait(120)
-  цель.dispatchEvent(new dom.window.Event('drop', { bubbles: true, cancelable: true }))
+  check('раскладка сеткой сохранена рядом с порядком блоков', (v.settings.dashLayout ?? []).some((e) => e.block === 'payments' && e.span === 12))
+  click(элемент('Платежи этого месяца')?.querySelector('.icon-btn[title="Скрыть"]'))
   await wait(1300)
   v = await loadVault()
-  check('перетаскиванием блок встаёт на место другого',
-    v.settings.dashBlocks?.[v.settings.dashBlocks.length - 2] === 'payments' || v.settings.dashBlocks?.at(-1) === 'payments',
-    (v.settings.dashBlocks ?? []).join())
-  click(блок('Платежи этого месяца')?.querySelector('.icon-btn[title="Скрыть"]'))
-  await wait(1300)
-  v = await loadVault()
-  check('блок скрывается и уходит в «Скрыто»', !v.settings.dashBlocks?.includes('payments') && !блок('Платежи этого месяца')
+  check('блок скрывается и уходит в «Скрыто»', !v.settings.dashBlocks?.includes('payments') && !элемент('Платежи этого месяца')
     && text().includes('Скрыто:'))
   click(byText('.view .chip', 'Платежи этого месяца'))
   await wait(1300)
   v = await loadVault()
-  check('скрытый блок возвращается', v.settings.dashBlocks?.includes('payments') && !!блок('Платежи этого месяца'))
+  check('скрытый блок возвращается', v.settings.dashBlocks?.includes('payments') && !!элемент('Платежи этого месяца'))
+  click(byText('.view .btn', 'Готово'))
+  await wait(300)
+
+  // Виджет на «Сводку»: тот же, что на канвасе.
+  click(byText('.view .btn', 'Виджет'))
+  await wait(250)
+  check('«+ Виджет» открывает меню с готовыми и своими', !!menuItem('Остаток на счетах') && !!menuItem('Собрать свой'))
+  click(menuItem('Остаток на счетах'))
+  await wait(1300)
+  v = await loadVault()
+  const виджет = (v.settings.dashLayout ?? []).find((e) => e.widget === 'balance')
+  check('готовый виджет встал на «Сводку» первым', v.settings.dashLayout?.[0]?.widget === 'balance' && виджет?.span === 4,
+    JSON.stringify(v.settings.dashLayout?.[0]))
+  check('и нарисован виджетом канваса', !!document.querySelector('.view .dash-item.is-widget .cw[data-widget="balance"]'))
+  check('старый порядок блоков для прежних версий не тронут', !v.settings.dashBlocks?.includes(undefined as never) && v.settings.dashBlocks?.length === 7,
+    (v.settings.dashBlocks ?? []).join())
+
+  // Свой виджет из библиотеки — если он есть, ставится из «Мои виджеты».
+  click(byText('.view .btn', 'Виджет'))
+  await wait(250)
+  click(menuItem('Собрать свой'))
+  await wait(300)
+  check('«Собрать свой…» открывает конструктор', (document.querySelector('.modal')?.textContent || '').includes('Собрать свой виджет'))
+  click(byText('.modal-foot .btn', 'Отмена'))
+  await wait(250)
+
+  click(document.querySelector('.view .dash-item.is-widget .icon-btn[title="Убрать со «Сводки»"]'))
+  await wait(1300)
+  v = await loadVault()
+  check('виджет убирается со «Сводки»', !(v.settings.dashLayout ?? []).some((e) => e.widget === 'balance'))
+
+  click(byText('.view .btn', 'Настроить вид'))
+  await wait(250)
   click(byText('.view .btn', 'Как было'))
   await wait(1300)
   v = await loadVault()
-  check('«Как было» возвращает порядок по умолчанию', !v.settings.dashBlocks && порядок()[0] === 'Платежи этого месяца')
+  check('«Как было» возвращает порядок по умолчанию', !v.settings.dashBlocks && !v.settings.dashLayout && порядок()[0] === 'Платежи этого месяца')
   click(byText('.view .btn', 'Готово'))
   await wait(300)
-  check('после «Готово» заголовки блоков пропали', !document.querySelector('.dash-block-bar'))
+  check('после «Готово» имена на ручках пропали', !document.querySelector('.view .dash-grip span'))
 }
 
 /* Ставка кредита, посчитанная по платежу и сроку. */

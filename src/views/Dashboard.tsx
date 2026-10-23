@@ -41,7 +41,14 @@ import { личное } from '../engine/project'
 import { Ogonek } from '../components/Ogonek'
 import { KreditDashbord } from '../components/KreditDashbord'
 import { подкатегории, поГлавным, раскладкаГлавной } from '../engine/podkategorii'
-import { БЛОКИ_ПО_УМОЛЧАНИЮ, type БлокСводки, type Transaction } from '../lib/types'
+import { БЛОКИ_ПО_УМОЛЧАНИЮ, type БлокСводки, type Transaction, type СвойВиджет, type ЭлементСводки } from '../lib/types'
+import { СеткаСводки, новыйВиджетСводки, раскладкаСводки, сохранениеРаскладки } from '../components/SetkaSvodki'
+import { ContextMenu, type MenuItem } from '../components/canvas/ContextMenu'
+import { ВИДЖЕТЫ } from '../components/canvas/Vidzhety'
+import { КонструкторВиджета } from '../components/canvas/SvoyKonstruktor'
+import { новыйВиджет } from '../engine/vidzhety'
+import { этоЗаработок } from '../engine/zarabotok'
+import { uid } from '../lib/format'
 import { т, тр } from '../i18n'
 import { ЦитатаДняСтрока } from '../components/Citaty'
 
@@ -67,46 +74,65 @@ const PERIODS: { k: PeriodKind; t: string }[] = [
 export default function Dashboard() {
   const app = useApp()
   const store = useStore()
-  const { data, patchSettings, deleteTransactions, restoreTransactions } = store
+  const { data, patchSettings, deleteTransactions, restoreTransactions, setData } = store
   const toast = useToast()
   const { fc } = useAnalytics(data)
   const [side, setSide] = useState<'expense' | 'income'>('expense')
   const [period, setPeriod] = useState<Period>(() => makePeriod('month', today(), data.settings.firstDayOfWeek))
   const [выборПериода, setВыборПериода] = useState(false)
 
-  // --- блоки «Сводки»: свой порядок и видимость
+  // --- сетка «Сводки»: блоки и виджеты, порядок, ширина и высота
   const [настройка, setНастройка] = useState(false)
-  const [тащим, setТащим] = useState<БлокСводки | null>(null)
-  const [над, setНад] = useState<БлокСводки | null>(null)
-  const видимые = useMemo(() => {
-    const свои = data.settings.dashBlocks
-    if (!свои?.length) return БЛОКИ_ПО_УМОЛЧАНИЮ
-    // Незнакомое и повторы отбрасываем: список мог прийти из другой версии.
-    return свои.filter((b, i) => БЛОКИ_ПО_УМОЛЧАНИЮ.includes(b) && свои.indexOf(b) === i)
-  }, [data.settings.dashBlocks])
+  const раскладка = useMemo(() => раскладкаСводки(data.settings), [data.settings])
+  const видимые = раскладка.flatMap((e) => (e.block ? [e.block] : []))
   const скрытые = БЛОКИ_ПО_УМОЛЧАНИЮ.filter((b) => !видимые.includes(b))
-  const сохранитьБлоки = (список: БлокСводки[]) => patchSettings({ dashBlocks: список })
-  const сдвинуть = (b: БлокСводки, шаг: 1 | -1) => {
-    const i = видимые.indexOf(b)
-    const j = i + шаг
-    if (i < 0 || j < 0 || j >= видимые.length) return
-    const next = [...видимые]
-    next.splice(i, 1)
-    next.splice(j, 0, b)
-    сохранитьБлоки(next)
+  const сохранитьРаскладку = (список: ЭлементСводки[]) => patchSettings(сохранениеРаскладки(список))
+  const показать = (b: БлокСводки) => сохранитьРаскладку([...раскладка, { id: 'b:' + b, block: b, span: 12 }])
+  const добавитьВиджет = (эл: ЭлементСводки) => {
+    // Новый виджет — в начало: его видно сразу, без прокрутки вниз.
+    сохранитьРаскладку([эл, ...раскладка])
+    toast(т('Виджет на «Сводке» — тяните за угол, чтобы поменять размер'))
   }
-  const скрыть = (b: БлокСводки) => сохранитьБлоки(видимые.filter((x) => x !== b))
-  const показать = (b: БлокСводки) => сохранитьБлоки([...видимые, b])
-  /** Перетащили один блок на другой — встаём на его место. */
-  const бросить = (цель: БлокСводки) => {
-    const b = тащим
-    setТащим(null)
-    setНад(null)
-    if (!b || b === цель) return
-    const next = видимые.filter((x) => x !== b)
-    next.splice(видимые.indexOf(цель), 0, b)
-    сохранитьБлоки(next)
+  const [менюВиджетов, setМенюВиджетов] = useState<{ x: number; y: number } | null>(null)
+  const [конструктор, setКонструктор] = useState<{ w: СвойВиджет; новый: boolean } | null>(null)
+  const сохранитьСвой = (w: СвойВиджет) => {
+    const к = конструктор
+    setКонструктор(null)
+    if (!к) return
+    setData((d) => {
+      const список = d.widgets ?? []
+      return { ...d, widgets: список.some((x) => x.id === w.id) ? список.map((x) => (x.id === w.id ? w : x)) : [...список, w] }
+    })
+    if (к.новый) добавитьВиджет(новыйВиджетСводки('custom', { lib: w.id }))
+    else toast(т('Виджет «{0}» обновлён везде, где он стоит', w.name))
   }
+  const пунктыВиджетов = (): MenuItem[] => {
+    const цели = data.goals.filter(этоЗаработок)
+    const мои = data.widgets ?? []
+    return [
+      ...ВИДЖЕТЫ.map((w): MenuItem =>
+        w.id === 'earn'
+          ? {
+              id: 'w:earn', label: w.name, icon: w.icon, disabled: !цели.length,
+              children: цели.map((g) => ({ id: 'w:earn:' + g.id, label: g.name, onClick: () => добавитьВиджет(новыйВиджетСводки('earn', { ref: g.id })) })),
+            }
+          : { id: 'w:' + w.id, label: w.name, icon: w.icon, onClick: () => добавитьВиджет(новыйВиджетСводки(w.id)) }),
+      {
+        id: 'w:mine', label: т('Мои виджеты'), icon: 'sparkle', disabled: !мои.length,
+        children: мои.map((w) => ({ id: 'w:mine:' + w.id, label: w.name || т('Свой виджет'), onClick: () => добавитьВиджет(новыйВиджетСводки('custom', { lib: w.id })) })),
+      },
+      { id: 'w:build', label: т('Собрать свой…'), icon: 'plus', onClick: () => setКонструктор({ w: новыйВиджет(uid('w')), новый: true }) },
+      ...(скрытые.length
+        ? [{ id: 'w:blocks', label: т('Скрытые блоки «Сводки»'), icon: 'panel', children: скрытые.map((b) => ({ id: 'b:' + b, label: НАЗВАНИЯ_БЛОКОВ[b], onClick: () => показать(b) })) }]
+        : []),
+    ]
+  }
+  const названиеВиджета = (e: ЭлементСводки) =>
+    e.widget === 'custom'
+      ? data.widgets?.find((w) => w.id === e.lib)?.name || т('Свой виджет')
+      : e.widget === 'earn'
+        ? data.goals.find((g) => g.id === e.ref)?.name ?? т('Заработок')
+        : ВИДЖЕТЫ.find((w) => w.id === e.widget)?.name ?? т('Виджет')
   const [accountId, setAccountId] = useState<string>('__all__')
   const кредитъ = data.accounts.find((a) => a.id === accountId && a.type === 'credit' && a.credit)
   const [pickAccount, setPickAccount] = useState(false)
@@ -268,12 +294,23 @@ export default function Dashboard() {
 
 
   const кнопкаНастроить = настройка ? null : (
-    <button
-      className="btn sm ghost"
-      title={т('Порядок блоков на «Сводке»')}
-      onClick={() => setНастройка(true)}
-    >
-      <Icon name="panel" size={13} /> {т(' Настроить вид')}</button>
+    <>
+      <button
+        className="btn sm ghost"
+        title={т('Добавить на «Сводку» виджет: готовый, свой из библиотеки или собрать новый')}
+        onClick={(e) => {
+          const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+          setМенюВиджетов({ x: r.left, y: r.bottom + 4 })
+        }}
+      >
+        <Icon name="plus" size={13} /> {т(' Виджет')}</button>
+      <button
+        className="btn sm ghost"
+        title={т('Порядок блоков на «Сводке»')}
+        onClick={() => setНастройка(true)}
+      >
+        <Icon name="panel" size={13} /> {т(' Настроить вид')}</button>
+    </>
   )
 
   /*
@@ -713,11 +750,11 @@ export default function Dashboard() {
             <div className="card-title" style={{ margin: 0 }}>
               <Icon name="panel" size={14} /> {т(' Что показывать на «Сводке»')}</div>
             <span className="spacer" />
-            <button className="btn sm ghost" onClick={() => patchSettings({ dashBlocks: undefined })}>{т('Как было')}</button>
+            <button className="btn sm ghost" onClick={() => patchSettings({ dashBlocks: undefined, dashLayout: undefined })}>{т('Как было')}</button>
             <button className="btn sm primary" onClick={() => setНастройка(false)}>{т('Готово')}</button>
           </div>
           <div className="faint small">
-            {т('Блоки переставляются стрелками или перетаскиванием за заголовок. Шапка со счётом всегда наверху.')}</div>
+            {т('Тащите блок за ручку, ширину и высоту меняйте за правый нижний угол — так можно и без этого режима. Шапка со счётом всегда наверху.')}</div>
           {скрытые.length > 0 && (
             <div className="row wrap" style={{ gap: 6, marginTop: 10 }}>
               <span className="faint small">{т('Скрыто:')}</span>
@@ -731,38 +768,39 @@ export default function Dashboard() {
         </div>
       )}
 
-      {видимые.map((b, i) => {
-        const узел = узлыБлоков[b]
-        if (!узел) return null
-        if (!настройка) return <div key={b} className="dash-block">{узел}</div>
-        return (
-          <div
-            key={b}
-            className={'dash-block dash-edit' + (тащим === b ? ' dragging' : '') + (над === b ? ' over' : '')}
-            draggable
-            onDragStart={() => setТащим(b)}
-            onDragEnd={() => { setТащим(null); setНад(null) }}
-            onDragOver={(e) => { if (тащим) { e.preventDefault(); setНад(b) } }}
-            onDrop={(e) => { e.preventDefault(); бросить(b) }}
-          >
-            <div className="dash-block-bar row" style={{ gap: 6 }}>
-              <Icon name="dots" size={14} />
-              <span className="strong small">{НАЗВАНИЯ_БЛОКОВ[b]}</span>
-              <span className="spacer" />
-              <button className="icon-btn" title={т('Выше')} disabled={i === 0} onClick={() => сдвинуть(b, -1)}>
-                <Icon name="up" size={13} />
-              </button>
-              <button className="icon-btn" title={т('Ниже')} disabled={i === видимые.length - 1} onClick={() => сдвинуть(b, 1)}>
-                <Icon name="down" size={13} />
-              </button>
-              <button className="icon-btn" title={т('Скрыть')} onClick={() => скрыть(b)}>
-                <Icon name="eyeOff" size={13} />
-              </button>
-            </div>
-            <div className="dash-block-body">{узел}</div>
-          </div>
-        )
-      })}
+      <СеткаСводки
+        items={раскладка}
+        data={data}
+        from={period.from}
+        periodLabel={period.label}
+        блок={(b) => узлыБлоков[b]}
+        названиеБлока={(b) => НАЗВАНИЯ_БЛОКОВ[b]}
+        названиеВиджета={названиеВиджета}
+        настройка={настройка}
+        onChange={сохранитьРаскладку}
+        onEditCustom={(e) => {
+          const w = data.widgets?.find((x) => x.id === e.lib)
+          if (w) setКонструктор({ w, новый: false })
+        }}
+      />
+      {менюВиджетов && (
+        <ContextMenu x={менюВиджетов.x} y={менюВиджетов.y} title={т('Виджет на «Сводку»')} items={пунктыВиджетов()} onClose={() => setМенюВиджетов(null)} />
+      )}
+      {конструктор && (
+        <КонструкторВиджета
+          value={конструктор.w}
+          data={data}
+          from={period.from}
+          periodLabel={period.label}
+          заголовок={конструктор.новый ? т('Собрать свой виджет') : т('Свой виджет — правка везде, где он стоит')}
+          кнопка={конструктор.новый ? т('Собрать и поставить') : т('Сохранить')}
+          пояснение={конструктор.новый
+            ? т('Виджет встанет на «Сводку» и ляжет в «Мои виджеты»: его можно поставить и на любую доску канваса.')
+            : т('Правка обновит виджет и на «Сводке», и на всех досках, где он лежит.')}
+          onSave={сохранитьСвой}
+          onClose={() => setКонструктор(null)}
+        />
+      )}
 
       {confirmWipe === 'all' && (
         <Confirm

@@ -2237,13 +2237,7 @@ input.invalid { border-color: var(--alert) !important; }
 .tasks-time { white-space: nowrap; }
 
 /* Блоки «Сводки»: свой порядок и настройка. */
-.dash-block + .dash-block { margin-top: 16px; }
 .dash-block:empty { display: none; }
-.dash-edit { border: 1px dashed var(--border); border-radius: var(--radius); padding: 8px; cursor: grab; }
-.dash-edit.dragging { opacity: 0.5; }
-.dash-edit.over { border-color: var(--accent); border-style: solid; }
-.dash-block-bar { margin-bottom: 8px; color: var(--muted); }
-.dash-block-body { pointer-events: none; opacity: 0.85; }
 
 /* ------------------------------------------------------------ звуки */
 .zvuki-list { display: flex; flex-direction: column; gap: 6px; }
@@ -2366,3 +2360,35 @@ select.limit-period:hover, select.limit-period:focus { color: var(--text); borde
 }
 @keyframes hero-blik { to { transform: translateX(500%) skewX(-18deg); } }
 [data-anim='off'] .hero-blik { display: none; }
+
+/* Сетка «Сводки» (SetkaSvodki): 12 колонок, блоки и виджеты. Управление
+   появляется у элемента под мышью и живёт в зазоре над ним — содержимое
+   ничем не закрывается. */
+.dash-grid { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 18px 16px; align-items: start; }
+.dash-item { position: relative; min-width: 0; border-radius: var(--radius-lg); }
+/* Ручки живут в зазоре над элементом: эта полоса — его часть, иначе мышь,
+   идущая к ручке, уходила бы с элемента, и ручка гасла раньше, чем её схватят. */
+.dash-item::before { content: ''; position: absolute; left: 0; right: 0; top: -18px; height: 18px; }
+.dash-tools { position: absolute; top: -15px; left: 10px; right: 10px; z-index: 6; display: flex; align-items: center; gap: 4px; opacity: 0; pointer-events: none; transition: opacity 0.12s; }
+.dash-item:hover > .dash-tools, .dash-item:focus-within > .dash-tools, .dash-grid.editing .dash-tools { opacity: 1; pointer-events: auto; }
+.dash-grid.dragging .dash-tools { opacity: 0; pointer-events: none; }
+.dash-grid.dragging .dash-item.moving > .dash-tools { opacity: 1; }
+.dash-grip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); color: var(--muted); font: inherit; font-size: 12px; cursor: grab; touch-action: none; }
+.dash-grip:hover { color: var(--text); border-color: var(--accent); }
+.dash-grip { max-width: calc(100% - 120px); white-space: nowrap; }
+.dash-grip span { overflow: hidden; text-overflow: ellipsis; }
+.dash-tools .icon-btn { width: 26px; height: 26px; border: 1px solid var(--border); border-radius: 999px; background: var(--panel); }
+.dash-resize { position: absolute; right: -3px; bottom: -3px; width: 18px; height: 18px; border-right: 3px solid var(--accent); border-bottom: 3px solid var(--accent); border-radius: 0 0 8px 0; cursor: nwse-resize; opacity: 0; transition: opacity 0.12s; touch-action: none; z-index: 6; }
+.dash-item:not(.is-widget) > .dash-resize { cursor: ew-resize; }
+.dash-item:hover > .dash-resize, .dash-grid.editing .dash-resize, .dash-item.resizing > .dash-resize { opacity: 1; }
+.dash-grid.editing .dash-item { outline: 1px dashed var(--border); outline-offset: 5px; }
+.dash-item.moving { opacity: 0.45; }
+.dash-item.drop-before:not(.wide) { box-shadow: -4px 0 0 var(--accent); }
+.dash-item.drop-after:not(.wide) { box-shadow: 4px 0 0 var(--accent); }
+.dash-item.wide.drop-before { box-shadow: 0 -4px 0 var(--accent); }
+.dash-item.wide.drop-after { box-shadow: 0 4px 0 var(--accent); }
+.dash-grid.dragging { cursor: grabbing; user-select: none; }
+.dash-widget { border: 1px solid var(--border-soft); border-radius: var(--radius-lg); background: var(--panel); overflow: hidden; }
+.dash-size-badge { position: absolute; right: 18px; bottom: 14px; z-index: 6; padding: 2px 7px; border-radius: 6px; background: var(--accent); color: #10231a; font-size: 11px; font-variant-numeric: tabular-nums; pointer-events: none; }
+/* Узко — всё в одну колонку: ширины из сетки там не помещаются. */
+@container view (max-width: 760px) { .dash-item { grid-column: 1 / -1 !important; } }
