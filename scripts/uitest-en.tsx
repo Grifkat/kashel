@@ -109,7 +109,7 @@ function seedStorage() {
   const ls = dom.window.localStorage
   ls.clear()
   ls.setItem(ГДѢ_ЯЗЫКЪ, 'en')
-  ls.setItem('kashel:data.json', JSON.stringify({ ...core, settings: { ...core.settings, language: 'en', whatsNewSeen: '99.0.0' } }))
+  ls.setItem('kashel:data.json', JSON.stringify({ ...core, settings: { ...core.settings, language: 'en', whatsNewSeen: '99.0.0', quotes: { popup: 'off' } } }))
   const byMonth = new Map<string, typeof transactions>()
   for (const t of transactions) {
     const mk = t.date.slice(0, 7)
@@ -178,6 +178,17 @@ async function main() {
     if (ч.length) всѣЧужія.set(имя, ч)
     check(имя, renderErrors.length === было && text().length > 400 && ч.length === 0, ч.slice(0, 4).join(' ‖ '))
   }
+
+  // Цитаты переводятся из самой записи: девиз — по-английски, автор — тоже.
+  const цитаты = разделы.find((b) => (b.textContent || '').includes('Quotes'))
+  if (цитаты) click(цитаты)
+  await wait(450)
+  check('раздел «Цитаты» по-английски', !!цитаты && text().includes('Money is coined freedom') && text().includes('Fyodor Dostoevsky')
+    && text().includes('Why it matters'))
+  const дашбордъ = разделы.find((b) => (b.textContent || '').includes('Dashboard'))
+  if (дашбордъ) click(дашбордъ)
+  await wait(450)
+  check('цитата дня на «Сводке» по-английски', (document.querySelector('.citata-stroka')?.textContent || '').includes('Money is coined freedom'))
 
   console.log('\n— окна —')
   // Палитра команд

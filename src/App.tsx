@@ -40,6 +40,8 @@ import ProfileView from './views/Profile'
 import ZnakiView from './views/Znaki'
 import Forecast from './views/Forecast'
 import AdviceView from './views/Advice'
+import CitatyView from './views/Citaty'
+import { ЦитатыХост } from './components/Citaty'
 import CanvasView from './views/Canvas'
 import Notes from './views/Notes'
 import GraphView from './views/Graph'
@@ -56,7 +58,7 @@ import { т, тр, текущійЯзык, запомнитьЯзык } from './
 
 export type ViewId =
   | 'dashboard' | 'transactions' | 'categories' | 'accounts' | 'budget' | 'goals'
-  | 'debts' | 'recurring' | 'reminders' | 'tasks' | 'profile' | 'znaki' | 'forecast' | 'advice' | 'calendar' | 'year'
+  | 'debts' | 'recurring' | 'reminders' | 'tasks' | 'profile' | 'znaki' | 'forecast' | 'advice' | 'quotes' | 'calendar' | 'year'
   | 'canvas' | 'notes' | 'graph' | 'import' | 'settings'
 
 export interface Tab {
@@ -88,6 +90,7 @@ export const VIEW_META: Record<ViewId, { title: string; icon: string }> = {
   znaki: { title: т('Кто на знаках'), icon: 'shield' },
   forecast: { title: т('Прогноз'), icon: 'chart' },
   advice: { title: т('Советы'), icon: 'bulb' },
+  quotes: { title: т('Цитаты'), icon: 'quote' },
   calendar: { title: т('Календарь'), icon: 'calendar' },
   year: { title: т('Итоги года'), icon: 'sparkle' },
   canvas: { title: т('Канвас'), icon: 'canvas' },
@@ -460,6 +463,7 @@ export default function App() {
       <OpoveshchenieHost />
       <UvedomleniyaHost />
       <ЧтоНовогоХост />
+      <ЦитатыХост />
       <div className="app">
         <Ribbon onTheme={() => setThemeOpen(true)} />
         <Sidebar />
@@ -686,7 +690,7 @@ function Sidebar() {
   const groups: { title: string; items: ViewId[] }[] = [
     { title: т('Учёт'), items: ['dashboard', 'transactions', 'accounts', 'categories'] },
     { title: т('Планирование'), items: ['tasks', 'budget', 'goals', 'recurring', 'reminders', 'debts'] },
-    { title: т('Анализ'), items: ['profile', 'znaki', 'forecast', 'calendar', 'year', 'advice'] },
+    { title: т('Анализ'), items: ['profile', 'znaki', 'forecast', 'calendar', 'year', 'advice', 'quotes'] },
     { title: т('Пространство'), items: ['canvas', 'notes', 'graph'] },
     { title: т('Данные'), items: ['import', 'settings'] },
   ]
@@ -830,6 +834,7 @@ function renderView(tab: Tab) {
     case 'znaki': return <ZnakiView />
     case 'forecast': return <Forecast />
     case 'advice': return <AdviceView />
+    case 'quotes': return <CitatyView />
     case 'calendar': return <CalendarView />
     case 'year': return <YearView />
     case 'canvas': return <CanvasView name={tab.arg} />

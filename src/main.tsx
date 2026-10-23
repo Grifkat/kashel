@@ -13,6 +13,7 @@ import './styles/app.css'
 import './styles/themes.css'
 import './styles/effects.css'
 import './styles/canvas.css'
+import './styles/citaty.css'
 
 поставитьЯзык(языкИзъЗеркала())
 document.documentElement.lang = языкИзъЗеркала()
