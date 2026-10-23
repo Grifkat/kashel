@@ -31,8 +31,8 @@ export function ReminderHost() {
 
     const проверить = () => {
       const день = today()
-      for (const { reminder, detail } of dueReminders(data, день)) {
-        const ключ = reminder.id + '@' + день
+      for (const { reminder, detail, slot } of dueReminders(data, день)) {
+        const ключ = reminder.id + '@' + (slot ?? день)
         if (показаны.current.has(ключ)) continue
         показаны.current.add(ключ)
 
@@ -43,7 +43,7 @@ export function ReminderHost() {
         // из «Звуков» действуют и на него.
         if (звукиВключены(data.settings)) проиграть(reminder.sound, data.settings, reminder.soundFile)
 
-        upsertReminder({ ...reminder, lastFired: день })
+        upsertReminder({ ...reminder, lastFired: день, ...(slot ? { lastSlot: slot } : {}) })
       }
     }
 

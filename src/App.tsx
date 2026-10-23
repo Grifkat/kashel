@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { НастройкаЛенты } from './components/NastroykaLenty'
 import { буква } from './lib/klavishi'
 import { ClickSparkLayer, ShinyText, useПодсвѣткаЗаКурсоромъ } from './components/effects'
@@ -49,6 +49,7 @@ import YearView from './views/Year'
 import SettingsView from './views/Settings'
 import { relDate, setDateFormat, today } from './lib/date'
 import { bridge } from './state/vault'
+import { МАСШТАБЫ, масштабИз } from './state/defaults'
 import type { Transaction, TxKind } from './lib/types'
 import { попроситьПроверку, useЕстьОбновленіе } from './components/Obnovlenie'
 import { т, тр, текущійЯзык, запомнитьЯзык } from './i18n'
@@ -238,6 +239,24 @@ export default function App() {
     // буквы по цветам уже включённой темы.
     вернутьОформление(root, data.settings)
   }, [data.settings.theme, data.settings.customTheme, data.settings.customThemes, animLevel, data.settings.accent, data.settings.accentMode, data.settings.density, data.settings.readingFont])
+
+  // Масштаб интерфейса: ставим при запуске и при смене, а Ctrl + / Ctrl − /
+  // Ctrl 0 из меню шагают по тем же ступеням, что кнопки в «Настройках».
+  const масштаб = масштабИз(data.settings.uiScale)
+  useEffect(() => {
+    bridge.setZoom?.(масштаб)
+  }, [масштаб])
+  const масштабRef = useRef(масштаб)
+  масштабRef.current = масштаб
+  useEffect(() => {
+    return bridge.onZoomCommand?.((d) => {
+      const i = (МАСШТАБЫ as readonly number[]).indexOf(масштабRef.current)
+      const next = d === 'reset' ? 1 : МАСШТАБЫ[Math.max(0, Math.min(МАСШТАБЫ.length - 1, (i < 0 ? 1 : i) + (d === 'in' ? 1 : -1)))]
+      store.patchSettings({ uiScale: next })
+    })
+    // store стабилен.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const openTab = useCallback<AppApi['openTab']>((view, arg, opts) => {
     const paneIdx = opts?.pane ?? focusPane

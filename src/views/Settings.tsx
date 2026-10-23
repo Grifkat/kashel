@@ -6,6 +6,7 @@ import type { ДеньНедѣли } from '../lib/types'
 import { useApp, РАЗДЕЛЫ_ЛЕНТЫ, ЛЕНТА_ИСХОДНАЯ } from '../App'
 import { НастройкаЛенты } from '../components/NastroykaLenty'
 import { isDesktop, useStore } from '../state/store'
+import { МАСШТАБЫ, масштабИз } from '../state/defaults'
 import { Icon } from '../lib/icons'
 import { money, pct, plural } from '../lib/format'
 import { bridge, type AssocStatus } from '../state/vault'
@@ -120,6 +121,21 @@ export default function SettingsView() {
               ))}
             </div>
           </div>
+          {isDesktop && <div className="row" style={{ marginBottom: 14 }}>
+            <span style={{ flex: 1 }} title={т('Весь интерфейс крупнее или мельче. Ctrl + и Ctrl − — то же с клавиатуры, Ctrl 0 — как было')}>
+              {т('Масштаб интерфейса')}</span>
+            <div className="seg">
+              {МАСШТАБЫ.map((m) => (
+                <button
+                  key={m}
+                  className={масштабИз(data.settings.uiScale) === m ? 'on' : ''}
+                  onClick={() => patchSettings({ uiScale: m })}
+                >
+                  {Math.round(m * 100)}%
+                </button>
+              ))}
+            </div>
+          </div>}
           <div className="row" style={{ marginBottom: 14 }}>
             <span style={{ flex: 1 }}>{т('Плотность')}</span>
             <div className="seg">

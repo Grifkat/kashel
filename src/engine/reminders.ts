@@ -20,6 +20,20 @@ export interface DueReminder {
   reminder: Reminder
   /** Что показать: заголовок человека плюс поясняющая строка от программы. */
   detail: string
+  /** Для напоминания со временем — какой час сработал («ГГГГ-ММ-ДД ЧЧ:ММ»). */
+  slot?: string
+}
+
+/** Сейчас «ЧЧ:ММ» по часам компьютера. */
+export function nowTime(d: Date = new Date()): string {
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+}
+
+/** Корректное «ЧЧ:ММ», отсортированные и без повторов. */
+export function чистоеВремя(times: unknown): string[] {
+  if (!Array.isArray(times)) return []
+  const ок = times.filter((t): t is string => typeof t === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(t))
+  return [...new Set(ок)].sort()
 }
 
 export const EVENT_NAMES: Record<ReminderEvent, string> = {
@@ -51,6 +65,13 @@ export const EVENT_THRESHOLD: Record<ReminderEvent, { label: string; unit: 'days
 export function nextDate(r: Reminder, now: string = today()): string | null {
   if (!r.date) return null
   if (!r.repeat || r.repeat === 'once') return r.date
+  if (r.repeat === 'daily') return r.date > now ? r.date : now
+  if (r.repeat === 'weekdays') {
+    // Ближайший будний день, не раньше заданной даты.
+    let d = r.date > now ? r.date : now
+    for (let n = 0; n < 7 && [0, 6].includes(parseISO(d).getDay()); n++) d = addDays(d, 1)
+    return d
+  }
   // Каждый шаг считается от исходной даты, а не от прошлого шага: иначе
   // «31-го каждый месяц» после февраля навсегда съезжало на 28-е.
   let d = r.date
@@ -169,10 +190,27 @@ function eventFired(r: Reminder, data: VaultData, now: string): string | null {
  * Чистая функция: ничего не показывает и ничего не сохраняет — только считает.
  * Отметку lastFired ставит тот, кто действительно показал.
  */
-export function dueReminders(data: VaultData, now: string = today()): DueReminder[] {
+export function dueReminders(data: VaultData, now: string = today(), время: string = nowTime()): DueReminder[] {
   const out: DueReminder[] = []
   for (const r of data.reminders ?? []) {
     if (!r.active) continue
+    const часы = r.kind === 'date' ? чистоеВремя(r.times) : []
+    if (часы.length) {
+      // Со временем: звоним в каждый заданный час, но один раз. Пропущенные
+      // часы сегодня (окно было закрыто) сливаются в один показ — последний.
+      const when = nextDate(r, now)
+      if (!when || when > now) continue
+      if (when < now) {
+        if (r.lastFired !== now) out.push({ reminder: r, detail: т('было {0}', humanDate(when)) })
+        continue
+      }
+      const час = часы.filter((t) => t <= время).pop()
+      if (!час) continue
+      const slot = `${now} ${час}`
+      if (r.lastSlot === slot) continue
+      out.push({ reminder: r, detail: т('сегодня в {0}', час), slot })
+      continue
+    }
     if (r.lastFired === now) continue
     if (r.kind === 'date') {
       const when = nextDate(r, now)
@@ -191,11 +229,15 @@ export function dueReminders(data: VaultData, now: string = today()): DueReminde
 export function describeReminder(r: Reminder, data: VaultData): string {
   if (r.kind === 'date') {
     const when = nextDate(r) ?? r.date ?? ''
+    const часы = чистоеВремя(r.times)
+    const вЧасы = часы.length ? ` · ${часы.join(', ')}` : ''
+    if (r.repeat === 'daily') return т('каждый день') + вЧасы
+    if (r.repeat === 'weekdays') return т('по будням') + вЧасы
     const rep =
       r.repeat === 'monthly' ? т(', каждый месяц')
         : r.repeat === 'weekly' ? т(', каждую неделю')
           : r.repeat === 'yearly' ? т(', каждый год') : ''
-    return `${when ? humanDate(when, parseISO(when).getFullYear() !== new Date().getFullYear()) : т('без даты')}${rep}`
+    return `${when ? humanDate(when, parseISO(when).getFullYear() !== new Date().getFullYear()) : т('без даты')}${rep}${вЧасы}`
   }
   if (!r.event) return т('событие не выбрано')
   const th = r.threshold ?? EVENT_THRESHOLD[r.event].def

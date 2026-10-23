@@ -35,6 +35,9 @@ export interface Bridge {
   pendingArchive?(): Promise<ExternalFile | null>
   readArchive?(file: string): Promise<ExternalFile | null>
   onFileCommand?(cb: (e: FileCommand) => void): () => void
+  /** Масштаб интерфейса — только рабочий стол. */
+  setZoom?(factor: number): void
+  onZoomCommand?(cb: (d: 'in' | 'out' | 'reset') => void): () => void
   assocStatus?(): Promise<AssocStatus>
   assocSet?(): Promise<boolean>
   assocClear?(): Promise<boolean>

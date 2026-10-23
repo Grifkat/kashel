@@ -215,7 +215,7 @@ export interface Recurring {
  */
 export type ReminderSound = 'none' | 'soft' | 'bell' | 'low' | 'double' | 'file'
 
-export type ReminderRepeat = 'once' | 'weekly' | 'monthly' | 'yearly'
+export type ReminderRepeat = 'once' | 'daily' | 'weekdays' | 'weekly' | 'monthly' | 'yearly'
 
 export type ReminderEvent =
   /** Скоро сработает регулярный платёж. threshold — за сколько дней предупредить. */
@@ -242,6 +242,11 @@ export interface Reminder {
   // ---- по дате
   date?: string
   repeat?: ReminderRepeat
+  /**
+   * Время дня «ЧЧ:ММ», в которое звонить; можно несколько. Нет — звонит
+   * раз в день, как только день наступил (так было до 1.0.22).
+   */
+  times?: string[]
   // ---- по событию
   event?: ReminderEvent
   threshold?: number
@@ -249,6 +254,8 @@ export interface Reminder {
   categoryId?: string
   /** Когда показывали в последний раз — чтобы не звонить об одном и том же дважды. */
   lastFired?: string
+  /** Последний показанный час напоминания со временем: «ГГГГ-ММ-ДД ЧЧ:ММ». */
+  lastSlot?: string
 }
 
 /**
@@ -463,6 +470,8 @@ export interface Settings {
   theme: ThemeId
   animations: AnimLevel
   density: Density
+  /** Масштаб всего интерфейса: 1 — как есть, 1.25 — на четверть крупнее. Нет — 1. */
+  uiScale?: number
   readingFont: ReadingFont
   /** Категории, закреплённые в быстром вводе. Порядок — как закрепляли. */
   pinnedCategories: string[]

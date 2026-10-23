@@ -336,9 +336,11 @@ function buildMenu() {
         { role: 'reload', label: м('Перезагрузить') },
         { role: 'toggleDevTools', label: м('Инструменты разработчика') },
         { type: 'separator' },
-        { role: 'resetZoom', label: м('Сбросить масштаб') },
-        { role: 'zoomIn', label: м('Увеличить') },
-        { role: 'zoomOut', label: м('Уменьшить') },
+        // Масштаб ведёт окно, а не меню: он хранится в настройках и
+        // переезжает вместе с хранилищем, а меню только просит сменить шаг.
+        { label: м('Сбросить масштаб'), accelerator: 'CmdOrCtrl+0', click: () => win && win.webContents.send('menu:zoom', 'reset') },
+        { label: м('Увеличить'), accelerator: 'CmdOrCtrl+=', click: () => win && win.webContents.send('menu:zoom', 'in') },
+        { label: м('Уменьшить'), accelerator: 'CmdOrCtrl+-', click: () => win && win.webContents.send('menu:zoom', 'out') },
         { type: 'separator' },
         { role: 'togglefullscreen', label: м('Полный экран') },
         { type: 'separator' },

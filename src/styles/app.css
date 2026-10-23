@@ -768,6 +768,7 @@ kbd {
 
 /* ============================================================ дашборд */
 .hero {
+  position: relative;
   background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, var(--panel)), var(--panel));
   border: 1px solid var(--border-soft);
   border-radius: var(--radius-lg);
@@ -2342,3 +2343,26 @@ select.limit-period:hover, select.limit-period:focus { color: var(--text); borde
 .budget-ostatok { color: var(--muted); }
 .limit-period-wrap .period-pick, .limit-period-all .period-pick { left: auto; right: 0; transform: none; }
 .kat-limit-period { flex-shrink: 0; }
+
+/* Напоминание: несколько времён в день. */
+.rem-times { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rem-time { display: inline-flex; align-items: center; gap: 2px; }
+.rem-time input[type='time'] { width: auto; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 6px 10px; color: var(--text); outline: none; }
+
+/* Блик по шапке сводки раз в день: одна светлая полоса слева направо.
+   Своя обёртка с overflow: hidden — у самой шапки обрезать нельзя, из неё
+   выпадают меню выбора счёта. Двигается transform — без перекладки. */
+.hero-blik { position: absolute; inset: 0; border-radius: inherit; overflow: hidden; pointer-events: none; }
+.hero-blik::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  bottom: -30%;
+  left: -40%;
+  width: 35%;
+  background: linear-gradient(100deg, transparent, color-mix(in srgb, #fff8e6 26%, transparent) 50%, transparent);
+  transform: translateX(0) skewX(-18deg);
+  animation: hero-blik 1.2s cubic-bezier(0.4, 0, 0.2, 1) 0.4s both;
+}
+@keyframes hero-blik { to { transform: translateX(500%) skewX(-18deg); } }
+[data-anim='off'] .hero-blik { display: none; }

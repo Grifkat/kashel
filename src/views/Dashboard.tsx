@@ -1,4 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react'
+
+const КЛЮЧ_БЛИКА = 'kashel:hero-blik'
+
+/** Пора ли сегодня пустить блик. Отмечает день сразу — второй раз не пустит. */
+function блик_сегодня(): boolean {
+  try {
+    // Уровень анимаций уже сведён с системным «меньше движения» (App, data-anim):
+    // «Как в системе» превращается в off сам, а явный выбор человека главнее.
+    if (document.documentElement.dataset.anim === 'off') return false
+    const день = today()
+    if (localStorage.getItem(КЛЮЧ_БЛИКА) === день) return false
+    localStorage.setItem(КЛЮЧ_БЛИКА, день)
+    return true
+  } catch {
+    return false
+  }
+}
 import { копииДоступны } from '../state/rezerv'
 import { ОТМЕНА_МС } from '../components/Udalenie'
 import { сеткаМесяца } from '../components/DateField'
@@ -565,10 +582,15 @@ export default function Dashboard() {
     ),
   }
 
+  // Блик по шапке — раз в день, при первом открытии сводки: как солнце по
+  // металлу. Не каждый раз, иначе из события он стал бы мельтешением.
+  const [блик, setБлик] = useState(блик_сегодня)
+
   return (
     <div className="view wide">
       {/* ------------------------------------------------ шапка со счётом */}
       <div className="hero" style={{ marginBottom: 18 }}>
+        {блик && <span className="hero-blik" aria-hidden="true" onAnimationEnd={() => setБлик(false)} />}
         <div className="row">
           <div style={{ position: 'relative' }}>
             <button className="btn ghost" onClick={() => setPickAccount((v) => !v)}>

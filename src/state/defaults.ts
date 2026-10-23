@@ -158,6 +158,14 @@ export function categoriesFromCatalog(existing: Category[]): Category[] {
   return out
 }
 
+/** Шаги масштаба интерфейса: Ctrl + / Ctrl − ходят по ним. */
+export const МАСШТАБЫ = [0.9, 1, 1.1, 1.25, 1.5] as const
+
+/** Масштаб из хранилища — только из списка шагов, иначе 1. */
+export function масштабИз(v: unknown): number {
+  return typeof v === 'number' && (МАСШТАБЫ as readonly number[]).includes(v) ? v : 1
+}
+
 /** Раньше тема была просто «тёмная/светлая» — переводим старые хранилища. */
 export function migrateSettings(raw: Partial<Settings> | undefined): Settings {
   const legacy: Record<string, ThemeId> = { dark: 'obsidian', light: 'mint' }
@@ -168,6 +176,7 @@ export function migrateSettings(raw: Partial<Settings> | undefined): Settings {
     theme: (theme as ThemeId) || DEFAULT_SETTINGS.theme,
     animations: raw?.animations ?? DEFAULT_SETTINGS.animations,
     density: raw?.density ?? DEFAULT_SETTINGS.density,
+    uiScale: масштабИз(raw?.uiScale),
     pinnedCategories: raw?.pinnedCategories ?? [],
     readingFont: raw?.readingFont ?? DEFAULT_SETTINGS.readingFont,
     pomodoro: { ...DEFAULT_SETTINGS.pomodoro, ...(raw?.pomodoro || {}) },

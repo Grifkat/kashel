@@ -12,6 +12,7 @@ import {
   readAttachmentBase64, readCanvas, readNote, listIconFiles,
 } from '../state/vault'
 import { т } from '../i18n'
+import { чистоеВремя } from './reminders'
 
 /*
  * Архив хранилища — всё содержимое программы одним файлом.
@@ -151,7 +152,7 @@ const ACCOUNT_TYPES = ['cash', 'card', 'savings', 'credit', 'debt'] as const
 const BUCKETS = ['needs', 'wants', 'savings'] as const
 const FREQS = ['daily', 'weekly', 'monthly', 'yearly'] as const
 const REMINDER_SOUNDS = ['none', 'soft', 'bell', 'low', 'double', 'file'] as const
-const REMINDER_REPEATS = ['once', 'weekly', 'monthly', 'yearly'] as const
+const REMINDER_REPEATS = ['once', 'daily', 'weekdays', 'weekly', 'monthly', 'yearly'] as const
 const REMINDER_EVENTS: readonly ReminderEvent[] =
   ['recurring-due', 'task-due', 'no-entries', 'limit-exceeded', 'big-expense', 'low-balance']
 const SIDES = ['top', 'right', 'bottom', 'left'] as const
@@ -366,6 +367,7 @@ function normReminder(v: unknown, drop: Drop): Reminder | null {
       ? {
           date: dateOr(r.date, today()),
           repeat: oneOf<ReminderRepeat>(r.repeat, REMINDER_REPEATS, 'once'),
+          ...(чистоеВремя(r.times).length ? { times: чистоеВремя(r.times) } : {}),
         }
       : {
           event: ev,
@@ -374,6 +376,7 @@ function normReminder(v: unknown, drop: Drop): Reminder | null {
           ...(r.categoryId == null ? {} : { categoryId: str(r.categoryId) }),
         }),
     ...(isDate(str(r.lastFired)) ? { lastFired: str(r.lastFired) } : {}),
+    ...(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(str(r.lastSlot)) ? { lastSlot: str(r.lastSlot) } : {}),
   }
 }
 

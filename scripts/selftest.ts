@@ -817,6 +817,25 @@ check('ежемесячное смотрит вперёд, а не в прошл
 check('и сохраняет число месяца',
   следующее.slice(8) === addMonths(today(), -6).slice(8), следующее)
 
+// Каждый день, по будням и в заданные часы (1.0.22).
+const ежедневное = напоминание({ date: addDays(today(), -30), repeat: 'daily' })
+check('ежедневное звонит сегодня', nextDate(ежедневное, today()) === today())
+check('ежедневное звонит снова на следующий день',
+  dueReminders(сНапоминаниями([{ ...ежедневное, lastFired: addDays(today(), -1) }]), today()).length === 1)
+const суббота = (() => { let d = today(); while (new Date(d + 'T12:00').getDay() !== 6) d = addDays(d, 1); return d })()
+check('по будням: в субботу ждёт понедельника',
+  nextDate(напоминание({ date: addDays(суббота, -14), repeat: 'weekdays' }), суббота) === addDays(суббота, 2))
+const вЧасы = напоминание({ repeat: 'daily', date: addDays(today(), -3), times: ['09:00', '21:00'] })
+check('до первого часа молчит', dueReminders(сНапоминаниями([вЧасы]), today(), '08:59').length === 0)
+const в9 = dueReminders(сНапоминаниями([вЧасы]), today(), '09:00')
+check('в 09:00 звонит', в9.length === 1 && в9[0].slot === `${today()} 09:00`, JSON.stringify(в9.map((x) => x.slot)))
+check('в 09:30 второй раз не звонит',
+  dueReminders(сНапоминаниями([{ ...вЧасы, lastSlot: `${today()} 09:00`, lastFired: today() }]), today(), '09:30').length === 0)
+check('в 21:00 звонит снова, хотя сегодня уже звонило',
+  dueReminders(сНапоминаниями([{ ...вЧасы, lastSlot: `${today()} 09:00`, lastFired: today() }]), today(), '21:00').length === 1)
+check('пропущенные часы сливаются в один показ — последний',
+  dueReminders(сНапоминаниями([вЧасы]), today(), '23:00')[0]?.slot === `${today()} 21:00`)
+
 // По событию: «давно не вносили» считается от последней операции.
 const молчание = напоминание({ kind: 'event', event: 'no-entries', threshold: 3, date: undefined, repeat: undefined })
 const последняя = data.transactions.reduce((m, t) => (t.date > m ? t.date : m), data.transactions[0].date)

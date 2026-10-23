@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron')
+const { contextBridge, ipcRenderer, webFrame } = require('electron')
 
 /*
  * Главный процесс отвечает на отказ меткой-объектом, а не отклонённым
@@ -47,6 +47,17 @@ contextBridge.exposeInMainWorld('kashel', {
    * Меню «Файл» и двойной клик по архиву живут в главном процессе.
    * Приходит одно из трёх: {kind:'file',file} · {kind:'open'} · {kind:'save'}
    */
+  /**
+   * Масштаб интерфейса. Как браузерный масштаб, а не CSS zoom: страница
+   * перекладывается целиком, и координаты мыши на канвасе остаются верными.
+   */
+  setZoom: (f) => webFrame.setZoomFactor(f),
+  /** Ctrl + / Ctrl − / Ctrl 0 из меню «Вид»: 'in' · 'out' · 'reset'. */
+  onZoomCommand: (cb) => {
+    const h = (_e, d) => cb(d)
+    ipcRenderer.on('menu:zoom', h)
+    return () => ipcRenderer.off('menu:zoom', h)
+  },
   onFileCommand: (cb) => {
     const onFile = (_e, file) => cb({ kind: 'file', file })
     const onOpen = () => cb({ kind: 'open' })

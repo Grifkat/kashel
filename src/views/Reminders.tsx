@@ -10,7 +10,7 @@ import { isCatalogIcon } from '../lib/catalog'
 import { Confirm, Field, Modal, MoneyInput, Tbl, Toggle, useToast } from '../components/ui'
 import { playFile, playTone, SOUNDS } from '../lib/sound'
 import { readAttachmentBase64, saveAttachment, bridge } from '../state/vault'
-import { describeReminder, dueReminders, EVENT_NAMES, EVENT_THRESHOLD } from '../engine/reminders'
+import { describeReminder, dueReminders, EVENT_NAMES, EVENT_THRESHOLD, чистоеВремя } from '../engine/reminders'
 import type { Reminder, ReminderEvent, ReminderRepeat, ReminderSound } from '../lib/types'
 import { т } from '../i18n'
 
@@ -18,6 +18,8 @@ const EVENTS: ReminderEvent[] = ['recurring-due', 'task-due', 'no-entries', 'lim
 
 const REPEATS: { k: ReminderRepeat; t: string }[] = [
   { k: 'once', t: т('Один раз') },
+  { k: 'daily', t: т('Каждый день') },
+  { k: 'weekdays', t: т('По будням') },
   { k: 'weekly', t: т('Каждую неделю') },
   { k: 'monthly', t: т('Каждый месяц') },
   { k: 'yearly', t: т('Каждый год') },
@@ -212,6 +214,7 @@ function ReminderModal({
       </div>
 
       {r.kind === 'date' ? (
+        <>
         <div className="grid c2">
           <Field label={т('Когда')}>
             <DateField value={r.date ?? today()} onChange={(v) => patch({ date: v })} />
@@ -222,6 +225,46 @@ function ReminderModal({
             </select>
           </Field>
         </div>
+          <Field label={т('Во сколько')} hint={т('Можно несколько раз в день. Пусто — один раз, как только наступит день.')}>
+            <div className="rem-times">
+              {(r.times ?? []).map((t, i) => (
+                <span key={i} className="rem-time">
+                  <input
+                    type="time"
+                    value={t}
+                    aria-label={т('Время напоминания')}
+                    onChange={(e) => {
+                      const next = [...(r.times ?? [])]
+                      next[i] = e.target.value
+                      patch({ times: next })
+                    }}
+                    onBlur={() => patch({ times: чистоеВремя(r.times) })}
+                  />
+                  <button
+                    className="icon-btn"
+                    title={т('Убрать время')}
+                    aria-label={т('Убрать время')}
+                    onClick={() => patch({ times: (r.times ?? []).filter((_, j) => j !== i) })}
+                  >
+                    <Icon name="x" size={13} />
+                  </button>
+                </span>
+              ))}
+              <button
+                className="btn ghost"
+                onClick={() => {
+                  const было = r.times ?? []
+                  // Следующее время — через час после последнего, иначе 09:00.
+                  const last = было[было.length - 1]
+                  const next = last ? `${String(Math.min(23, Number(last.slice(0, 2)) + 1)).padStart(2, '0')}:${last.slice(3)}` : '09:00'
+                  patch({ times: [...было, next] })
+                }}
+              >
+                <Icon name="plus" size={13} /> {т('Добавить время')}
+              </button>
+            </div>
+          </Field>
+        </>
       ) : (
         <>
           <Field label={т('Событие')}>
