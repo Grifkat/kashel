@@ -26,7 +26,11 @@ import { Полка, type ПунктПолки } from '../components/canvas/Polk
 import { K_MAX, K_MIN, ZOOM_DEFAULT, useКамера } from '../components/canvas/kamera'
 import { useИстория } from '../components/canvas/istoriya'
 import { Справка } from '../components/canvas/Spravka'
-import { Виджет, ВИДЖЕТЫ, видВиджета, текстДляСтарых, type ВидВиджета } from '../components/canvas/Vidzhety'
+import { Виджет, ВИДЖЕТЫ, видВиджета, текстДляСтарых, текстДляСтарыхСвой, type ВидВиджета } from '../components/canvas/Vidzhety'
+import { свойИзУзла } from '../components/canvas/Svoy'
+import { КонструкторВиджета } from '../components/canvas/SvoyKonstruktor'
+import { новыйВиджет } from '../engine/vidzhety'
+import type { СвойВиджет } from '../lib/types'
 import { этоЗаработок } from '../engine/zarabotok'
 import { FIT_MODES, TextToolbar } from '../components/canvas/TextToolbar'
 import type { ПравкаТекста } from '../components/canvas/Pravka'
@@ -161,7 +165,7 @@ const ЦВЕТ_ВАЖНОСТИ = ['var(--accent)', 'var(--info)', 'var(--warn)'
 
 export default function CanvasView({ name }: { name?: string }) {
   const app = useApp()
-  const { data, upsertTask, upsertAccount, upsertGoal, отметитьДействие, patchSettings } = useStore()
+  const { data, setData, upsertTask, upsertAccount, upsertGoal, отметитьДействие, patchSettings } = useStore()
   const toast = useToast()
   const удаление = useУдаление()
 
@@ -192,6 +196,18 @@ export default function CanvasView({ name }: { name?: string }) {
   const [новаяЗапись, setНоваяЗапись] = useState<
     { вид: 'account'; at: Point; счёт: Account } | { вид: 'goal'; at: Point; цель: Goal } | null
   >(null)
+  /**
+   * Конструктор своего виджета: новый (кладётся в библиотеку и на доску в at),
+   * правка библиотечного или правка отвязанной копии в узле.
+   */
+  const [конструктор, setКонструктор] = useState<
+    | { куда: 'new'; w: СвойВиджет; at: Point; connectFrom?: СвязатьС }
+    | { куда: 'lib'; w: СвойВиджет }
+    | { куда: 'own'; w: СвойВиджет; узел: string }
+    | null
+  >(null)
+  /** Свой виджет, который просят убрать из библиотеки, — ждёт подтверждения. */
+  const [изБиблиотеки, setИзБиблиотеки] = useState<СвойВиджет | null>(null)
   /** Долг заводится окном «Дать / Взять в долг»: ждём новый счёт-долг и кладём его карточку. */
   const ждёмДолг = useRef<{ at: Point; было: Set<string> } | null>(null)
   /** Связь, в которую встанет перетаскиваемая карточка, если её отпустить. */
@@ -231,6 +247,17 @@ export default function CanvasView({ name }: { name?: string }) {
   const гасимМеню = useRef(false)
   const [справка, setСправка] = useState(false)
   const animLevel = useAnimLevel()
+  /**
+   * Бег по линиям: под мышью линия или карточка — по её связям бежит штрих.
+   * Выключен, пока не включат в справке; в покое ничего не движется и
+   * процессор не тратится — анимация живёт, только пока мышь над линией.
+   */
+  const линииБегут = !!data.settings.canvasLinesAnim
+  const [наведено, setНаведено] = useState<{ edge?: string; node?: string } | null>(null)
+  const навести = useCallback((x: { edge?: string; node?: string } | null) => {
+    if (!линииБегут) return
+    setНаведено((было) => (было?.edge === x?.edge && было?.node === x?.node ? было : x))
+  }, [линииБегут])
   /** Сдвиг, масштаб, колесо и тачпад — см. components/canvas/kamera. */
   const { view, viewRef, движется, масштабК, zoomBy, тянуть, вписать, колесо, выбратьКолесо, замереть } = useКамера(wrapRef, current, animLevel)
   const docRef = useRef(doc)
@@ -434,6 +461,17 @@ export default function CanvasView({ name }: { name?: string }) {
       return node
     },
     [addNode, commit, nodeById],
+  )
+
+  /**
+   * Свой виджет из библиотеки — на доску: ссылкой (lib) и копией (def).
+   * По ссылке он следует правкам в библиотеке, по копии — живёт, если его
+   * из библиотеки убрали.
+   */
+  const положитьСвой = useCallback(
+    (w: СвойВиджет, at: Point, connectFrom?: СвязатьС) =>
+      insertNode('widget', at, { options: { widget: 'custom', lib: w.id, def: w }, text: текстДляСтарыхСвой(w.name), color: w.color }, connectFrom),
+    [insertNode],
   )
 
   const patchNode = useCallback(
@@ -671,7 +709,25 @@ export default function CanvasView({ name }: { name?: string }) {
                 icon: w.icon,
                 hint: undefined,
                 onClick: () => insertNode('widget', at, { options: { widget: w.id }, text: текстДляСтарых(w.id) }, connectFrom),
-              })],
+              }),
+        {
+          id: 'w:build',
+          label: т('Собрать свой…'),
+          icon: 'sparkle',
+          onClick: () => setКонструктор({ куда: 'new', w: новыйВиджет(uid('w')), at, connectFrom }),
+        },
+        {
+          id: 'w:mine',
+          label: т('Мои виджеты'),
+          icon: 'list',
+          disabled: !data.widgets?.length,
+          children: (data.widgets ?? []).map((w) => ({
+            id: 'w:mine:' + w.id,
+            label: w.name || т('Свой виджет'),
+            icon: 'sparkle',
+            onClick: () => положитьСвой(w, at, connectFrom),
+          })),
+        }],
       },
       {
         id: 'query',
@@ -686,6 +742,7 @@ export default function CanvasView({ name }: { name?: string }) {
           ),
       },
     ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [insertNode, notes, data, upsertTask, app],
   )
 
@@ -763,7 +820,7 @@ export default function CanvasView({ name }: { name?: string }) {
       { id: 'account', label: т('Счёт'), icon: 'wallet', onPick: список('account') },
       { id: 'category', label: т('Категория'), icon: 'tag', onPick: список('category') },
       { id: 'goal', label: т('Цель'), icon: 'target', onPick: список('goal') },
-      { id: 'widget', label: т('Виджет'), icon: 'chart', hint: т('доход и расход, заработок, остаток'), onPick: список('widget') },
+      { id: 'widget', label: т('Виджет'), icon: 'chart', hint: т('готовые, свои из «Моих виджетов» или собрать свой'), onPick: список('widget') },
       {
         id: 'query',
         label: т('Запрос'),
@@ -823,7 +880,8 @@ export default function CanvasView({ name }: { name?: string }) {
           : []),
         { id: 'dup', label: т('Дублировать'), icon: 'copy', onClick: () => duplicate(node.id) },
         { id: 'copy', label: т('Копировать'), icon: 'copy', hint: 'Ctrl+C', onClick: copySelection },
-        ...(((node.ref || node.file) && node.type !== 'task') || node.type === 'widget'
+        ...(((node.ref || node.file) && node.type !== 'task' && node.type !== 'widget') ||
+          (node.type === 'widget' && ['flow', 'earn', 'balance'].includes(видВиджета(node)))
           ? [{ id: 'open', label: т('Открыть раздел'), icon: 'arrowRight', onClick: () => openNodeTarget(node) }]
           : []),
         {
@@ -916,6 +974,8 @@ export default function CanvasView({ name }: { name?: string }) {
     const стать = (вид: ВидВиджета, ref?: string): Partial<CanvasNode> =>
       ({ options: { ...(n.options ?? {}), widget: вид }, ref, text: текстДляСтарых(вид) })
     const сейчас = видВиджета(n)
+    if (сейчас === 'unknown') return []
+    if (сейчас === 'custom') return своиПункты(n)
     return [{
       id: 'w-kind',
       label: т('Вид виджета'),
@@ -938,6 +998,107 @@ export default function CanvasView({ name }: { name?: string }) {
               onClick: () => patchNode(n.id, стать(w.id, undefined)),
             }),
     }]
+  }
+
+  /** Меню своего виджета: править, отвязать от библиотеки, убрать из неё. */
+  const своиПункты = (n: CanvasNode): MenuItem[] => {
+    const свой = свойИзУзла(n, data)
+    if (!свой) return []
+    const { w, вБиблиотеке } = свой
+    return [
+      {
+        id: 'sw-edit',
+        label: вБиблиотеке ? т('Править (на всех досках)…') : т('Править…'),
+        icon: 'edit',
+        onClick: () => setКонструктор(вБиблиотеке ? { куда: 'lib', w } : { куда: 'own', w, узел: n.id }),
+      },
+      вБиблиотеке
+        ? {
+            id: 'sw-unlink',
+            label: т('Отвязать от библиотеки'),
+            icon: 'link',
+            onClick: () => {
+              patchNode(n.id, { options: { widget: 'custom', def: w } })
+              toast(т('Виджет отвязан: правки в библиотеке его больше не меняют'))
+            },
+          }
+        : {
+            id: 'sw-tolib',
+            label: т('Положить в «Мои виджеты»'),
+            icon: 'save',
+            onClick: () => {
+              const копия = { ...w, id: uid('w'), updatedAt: new Date().toISOString() }
+              setData((d) => ({ ...d, widgets: [...(d.widgets ?? []), копия] }))
+              patchNode(n.id, { options: { widget: 'custom', lib: копия.id, def: копия } })
+              toast(т('Виджет «{0}» теперь в «Моих виджетах»', копия.name))
+            },
+          },
+      ...(вБиблиотеке
+        ? [{ id: 'sw-drop', label: т('Удалить из библиотеки…'), icon: 'trash', danger: true, onClick: () => setИзБиблиотеки(w) }]
+        : []),
+    ]
+  }
+
+  /** Сохранение из конструктора: в библиотеку, в отвязанную копию или новый — и на доску. */
+  const сохранитьСвой = (w: СвойВиджет) => {
+    const к = конструктор
+    setКонструктор(null)
+    if (!к) return
+    if (к.куда === 'own') {
+      const n = docRef.current.nodes.find((x) => x.id === к.узел)
+      if (n) patchNode(n.id, { options: { ...(n.options ?? {}), widget: 'custom', def: w }, text: текстДляСтарыхСвой(w.name) })
+      return
+    }
+    setData((d) => {
+      const список = d.widgets ?? []
+      return { ...d, widgets: список.some((x) => x.id === w.id) ? список.map((x) => (x.id === w.id ? w : x)) : [...список, w] }
+    })
+    if (к.куда === 'new') {
+      положитьСвой(w, к.at, к.connectFrom)
+      toast(т('Виджет «{0}» собран — он и в «Добавить → Виджет → Мои виджеты»', w.name))
+    } else {
+      toast(т('Виджет «{0}» обновлён на всех досках', w.name))
+    }
+  }
+
+  /**
+   * Убрать свой виджет из библиотеки. Доски, где он лежит, не ломаются:
+   * его карточки становятся отвязанными копиями — на этой доске и в файлах
+   * остальных.
+   */
+  const удалитьИзБиблиотеки = async (w: СвойВиджет) => {
+    const отвязать = (d: CanvasDoc): CanvasDoc | null => {
+      let было = false
+      const nodes = d.nodes.map((n) => {
+        if (n.type !== 'widget' || n.options?.lib !== w.id) return n
+        было = true
+        return { ...n, options: { widget: 'custom', def: w } }
+      })
+      return было ? { ...d, nodes } : null
+    }
+    setData((d) => ({ ...d, widgets: (d.widgets ?? []).filter((x) => x.id !== w.id) }))
+    let досок = 0
+    const здесь = отвязать(docRef.current)
+    if (здесь) {
+      commit(здесь)
+      досок++
+    }
+    for (const f of files) {
+      if (f === current) continue
+      try {
+        const d = await readCanvas(f)
+        const новая = d && отвязать(d)
+        if (новая) {
+          await writeCanvas(f, новая)
+          досок++
+        }
+      } catch (e) {
+        toast(т('Доска «{0}» не переписана: ', f) + (e instanceof Error ? e.message : String(e)))
+      }
+    }
+    toast(досок
+      ? т('Виджет «{0}» убран из библиотеки. На досках он остался копией: {1}', w.name, досок)
+      : т('Виджет «{0}» убран из библиотеки', w.name))
   }
 
   // ---------------------------------------------------- имя доски
@@ -977,6 +1138,12 @@ export default function CanvasView({ name }: { name?: string }) {
     else if (n.type === 'scenario') app.openTab('forecast')
     else if (n.type === 'widget') {
       const вид = видВиджета(n)
+      if (вид === 'unknown') return
+      if (вид === 'custom') {
+        const свой = свойИзУзла(n, data)
+        if (свой) setКонструктор(свой.вБиблиотеке ? { куда: 'lib', w: свой.w } : { куда: 'own', w: свой.w, узел: n.id })
+        return
+      }
       app.openTab(вид === 'flow' ? 'transactions' : вид === 'earn' ? 'goals' : 'accounts')
     }
   }
@@ -1291,6 +1458,8 @@ export default function CanvasView({ name }: { name?: string }) {
         правка.run(id)
         return
       }
+      // Поверх доски открыто окно конструктора — клавиши его, а не доски.
+      if (конструктор || изБиблиотеки) return
       const mod = e.ctrlKey || e.metaKey
 
       if (mod && буква(e) === 'z' && !e.shiftKey) {
@@ -1360,7 +1529,7 @@ export default function CanvasView({ name }: { name?: string }) {
       window.removeEventListener('keydown', down)
       window.removeEventListener('keyup', up)
     }
-  }, [undo, redo, copySelection, paste, duplicate, sel, selEdge, removeEdge, removeNodes, nodeById, editing, patchNode, zoomBy, масштабК, insertNode, безНаложения, toWorld, commit, задача, palette, askDelete])
+  }, [undo, redo, copySelection, paste, duplicate, sel, selEdge, removeEdge, removeNodes, nodeById, editing, patchNode, zoomBy, масштабК, insertNode, безНаложения, toWorld, commit, задача, palette, askDelete, конструктор, изБиблиотеки])
 
   // ------------------------------------------------------------- рендер
   /** Линии по умолчанию: одни на все доски, см. components/canvas/linii. */
@@ -1375,6 +1544,26 @@ export default function CanvasView({ name }: { name?: string }) {
     patchSettings({ canvasLines: next })
   }
   const selectedEdge = selEdge ? doc.edges.find((e) => e.id === selEdge) : null
+  /** Связи, по которым сейчас бежит штрих: наведённая или все у наведённой карточки. */
+  const бегущие = new Set<string>(
+    !линииБегут || !наведено ? []
+      : наведено.edge ? [наведено.edge]
+        : doc.edges.filter((e) => e.fromNode === наведено.node || e.toNode === наведено.node).map((e) => e.id),
+  )
+  /**
+   * Цвет по смыслу: на концах категория и счёт — значит, это деньги. Доход
+   * зелёный, расход красный — по виду категории, а не по стрелке: связь
+   * могли протянуть и задом наперёд. Свой цвет линии важнее смысла.
+   */
+  const смыслСвязи = (e: CanvasEdge): string | undefined => {
+    const a = nodeById.get(e.fromNode)
+    const b = nodeById.get(e.toNode)
+    if (!a || !b) return undefined
+    const кат = a.type === 'category' && b.type === 'account' ? a : b.type === 'category' && a.type === 'account' ? b : null
+    if (!кат) return undefined
+    const c = data.categories.find((x) => x.id === кат.ref)
+    return c ? (c.kind === 'income' ? 'var(--money-in)' : 'var(--money-out)') : undefined
+  }
   const edgeCurve = (e: CanvasEdge) => {
     const a = nodeById.get(e.fromNode)
     const b = nodeById.get(e.toNode)
@@ -1389,8 +1578,8 @@ export default function CanvasView({ name }: { name?: string }) {
    * собирал все карточки: на доске в 250 карточек — десятки миллисекунд.
    * Действия берутся из ref, чтобы запомненный слой звал свежие.
    */
-  const действия = useRef({ правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть })
-  действия.current = { правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть }
+  const действия = useRef({ правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть, навести })
+  действия.current = { правыйСдвиг, погаситьМеню, openNodeMenu, openNodeTarget, patchNode, commit, переключитьЗадачу, app, замереть, навести }
   const слойКарточек = useMemo(
     () => doc.nodes.map((n) => {
       const info = nodeData(n, data, cardCtx)
@@ -1398,6 +1587,7 @@ export default function CanvasView({ name }: { name?: string }) {
       return (
         <div
           key={n.id}
+          data-node={n.id}
           className={`cnode cnode-${cardStyle} cnode-t-${n.type}${selected ? ' sel' : ''}`}
           style={{
             left: n.x,
@@ -1449,6 +1639,8 @@ export default function CanvasView({ name }: { name?: string }) {
             else действия.current.openNodeTarget(n)
           }}
           onAuxClick={(e) => e.preventDefault()}
+          onMouseEnter={() => действия.current.навести({ node: n.id })}
+          onMouseLeave={() => действия.current.навести(null)}
         >
           {n.type === 'widget' ? (
             <Виджет node={n} data={data} from={from} periodLabel={periodLabel} />
@@ -1595,15 +1787,20 @@ export default function CanvasView({ name }: { name?: string }) {
             // непомерно); у прочих — по толщине и цвету линии.
             const конец = e.flow ? (on ? 'url(#cv-arrow-sel)' : 'url(#cv-arrow)') : 'url(#cv-arr)'
             const начало = e.flow ? 'url(#cv-arrow-back)' : 'url(#cv-arr)'
+            const цвет = вид.color ?? смыслСвязи(e) ?? (e.flow ? from?.color ?? 'var(--faint)' : 'var(--faint)')
+            const бежит = бегущие.has(e.id)
             return (
               <g
                 key={e.id}
-                className={'cv-edge' + (on ? ' on' : '') + (вставкаВ === e.id ? ' insert' : '') + (тащимКонец === e.id ? ' moving' : '')}
+                data-edge={e.id}
+                className={'cv-edge' + (on ? ' on' : '') + (вставкаВ === e.id ? ' insert' : '') + (тащимКонец === e.id ? ' moving' : '') + (бежит ? ' run' : '')}
               >
                 {/* Широкая прозрачная дорожка — попасть мышью по кривой иначе тяжело. */}
                 <path
                   d={pathOf(c)}
                   className="cv-hit"
+                  onMouseEnter={() => навести({ edge: e.id })}
+                  onMouseLeave={() => навести(null)}
                   onMouseDown={(ev) => {
                     ev.stopPropagation()
                     if (правыйСдвиг(ev)) return
@@ -1627,16 +1824,30 @@ export default function CanvasView({ name }: { name?: string }) {
                 <path
                   d={pathOf(c)}
                   fill="none"
-                  stroke={on ? 'var(--accent)' : вид.color ?? (e.flow ? from?.color ?? 'var(--faint)' : 'var(--faint)')}
+                  stroke={on ? 'var(--accent)' : цвет}
                   strokeWidth={on ? w + 1 : w}
                   strokeDasharray={штрихЛинии(вид.dash, Math.min(w, 4))}
                   strokeLinecap="round"
                   strokeLinejoin="round"
-                  opacity={on ? 0.95 : e.flow ? 0.5 : 0.8}
+                  opacity={on || бежит ? 0.95 : e.flow ? 0.5 : 0.8}
                   markerEnd={arrow === 'none' ? undefined : конец}
                   markerStart={arrow === 'both' ? начало : undefined}
                   pointerEvents="none"
                 />
+                {/* Бегущий штрих — от начала связи к концу, туда, куда смотрит
+                    стрелка. Без движения (анимации выключены) линия только
+                    подсвечивается. */}
+                {бежит && animLevel !== 'off' && (
+                  <path
+                    d={pathOf(c)}
+                    className="cv-run"
+                    fill="none"
+                    stroke="var(--panel)"
+                    strokeWidth={Math.max(1.5, Math.min(w, 10) * 0.6)}
+                    strokeLinecap="round"
+                    pointerEvents="none"
+                  />
+                )}
                 {(e.label || (e.flow && amount > 0)) && view.k > 0.45 && (
                   <text x={mid.x} y={mid.y - 7} textAnchor="middle" className="cv-edge-label" pointerEvents="none">
                     {e.label ? e.label + ' ' : ''}
@@ -1901,6 +2112,12 @@ export default function CanvasView({ name }: { name?: string }) {
         <Справка
           колесо={колесо}
           onКолесо={выбратьКолесо}
+          линииБегут={линииБегут}
+          onЛинииБегут={(v) => {
+            patchSettings({ canvasLinesAnim: v || undefined })
+            if (!v) setНаведено(null)
+          }}
+          движениеВыкл={animLevel === 'off'}
           карточек={doc.nodes.length}
           связей={doc.edges.length}
           onClose={() => setСправка(false)}
@@ -1979,6 +2196,32 @@ export default function CanvasView({ name }: { name?: string }) {
             toast(т('Цель «{0}» заведена — она и в «Целях»', g.name))
             setНоваяЗапись(null)
           }}
+        />
+      )}
+      {конструктор && (
+        <КонструкторВиджета
+          value={конструктор.w}
+          data={data}
+          from={from}
+          periodLabel={periodLabel}
+          заголовок={конструктор.куда === 'new' ? т('Собрать свой виджет') : конструктор.куда === 'lib' ? т('Свой виджет — правка на всех досках') : т('Свой виджет — только эта карточка')}
+          кнопка={конструктор.куда === 'new' ? т('Собрать и положить') : т('Сохранить')}
+          пояснение={конструктор.куда === 'new'
+            ? т('Виджет ляжет в «Мои виджеты» и будет доступен на любой доске. Правка в библиотеке обновит все его копии.')
+            : конструктор.куда === 'lib'
+              ? т('Правка обновит этот виджет на всех досках, где он лежит.')
+              : т('Эта карточка отвязана от библиотеки: правка изменит только её.')}
+          onSave={сохранитьСвой}
+          onClose={() => setКонструктор(null)}
+        />
+      )}
+      {изБиблиотеки && (
+        <Confirm
+          title={т('Удалить из библиотеки?')}
+          text={т('Виджет «{0}» уйдёт из «Моих виджетов». Доски, где он лежит, не сломаются: его карточки останутся копиями, которые больше не следуют правкам.', изБиблиотеки.name)}
+          confirmLabel={т('Удалить из библиотеки')}
+          onConfirm={() => void удалитьИзБиблиотеки(изБиблиотеки)}
+          onClose={() => setИзБиблиотеки(null)}
         />
       )}
       {menu && <ContextMenu x={menu.x} y={menu.y} title={menu.title} items={menu.items} above={menu.above} onClose={() => setMenu(null)} />}

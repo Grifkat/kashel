@@ -2,7 +2,7 @@ import { путьЗначкаДопустимъ } from '../lib/svoiznachki'
 import type {
   Account, AccountType, Bucket, CanvasDoc, CanvasEdge, CanvasNode, Category, Freq, Goal,
   ImportRule, Money, Notice, Recurring, Reminder, ReminderEvent, ReminderRepeat, ReminderSound,
-  RankBranch, Scenario, Settings, Side, Task, TaskList, TaskRepeat, ПериодЛимита, Transaction, TxKind, VaultData,
+  RankBranch, Scenario, Settings, Side, Task, TaskList, TaskRepeat, ПериодЛимита, Transaction, TxKind, VaultData, СвойВиджет,
 } from '../lib/types'
 import { migrateSettings } from '../state/defaults'
 import { today } from '../lib/date'
@@ -562,6 +562,42 @@ function normRule(v: unknown, drop: Drop): ImportRule | null {
   return { id, match: str(r.match), categoryId: str(r.categoryId), tags: strList(r.tags) }
 }
 
+const МЕТРИКИ = ['income', 'expense', 'balance', 'net', 'category', 'account', 'goal', 'count', 'avg'] as const
+const ВИДЫ_ВИДЖЕТА = ['auto', 'number', 'line', 'bars', 'pie', 'list', 'progress'] as const
+const ПЕРИОДЫ_ВИДЖЕТА = ['board', '1m', '3m', '12m', 'month', 'year', 'all'] as const
+
+/** Свой виджет из библиотеки. Незнакомое значение — исходное, а не отказ: виджет лучше показать, чем потерять. */
+function normWidget(v: unknown, drop: Drop): СвойВиджет | null {
+  const r = asRaw(v)
+  const id = str(r.id)
+  if (!id) {
+    drop.n++
+    return null
+  }
+  const ф = asRaw(r.filter)
+  const filter: СвойВиджет['filter'] = {
+    ...(strList(ф.accounts).length ? { accounts: strList(ф.accounts) } : {}),
+    ...(strList(ф.categories).length ? { categories: strList(ф.categories) } : {}),
+    ...(strList(ф.tags).length ? { tags: strList(ф.tags) } : {}),
+    ...(ф.scope === 'project' || ф.scope === 'all' ? { scope: ф.scope } : {}),
+  }
+  return {
+    id,
+    name: str(r.name),
+    ...(opt(r.color) ? { color: str(r.color) } : {}),
+    metric: oneOf(r.metric, МЕТРИКИ, 'expense'),
+    ...(opt(r.ref) ? { ref: str(r.ref) } : {}),
+    ...(opt(r.formula) ? { formula: str(r.formula).slice(0, 500) } : {}),
+    ...(r.format === 'money' || r.format === 'percent' || r.format === 'number' ? { format: r.format } : {}),
+    ...(Object.keys(filter).length ? { filter } : {}),
+    period: oneOf(r.period, ПЕРИОДЫ_ВИДЖЕТА, 'board'),
+    view: oneOf(r.view, ВИДЫ_ВИДЖЕТА, 'auto'),
+    ...(r.top == null ? {} : { top: Math.min(20, Math.max(1, Math.round(num(r.top, 5)))) }),
+    ...(r.target == null ? {} : { target: Math.abs(money(r.target)) }),
+    updatedAt: str(r.updatedAt),
+  }
+}
+
 function normNode(v: unknown): CanvasNode | null {
   const r = asRaw(v)
   const id = str(r.id)
@@ -694,6 +730,7 @@ export function parseArchive(text: string): ParseResult {
     settings: migrateSettings(asRaw(d.settings) as Partial<Settings>),
     notifications: list(d.notifications).map((x) => normNotice(x, drop)).filter((x): x is Notice => !!x),
     activityDays: strList(d.activityDays).filter(isDate).slice(-800),
+    widgets: list(d.widgets).map((x) => normWidget(x, drop)).filter((x): x is СвойВиджет => !!x),
   }
 
   const notes: Record<string, string> = {}
@@ -786,4 +823,10 @@ export async function applyArchive(a: Archive): Promise<ApplyReport> {
   ])
 
   return report
+}
+
+/** Свой виджет, пришедший снаружи (копия в узле доски), — к нужному виду. null — не виджет. */
+export function нормСвойВиджет(v: unknown): СвойВиджет | null {
+  if (!v || typeof v !== 'object') return null
+  return normWidget(v, { n: 0 })
 }

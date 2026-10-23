@@ -8,6 +8,7 @@ import { личное, проектный } from '../../engine/project'
 import { BarChart, Spark } from '../charts'
 import type { CanvasNode, Money, VaultData } from '../../lib/types'
 import { т } from '../../i18n'
+import { СвойНаДоске } from './Svoy'
 
 /*
  * Виджеты доски: кусок Кошеля, живущий на канвасе рядом с карточками.
@@ -35,28 +36,41 @@ export const ВИДЖЕТЫ: { id: ВидВиджета; name: string; about: st
   { id: 'balance', name: т('Остаток на счетах'), about: т('Сколько денег сейчас и куда идёт остаток'), icon: 'wallet' },
 ]
 
-/** Вид виджета из узла; незнакомое — «Доход и расход». */
-export const видВиджета = (n: CanvasNode): ВидВиджета => {
+/** Готовый вид, свой из конструктора или незнакомый — из версии новее этой. */
+export type РодВиджета = ВидВиджета | 'custom' | 'unknown'
+
+/**
+ * Вид виджета из узла. Без вида — «Доход и расход», как в первых досках с
+ * виджетами. Незнакомый вид — заглушка: доску, собранную более новым
+ * Кошелем, эта версия открывает целиком, а не падает и не путает виджеты.
+ */
+export const видВиджета = (n: CanvasNode): РодВиджета => {
   const v = n.options?.widget
-  return v === 'earn' || v === 'balance' ? v : 'flow'
+  if (v === undefined || v === 'flow') return 'flow'
+  return v === 'earn' || v === 'balance' || v === 'custom' ? v : 'unknown'
 }
+
+/** Фраза для старых версий у своего виджета. */
+export const текстДляСтарыхСвой = (имя: string): string =>
+  т('Виджет «{0}» — обновите Кошель, чтобы его увидеть', имя || т('Свой виджет'))
 
 /** Фраза для старых версий: её покажет текстовая карточка, если узел виджета им незнаком. */
 export const текстДляСтарых = (вид: ВидВиджета): string =>
   т('Виджет «{0}» — обновите Кошель, чтобы его увидеть', ВИДЖЕТЫ.find((w) => w.id === вид)!.name)
 
-type Размер = 'S' | 'M' | 'L'
+export type Размер = 'S' | 'M' | 'L'
 /** Размер по самой карточке: пороги — где следующий вид уже помещается без давки. */
-const размерОт = (n: CanvasNode): Размер =>
+export const размерОт = (n: Pick<CanvasNode, 'width' | 'height'>): Размер =>
   n.width < 240 || n.height < 150 ? 'S' : n.width >= 340 && n.height >= 250 ? 'L' : 'M'
 
-const месяц = (key: string) => MONTHS_SHORT[Number(key.slice(5, 7)) - 1]
+export const месяц = (key: string) => MONTHS_SHORT[Number(key.slice(5, 7)) - 1]
 
 /**
  * Виджет запомнен: слой карточек перерисовывается на каждом кадре
  * перетаскивания любой из них, а виджет пересчитывает историю операций —
  * без запоминания доска с парой виджетов подтормаживала бы при каждом
- * движении. Пересчёт — только когда меняется сам узел, данные или период.
+ * движении. Пересчёт — только когда меняется вид узла (не место: тащат
+ * сам виджет — он не пересчитывается), данные или период.
  */
 export const Виджет = React.memo(function Виджет({
   node,
@@ -70,8 +84,18 @@ export const Виджет = React.memo(function Виджет({
   from: string
   periodLabel: string
 }) {
-  const вид = видВиджета(node)
+  const род = видВиджета(node)
   const размер = размерОт(node)
+  if (род === 'custom') return <СвойНаДоске node={node} data={data} from={from} periodLabel={periodLabel} размер={размер} />
+  if (род === 'unknown') {
+    return (
+      <div className={'cw cw-' + размер} data-widget="unknown">
+        <div className="cw-head"><span className="cw-icon"><Icon name="chart" size={14} /></span><span className="cw-title">{т('Виджет')}</span></div>
+        <div className="cw-body"><div className="cw-empty">{т('Этот виджет сделан более новой версией Кошеля. Обновите программу, чтобы его увидеть; доске он не мешает.')}</div></div>
+      </div>
+    )
+  }
+  const вид = род
   const о = ВИДЖЕТЫ.find((w) => w.id === вид)!
   const col = node.color || 'var(--accent)'
   const тело =
@@ -89,12 +113,19 @@ export const Виджет = React.memo(function Виджет({
       <div className="cw-body">{тело}</div>
     </div>
   )
-})
+}, (a, b) =>
+  a.data === b.data && a.from === b.from && a.periodLabel === b.periodLabel && тотЖеВид(a.node, b.node))
+
+/** Узел выглядит так же: всё, кроме места на доске. */
+function тотЖеВид(a: CanvasNode, b: CanvasNode): boolean {
+  return a === b || (a.id === b.id && a.width === b.width && a.height === b.height && a.color === b.color &&
+    a.ref === b.ref && a.options === b.options && a.type === b.type)
+}
 
 /** «Скрыть баланс» прячет суммы и в виджетах — как на дашборде и в строке состояния. */
 const скрыть = (data: VaultData) => data.settings.hideBalance
-const деньги = (data: VaultData, m: Money, opts?: Parameters<typeof money>[1]) => (скрыть(data) ? '••••' : money(m, opts))
-const кратко = (data: VaultData, m: Money) => (скрыть(data) ? '••' : moneyShort(m))
+export const деньги = (data: VaultData, m: Money, opts?: Parameters<typeof money>[1]) => (скрыть(data) ? '••••' : money(m, opts))
+export const кратко = (data: VaultData, m: Money) => (скрыть(data) ? '••' : moneyShort(m))
 
 // ------------------------------------------------------- доход и расход
 function ДоходИРасход({ data, from, размер }: { data: VaultData; from: string; размер: Размер }) {
