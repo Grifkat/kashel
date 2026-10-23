@@ -1753,4 +1753,20 @@ export const ЦИТАТЫ: Цитата[] = [
       кЧему: 'Freedom is not a gift but a responsibility. Answer it with labour and firm will — then money will serve both you and your cause.',
     },
   }),
+  // ------------------------------------------------ девиз белой эмиграции
+  // Одного автора у фразы нет: это девиз, связанный с РОВС. Врангелю её не
+  // приписываем — документа, где он это сказал, не найдено.
+  Ц({
+    id: 'rovs-otboya-ne-bylo', автор: 'rovs', точно: false,
+    текст: 'Отбоя не было, борьба продолжается!',
+    источник: 'девиз белой эмиграции, связанный с РОВС',
+    оговорка: 'Девиз без единого автора; в документах генералов первоисточник не найден.',
+    ситуации: ['hard', 'goal', 'honor'],
+    кЧему: 'Проиграть сражение — не значит проиграть войну. Долги, неудачный месяц, потерянные деньги — это не отбой, пока ты сам его не дал. Встань и продолжай: свобода достаётся тем, кто не сдаётся.',
+    en: {
+      текст: 'There was no retreat call — the struggle goes on!',
+      источник: 'motto of the White emigration, associated with the Russian All-Military Union',
+      кЧему: 'Losing a battle is not losing the war. Debts, a bad month, lost money — none of it is the retreat call until you sound it yourself. Get up and carry on: freedom goes to those who do not give up.',
+    },
+  }),
 ]
